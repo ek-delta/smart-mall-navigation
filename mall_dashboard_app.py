@@ -878,7 +878,7 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
 
         x_pts = [p[0] for p in coords] + [coords[0][0]]
         y_pts = [p[1] for p in coords] + [coords[0][1]]
-        z_pts = [z_level] * len(x_pts)
+        z_pts = [z_level* 40] * len(x_pts)
 
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
