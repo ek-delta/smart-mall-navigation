@@ -228,7 +228,6 @@ POI_TRANSLATIONS = {
         "P3": "🅿️Spot 3", "P4": "🅿️Spot 4",
         "P5": "🅿️Spot 5", "P6": "🅿️Spot 6",
         "P7": "🅿️Spot 7", "P8": "🅿️Spot 8",
-        "Rooftop_Ramp": "🚗 Entrance/Exit Ramp (R)",
     },
     "Simplified Chinese": {
         "A_L0_Entrance": "🚪正门入口 (底层)",
@@ -264,7 +263,6 @@ POI_TRANSLATIONS = {
         "P3": "🅿️停车位 3", "P4": "🅿️停车位 4",
         "P5": "🅿️停车位 5", "P6": "🅿️停车位 6",
         "P7": "🅿️停车位 7", "P8": "🅿️停车位 8",
-        "Rooftop_Ramp": "🚗 坡道 (入口/出口) (R)",
     },
     "Malay": {
         "A_L0_Entrance": "🚪Pintu Masuk Utama (Tingkat Bawah)",
@@ -300,7 +298,6 @@ POI_TRANSLATIONS = {
         "P3": "🅿️Tempat 3", "P4": "🅿️Tempat 4",
         "P5": "🅿️Tempat 5", "P6": "🅿️Tempat 6",
         "P7": "🅿️Tempat 7", "P8": "🅿️Tempat 8",
-        "Rooftop_Ramp": "🚗 Rampa Kenderaan (Masuk/Keluar) (R)",
     }
 }
 
@@ -468,7 +465,6 @@ ROOM_POLYGONS = {
     "P6":              {"z": 3, "coords": [(27, 47), (42, 47), (42, 65), (27, 65)], "color": "#4682B4"},
     "P7":              {"z": 3, "coords": [(44, 47), (59, 47), (59, 65), (44, 65)], "color": "#4682B4"},
     "P8":              {"z": 3, "coords": [(61, 47), (76, 47), (76, 65), (61, 65)], "color": "#4682B4"},
-    "Rooftop_Ramp":    {"z": 3, "coords": [(0.0, -5.0), (6.0, -5.0), (6.0, -18.0), (0.0, -18.0)], "color": "#A9A9A9"},
 }
 
 MULTI_CAD_NODES = {
@@ -494,14 +490,6 @@ MULTI_CAD_NODES = {
     "P_L3_Aisle_Main": (52.5, 37.5, 3.0),
     "P_L3_Elevator":   (87.5, 57.5, 3.0),
     "P_L3_Stairs":     (87.5, 17.5, 3.0),
-    "N_L1_ENTRANCE": (15.0, 2.0, 0),
-    "N_RF_CORRIDOR_1": (10.0, 15.0, 3),
-    "N_RF_CORRIDOR_2": (25.0, 15.0, 3),
-
-    # --- Rooftop Ramp Nodes (Z = 3) ---
-    "RAMP_ROOF_BOTTOM": (3.0, -18.0, 3),
-    "RAMP_ROOF_MID":    (3.0, -11.5, 3),
-    "RAMP_ROOF_TOP":    (3.0, -5.0,  3),
 }
 
 # Neighbouring nodes
@@ -550,13 +538,6 @@ MULTI_CAD_GRAPH = {
     },
     "P_L3_Elevator": {"P_L3_Aisle_Main": 40.0, "B_L2_Elevator": 15.0},
     "P_L3_Stairs":   {"P_L3_Aisle_Main": 40.0, "B_L2_Stairs": 15.0},
-    "N_RF_CORRIDOR_1": ["N_RF_CORRIDOR_2", "P-301", "P-302", "RAMP_ROOF_TOP"],
-    "N_RF_CORRIDOR_2": ["N_RF_CORRIDOR_1", "P-303", "P-304"],
-
-    # --- Rooftop Ramp Graph Connections ---
-    "RAMP_ROOF_BOTTOM": ["RAMP_ROOF_MID"],
-    "RAMP_ROOF_MID":    ["RAMP_ROOF_BOTTOM", "RAMP_ROOF_TOP"],
-    "RAMP_ROOF_TOP":    ["RAMP_ROOF_MID", "N_RF_CORRIDOR_1"],
 }
 
 PARKING_SLOTS = {
