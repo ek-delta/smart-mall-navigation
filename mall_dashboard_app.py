@@ -372,6 +372,9 @@ if "selected_dest" not in st.session_state:
 if "assigned_parking" not in st.session_state:
     st.session_state.assigned_parking = None
 
+if "clicked_location" not in st.session_state:
+    st.session_state.clicked_location = None
+
 DATASET_PATHS = ["/content/drive/MyDrive/FYP Smart Navigation/train-00", "./train-01", "./test-00"]
 
 # ==============================================================================
@@ -750,6 +753,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
                 text=translated_name,
+                customdata=[room_id] * len(x_coords),
                 showlegend=False,
             )
         )
@@ -1454,6 +1458,8 @@ with tab_map:
         horizontal=True
     )
 
+    selected_data = None
+
     if view_type == t["view_2d"]:
         floor_select = st.selectbox(
             t["active_floor"],
@@ -1461,10 +1467,67 @@ with tab_map:
             format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
         )
         fig_2d = render_2d_cad_view(floor_select, route_path=path, current_lang=st.session_state.lang)
-        st.plotly_chart(fig_2d, use_container_width=True)
+        
+        # Enable selection listening on Plotly click
+        selected_data = st.plotly_chart(
+            fig_2d, 
+            use_container_width=True, 
+            on_select="rerun", 
+            selection_mode="points"
+        )
     else:
         fig_3d = render_3d_isometric_view(route_path=path, current_lang=st.session_state.lang)
-        st.plotly_chart(fig_3d, use_container_width=True)
+        selected_data = st.plotly_chart(
+            fig_3d, 
+            use_container_width=True, 
+            on_select="rerun", 
+            selection_mode="points"
+        )
+
+    # Detect map click events
+    if selected_data and "selection" in selected_data and selected_data["selection"]["points"]:
+        point = selected_data["selection"]["points"][0]
+        clicked_id = None
+
+        # Check for customdata first, fallback to matching by text label
+        if "customdata" in point and point["customdata"]:
+            clicked_id = point["customdata"]
+        elif "text" in point:
+            raw_text = point["text"]
+            # Find matching room key from POI translations
+            for room_key in ROOM_POLYGONS.keys():
+                t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
+                if t_name == raw_text or room_key == raw_text:
+                    clicked_id = room_key
+                    break
+
+        if clicked_id and clicked_id in ROOM_POLYGONS:
+            st.session_state.clicked_location = clicked_id
+
+    # Display dynamic action bar when a location is clicked on the map
+    if st.session_state.clicked_location:
+        loc_id = st.session_state.clicked_location
+        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(loc_id, loc_id)
+        
+        st.info(f"📍 Selected on map: **{loc_name}**")
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
+        
+        with col_btn1:
+            if st.button("🚩 Set as Start", key="btn_set_start", use_container_width=True):
+                st.session_state.selected_start = loc_id
+                st.session_state.clicked_location = None
+                st.rerun()
+                
+        with col_btn2:
+            if st.button("🏁 Set as Destination", key="btn_set_dest", use_container_width=True):
+                st.session_state.selected_dest = loc_id
+                st.session_state.clicked_location = None
+                st.rerun()
+                
+        with col_btn3:
+            if st.button("❌ Cancel", key="btn_cancel_select", use_container_width=True):
+                st.session_state.clicked_location = None
+                st.rerun()
 
 # Directions tab
 with tab_dir:
