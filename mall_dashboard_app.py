@@ -782,10 +782,10 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     arrowwidth=2.5, arrowcolor="#CC0000"
                 )
 
-        if route_path and len(route_path) > 0:
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
+        # Draw Start Marker (Red) if on current active floor
         if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
             start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
             fig.add_trace(
@@ -798,10 +798,11 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     textposition="top right",
                     textfont=dict(color="#FF0000", size=12, family="Arial Black"),
                     name="Start Location",
-                    showlegend=False,
+                    showlegend=False
                 )
             )
 
+        # Draw Destination Marker (Green) if on current active floor
         if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
             dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
             fig.add_trace(
@@ -814,7 +815,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     textposition="top right",
                     textfont=dict(color="#00AA00", size=12, family="Arial Black"),
                     name="Destination",
-                    showlegend=False,
+                    showlegend=False
                 )
             )
 
