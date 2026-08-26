@@ -872,99 +872,147 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
 def render_3d_isometric_view(route_path=None, current_lang="English"):
     fig = go.Figure()
 
-    for room_id, info in ROOM_POLYGONS.items():
-        z_level = info["z"] * 40
-        coords = info["coords"]
-
-        x_pts = [p[0] for p in coords] + [coords[0][0]]
-        y_pts = [p[1] for p in coords] + [coords[0][1]]
-        z_pts = [z_level] * len(x_pts)
-
+    # 1. Render 3D extrusions and click-surfaces for each room
+    for room_id, poly in ROOM_POLYGONS.items():
+        coords = poly["coords"]
+        z_floor = poly["z"]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
-        fig.add_trace(go.Scatter3d(
-            x=x_pts, y=y_pts, z=z_pts,
-            mode="lines",
-            line=dict(color=info["color"], width=4),
-            name=translated_name,
-            showlegend=False
-        ))
+        x_coords = [c[0] for c in coords] + [coords[0][0]]
+        y_coords = [c[1] for c in coords] + [coords[0][1]]
+        z_coords = [z_floor * 40] * len(x_coords) 
 
-    if route_path and len(route_path) > 0:
-        sx, sy, sz = MULTI_CAD_NODES[route_path[0]]
-        dx, dy, dz = MULTI_CAD_NODES[route_path[-1]]
-
+        # 3D Store Boundary Outline
         fig.add_trace(
             go.Scatter3d(
-                x=[sx], y=[sy], z=[sz * 40],
-                mode="markers+text",
-                marker=dict(size=8, color="#FF0000"),
-                text=["Start"],
-                textposition="top center",
-                textfont=dict(color="#FF0000", size=11),
+                x=x_coords,
+                y=y_coords,
+                z=z_coords,
+                mode="lines",
+                line=dict(color="#2B6CB0", width=4),
+                hoverinfo="text",
+                text=translated_name,
+                customdata=[room_id] * len(x_coords),
                 showlegend=False
             )
         )
 
+        # 3D Clickable Surface Area (Mesh3d)
+        cx = sum([p[0] for p in coords]) / len(coords)
+        cy = sum([p[1] for p in coords]) / len(coords)
+        
+        # Create triangular faces from center to perimeter points
+        x_mesh = [cx] + [c[0] for c in coords]
+        y_mesh = [cy] + [c[1] for c in coords]
+        z_mesh = [z_floor * 40] * len(x_mesh)
+        
+        num_points = len(coords)
+        i_faces = [0] * num_points
+        j_faces = list(range(1, num_points + 1))
+        k_faces = list(range(2, num_points + 1)) + [1]
+
         fig.add_trace(
-            go.Scatter3d(
-                x=[dx], y=[dy], z=[dz * 40],
-                mode="markers+text",
-                marker=dict(size=8, color="#00FF00"),
-                text=["Destination"],
-                textposition="top center",
-                textfont=dict(color="#00AA00", size=11),
+            go.Mesh3d(
+                x=x_mesh,
+                y=y_mesh,
+                z=z_mesh,
+                i=i_faces,
+                j=j_faces,
+                k=k_faces,
+                color=poly.get("color", "#CBD5E0"),
+                opacity=0.4,
+                hoverinfo="text",
+                text=translated_name,
+                customdata=[room_id] * len(x_mesh),
                 showlegend=False
             )
         )
 
+        # 3D Store Labels
+        fig.add_trace(
+            go.Scatter3d(
+                x=[cx],
+                y=[cy],
+                z=[z_floor * 40 + 2],
+                mode="text",
+                text=[translated_name],
+                textfont=dict(color="#1A202C", size=10, family="Arial Black"),
+                hoverinfo="text",
+                customdata=[room_id],
+                showlegend=False
+            )
+        )
+
+    # 2. Render 3D Navigation Route Path
     if route_path and len(route_path) > 1:
-        rx = [MULTI_CAD_NODES[n][0] for n in route_path]
-        ry = [MULTI_CAD_NODES[n][1] for n in route_path]
-        rz = [MULTI_CAD_NODES[n][2] * 40 for n in route_path]
+        path_x = [MULTI_CAD_NODES[node][0] for node in route_path]
+        path_y = [MULTI_CAD_NODES[node][1] for node in route_path]
+        path_z = [MULTI_CAD_NODES[node][2] * 40 + 1 for node in route_path]
 
-        fig.add_trace(go.Scatter3d(
-            x=rx, y=ry, z=rz,
-            mode="lines+markers",
-            line=dict(color="#FF0000", width=6),
-            marker=dict(size=6, color="#8B0000"),
-            name="Route Path"
-        ))
+        fig.add_trace(
+            go.Scatter3d(
+                x=path_x,
+                y=path_y,
+                z=path_z,
+                mode="lines+markers",
+                line=dict(color="#FF0000", width=6),
+                marker=dict(size=4, color="#8B0000"),
+                name="Route Path 3D",
+                showlegend=False
+            )
+        )
 
-        cone_x, cone_y, cone_z = [], [], []
-        cone_u, cone_v, cone_w = [], [], []
+        # 3. Add 3D Start (Red) and Destination (Green) Markers
+        start_node = route_path[0]
+        dest_node = route_path[-1]
 
-        for i in range(len(route_path) - 1):
-            x1, y1, z1_idx = MULTI_CAD_NODES[route_path[i]]
-            x2, y2, z2_idx = MULTI_CAD_NODES[route_path[i+1]]
-            z1, z2 = z1_idx * 40, z2_idx * 40
+        sx, sy, sz = MULTI_CAD_NODES[start_node]
+        dx, dy, dz = MULTI_CAD_NODES[dest_node]
 
-            cone_x.append(x1 + 0.6 * (x2 - x1))
-            cone_y.append(y1 + 0.6 * (y2 - y1))
-            cone_z.append(z1 + 0.6 * (z2 - z1))
+        # Red Start Marker
+        fig.add_trace(
+            go.Scatter3d(
+                x=[sx], y=[sy], z=[sz * 40 + 4],
+                mode="markers+text",
+                marker=dict(size=10, color="#FF0000", symbol="circle"),
+                text=[" Start"],
+                textposition="top center",
+                textfont=dict(color="#FF0000", size=12, family="Arial Black"),
+                customdata=[start_node],
+                showlegend=False
+            )
+        )
 
-            cone_u.append(x2 - x1)
-            cone_v.append(y2 - y1)
-            cone_w.append(z2 - z1)
+        # Green Destination Marker
+        fig.add_trace(
+            go.Scatter3d(
+                x=[dx], y=[dy], z=[dz * 40 + 4],
+                mode="markers+text",
+                marker=dict(size=10, color="#00FF00", symbol="circle"),
+                text=[" Destination"],
+                textposition="top center",
+                textfont=dict(color="#00AA00", size=12, family="Arial Black"),
+                customdata=[dest_node],
+                showlegend=False
+            )
+        )
 
-        if cone_x:
-            fig.add_trace(go.Cone(
-                x=cone_x, y=cone_y, z=cone_z,
-                u=cone_u, v=cone_v, w=cone_w,
-                colorscale=[[0, '#CC0000'], [1, '#CC0000']],
-                showscale=False, sizemode="absolute", sizeref=8, anchor="tip"
-            ))
-
+    # 4. 3D Camera and Scene Configuration
     fig.update_layout(
         scene=dict(
-            xaxis=dict(title="X (m)"),
-            yaxis=dict(title="Y (m)"),
-            zaxis=dict(title="Floor Level"),
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=""),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=""),
+            zaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=""),
+            camera=dict(
+                eye=dict(x=1.5, y=-1.5, z=1.2)
+            ),
             aspectmode="data"
         ),
-        height=520,
-        margin=dict(l=0, r=0, t=0, b=0)
+        height=550,
+        margin=dict(l=0, r=0, t=0, b=0),
+        showlegend=False
     )
+
     return fig
     
 def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang="English"):
@@ -1484,14 +1532,22 @@ with tab_map:
         )
 
     # Detect map click events
+    # Process clicks for BOTH 2D and 3D views
     if selected_data and "selection" in selected_data and selected_data["selection"]["points"]:
         point = selected_data["selection"]["points"][0]
         clicked_id = None
 
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
+        # Robust extraction for 3D Mesh and Scatter points
+        if "customdata" in point and point["customdata"] is not None:
+            cdata = point["customdata"]
+            if isinstance(cdata, list) and len(cdata) > 0:
+                clicked_id = cdata[0]
+            else:
+                clicked_id = cdata
+        
+        # Fallback to label matching if customdata fails
+        if not clicked_id and "text" in point and point["text"]:
+            raw_text = str(point["text"]).strip().replace(" Start", "").replace(" Destination", "")
             for room_key in ROOM_POLYGONS.keys():
                 t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
                 if t_name == raw_text or room_key == raw_text:
@@ -1500,30 +1556,7 @@ with tab_map:
 
         if clicked_id and clicked_id in ROOM_POLYGONS:
             st.session_state.clicked_location = clicked_id
-
-    if st.session_state.clicked_location:
-        loc_id = st.session_state.clicked_location
-        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(loc_id, loc_id)
-        
-        st.info(f"📍 Selected on map: **{loc_name}**")
-        col_btn1, col_btn2, col_btn3 = st.columns(3)
-        
-        with col_btn1:
-            if st.button("🚩 Set as Start", key="btn_set_start", use_container_width=True):
-                st.session_state.selected_start = loc_id
-                st.session_state.clicked_location = None
-                st.rerun()
-                
-        with col_btn2:
-            if st.button("🏁 Set as Destination", key="btn_set_dest", use_container_width=True):
-                st.session_state.selected_dest = loc_id
-                st.session_state.clicked_location = None
-                st.rerun()
-                
-        with col_btn3:
-            if st.button("❌ Cancel", key="btn_cancel_select", use_container_width=True):
-                st.session_state.clicked_location = None
-                st.rerun()
+            st.rerun()
 
 # Directions tab
 with tab_dir:
