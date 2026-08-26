@@ -729,29 +729,33 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
-    for room_id, info in ROOM_POLYGONS.items():
-        if info["z"] == active_floor_z:
-            shape = draw_polygon_shape(info["coords"], info["color"])
-            fig.add_trace(shape)
+    # 1. Render room outlines and fills for the active floor
+    floor_rooms = {
+        r_id: poly["coords"]
+        for r_id, poly in ROOM_POLYGONS.items()
+        if poly["z"] == active_floor_z
+    }
 
-            cx = sum(p[0] for p in info["coords"]) / len(info["coords"])
-            cy = sum(p[1] for p in info["coords"]) / len(info["coords"])
+    for room_id, coords in floor_rooms.items():
+        x_coords = [c[0] for c in coords] + [coords[0][0]]
+        y_coords = [c[1] for c in coords] + [coords[0][1]]
+        room_info = ROOM_POLYGONS[room_id]
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
-            translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-
-            fig.add_trace(go.Scatter(
-                x=[cx], y=[cy],
-                text=[translated_name],
-                mode="text",
-                textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
-                ),
+        fig.add_trace(
+            go.Scatter(
+                x=x_coords,
+                y=y_coords,
+                fill="toself",
+                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
+                line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
-                showlegend=False
-            ))
+                text=translated_name,
+                showlegend=False,
+            )
+        )
 
+    # 2. Render navigation route path and directional arrows
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -759,14 +763,19 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
             path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
 
-            fig.add_trace(go.Scatter(
-                x=path_x, y=path_y,
-                mode="lines+markers",
-                line=dict(color="#FF0000", width=4, dash="solid"),
-                marker=dict(size=8, color="#8B0000"),
-                name="Route Path"
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=path_x,
+                    y=path_y,
+                    mode="lines+markers",
+                    line=dict(color="#FF0000", width=4, dash="solid"),
+                    marker=dict(size=8, color="#8B0000"),
+                    name="Route Path",
+                    showlegend=False
+                )
+            )
 
+            # Draw direction arrows along the segments
             for i in range(len(floor_path) - 1):
                 x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
                 x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
@@ -775,16 +784,26 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 y_mid = y_start + 0.6 * (y_end - y_start)
 
                 fig.add_annotation(
-                    x=x_mid, y=y_mid,
-                    ax=x_start, ay=y_start,
-                    xref="x", yref="y", axref="x", ayref="y",
-                    showarrow=True, arrowhead=2, arrowsize=1.5,
-                    arrowwidth=2.5, arrowcolor="#CC0000"
+                    x=x_mid,
+                    y=y_mid,
+                    ax=x_start,
+                    ay=y_start,
+                    xref="x",
+                    yref="y",
+                    axref="x",
+                    ayref="y",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1.5,
+                    arrowwidth=2.5,
+                    arrowcolor="#CC0000"
                 )
 
+        # 3. Add Start (Red) and Destination (Green) Markers
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
+        # Draw Start Marker (Red) if on current active floor
         if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
             start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
             fig.add_trace(
@@ -801,6 +820,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
+        # Draw Destination Marker (Green) if on current active floor
         if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
             dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
             fig.add_trace(
@@ -817,6 +837,29 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
+    # 4. Render Location Names LAST so they float on top of routes and markers
+    for room_id, coords in floor_rooms.items():
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        cx = sum([p[0] for p in coords]) / len(coords)
+        cy = sum([p[1] for p in coords]) / len(coords)
+
+        fig.add_trace(
+            go.Scatter(
+                x=[cx],
+                y=[cy],
+                text=[translated_name],
+                mode="text",
+                textfont=dict(
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
+                ),
+                hoverinfo="text",
+                showlegend=False
+            )
+        )
+
+    # 5. Apply layout and boundaries
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
@@ -827,6 +870,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         showlegend=False,
         plot_bgcolor="#F8F9FA"
     )
+
     return fig
     
 def render_3d_isometric_view(route_path=None, current_lang="English"):
