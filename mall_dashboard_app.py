@@ -755,42 +755,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
-        if route_path and len(route_path) > 0:
-        start_node_id = route_path[0]
-        dest_node_id = route_path[-1]
-
-        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
-            start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
-            fig.add_trace(
-                go.Scatter(
-                    x=[start_x],
-                    y=[start_y],
-                    mode="markers+text",
-                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
-                    text=[" Start"],
-                    textposition="top right",
-                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
-                    name="Start Location",
-                    showlegend=False,
-                )
-            )
-
-        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
-            dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
-            fig.add_trace(
-                go.Scatter(
-                    x=[dest_x],
-                    y=[dest_y],
-                    mode="markers+text",
-                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
-                    text=[" Destination"],
-                    textposition="top right",
-                    textfont=dict(color="#00AA00", size=12, family="Arial Black"),
-                    name="Destination",
-                    showlegend=False,
-                )
-            )
-
         if len(floor_path) > 1:
             path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
             path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
