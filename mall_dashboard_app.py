@@ -729,7 +729,6 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
-    # 1. Render room outlines and fills for the active floor
     floor_rooms = {
         r_id: poly["coords"]
         for r_id, poly in ROOM_POLYGONS.items()
@@ -755,7 +754,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             )
         )
 
-    # 2. Render navigation route path and directional arrows
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -775,7 +773,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-            # Draw direction arrows along the segments
             for i in range(len(floor_path) - 1):
                 x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
                 x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
@@ -799,11 +796,9 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     arrowcolor="#CC0000"
                 )
 
-        # 3. Add Start (Red) and Destination (Green) Markers
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
-        # Draw Start Marker (Red) if on current active floor
         if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
             start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
             fig.add_trace(
@@ -820,7 +815,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-        # Draw Destination Marker (Green) if on current active floor
         if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
             dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
             fig.add_trace(
@@ -837,7 +831,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-    # 4. Render Location Names LAST so they float on top of routes and markers
     for room_id, coords in floor_rooms.items():
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
         cx = sum([p[0] for p in coords]) / len(coords)
@@ -858,8 +851,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 showlegend=False
             )
         )
-
-    # 5. Apply layout and boundaries
+        
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
