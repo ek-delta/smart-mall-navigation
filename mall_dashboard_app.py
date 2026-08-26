@@ -228,6 +228,7 @@ POI_TRANSLATIONS = {
         "P3": "🅿️Spot 3", "P4": "🅿️Spot 4",
         "P5": "🅿️Spot 5", "P6": "🅿️Spot 6",
         "P7": "🅿️Spot 7", "P8": "🅿️Spot 8",
+        "Rooftop_Ramp": "🚗 Entrance/Exit Ramp (R)",
     },
     "Simplified Chinese": {
         "A_L0_Entrance": "🚪正门入口 (底层)",
@@ -263,6 +264,7 @@ POI_TRANSLATIONS = {
         "P3": "🅿️停车位 3", "P4": "🅿️停车位 4",
         "P5": "🅿️停车位 5", "P6": "🅿️停车位 6",
         "P7": "🅿️停车位 7", "P8": "🅿️停车位 8",
+        "Rooftop_Ramp": "🚗 坡道 (入口/出口) (R)",
     },
     "Malay": {
         "A_L0_Entrance": "🚪Pintu Masuk Utama (Tingkat Bawah)",
@@ -298,6 +300,7 @@ POI_TRANSLATIONS = {
         "P3": "🅿️Tempat 3", "P4": "🅿️Tempat 4",
         "P5": "🅿️Tempat 5", "P6": "🅿️Tempat 6",
         "P7": "🅿️Tempat 7", "P8": "🅿️Tempat 8",
+        "Rooftop_Ramp": "🚗 Rampa Kenderaan (Masuk/Keluar) (R)",
     }
 }
 
@@ -465,6 +468,7 @@ ROOM_POLYGONS = {
     "P6":              {"z": 3, "coords": [(27, 47), (42, 47), (42, 65), (27, 65)], "color": "#4682B4"},
     "P7":              {"z": 3, "coords": [(44, 47), (59, 47), (59, 65), (44, 65)], "color": "#4682B4"},
     "P8":              {"z": 3, "coords": [(61, 47), (76, 47), (76, 65), (61, 65)], "color": "#4682B4"},
+    "Rooftop_Ramp":    {"z": 3, "coords": [(0.0, -5.0), (6.0, -5.0), (6.0, -18.0), (0.0, -18.0)], "color": "#A9A9A9"},
 }
 
 MULTI_CAD_NODES = {
