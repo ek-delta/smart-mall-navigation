@@ -729,7 +729,32 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
-    
+    if len(floor_path) > 1:
+            path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
+            path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
+
+            fig.add_trace(go.Scatter(
+                x=path_x, y=path_y,
+                mode="lines+markers",
+                line=dict(color="#FF0000", width=4, dash="solid"),
+                marker=dict(size=8, color="#8B0000"),
+                name="Route Path"
+            ))
+
+            for i in range(len(floor_path) - 1):
+                x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
+                x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
+
+                x_mid = x_start + 0.6 * (x_end - x_start)
+                y_mid = y_start + 0.6 * (y_end - y_start)
+
+                fig.add_annotation(
+                    x=x_mid, y=y_mid,
+                    ax=x_start, ay=y_start,
+                    xref="x", yref="y", axref="x", ayref="y",
+                    showarrow=True, arrowhead=2, arrowsize=1.5,
+                    arrowwidth=2.5, arrowcolor="#CC0000"
+                )
 
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
@@ -773,32 +798,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-         if len(floor_path) > 1:
-            path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
-            path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
-
-            fig.add_trace(go.Scatter(
-                x=path_x, y=path_y,
-                mode="lines+markers",
-                line=dict(color="#FF0000", width=4, dash="solid"),
-                marker=dict(size=8, color="#8B0000"),
-                name="Route Path"
-            ))
-
-            for i in range(len(floor_path) - 1):
-                x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
-                x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
-
-                x_mid = x_start + 0.6 * (x_end - x_start)
-                y_mid = y_start + 0.6 * (y_end - y_start)
-
-                fig.add_annotation(
-                    x=x_mid, y=y_mid,
-                    ax=x_start, ay=y_start,
-                    xref="x", yref="y", axref="x", ayref="y",
-                    showarrow=True, arrowhead=2, arrowsize=1.5,
-                    arrowwidth=2.5, arrowcolor="#CC0000"
-                )
+         
 
         for room_id, info in ROOM_POLYGONS.items():
         if info["z"] == active_floor_z:
