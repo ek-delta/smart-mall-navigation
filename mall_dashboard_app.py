@@ -887,7 +887,6 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
             mode="lines",
             line=dict(color=info["color"], width=4),
             name=translated_name,
-            customdata=[room_id] * len(x_coords),
             showlegend=False
         ))
 
@@ -915,7 +914,6 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
                 text=["Destination"],
                 textposition="top center",
                 textfont=dict(color="#00AA00", size=11),
-                customdata=[room_id],
                 showlegend=False
             )
         )
