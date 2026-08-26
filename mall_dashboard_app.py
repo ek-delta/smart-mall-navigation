@@ -490,8 +490,13 @@ MULTI_CAD_NODES = {
     "P_L3_Aisle_Main": (52.5, 37.5, 3.0),
     "P_L3_Elevator":   (87.5, 57.5, 3.0),
     "P_L3_Stairs":     (87.5, 17.5, 3.0),
-    "RAMP_ROOF_BOTTOM": (3.0, -18.0, 3), 
-    "RAMP_ROOF_MID":    (3.0, -11.5, 3), 
+    "N_L1_ENTRANCE": (15.0, 2.0, 0),
+    "N_RF_CORRIDOR_1": (10.0, 15.0, 3),
+    "N_RF_CORRIDOR_2": (25.0, 15.0, 3),
+
+    # --- Rooftop Ramp Nodes (Z = 3) ---
+    "RAMP_ROOF_BOTTOM": (3.0, -18.0, 3),
+    "RAMP_ROOF_MID":    (3.0, -11.5, 3),
     "RAMP_ROOF_TOP":    (3.0, -5.0,  3),
 }
 
@@ -541,7 +546,11 @@ MULTI_CAD_GRAPH = {
     },
     "P_L3_Elevator": {"P_L3_Aisle_Main": 40.0, "B_L2_Elevator": 15.0},
     "P_L3_Stairs":   {"P_L3_Aisle_Main": 40.0, "B_L2_Stairs": 15.0},
-    "RAMP_ROOF_BOTTOM": ["RAMP_ROOF_MID", "LOWER_FLOOR_RAMP_NODE"],
+    "N_RF_CORRIDOR_1": ["N_RF_CORRIDOR_2", "P-301", "P-302", "RAMP_ROOF_TOP"],
+    "N_RF_CORRIDOR_2": ["N_RF_CORRIDOR_1", "P-303", "P-304"],
+
+    # --- Rooftop Ramp Graph Connections ---
+    "RAMP_ROOF_BOTTOM": ["RAMP_ROOF_MID"],
     "RAMP_ROOF_MID":    ["RAMP_ROOF_BOTTOM", "RAMP_ROOF_TOP"],
     "RAMP_ROOF_TOP":    ["RAMP_ROOF_MID", "N_RF_CORRIDOR_1"],
 }
