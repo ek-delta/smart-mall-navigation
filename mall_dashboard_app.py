@@ -1468,7 +1468,6 @@ with tab_map:
         )
         fig_2d = render_2d_cad_view(floor_select, route_path=path, current_lang=st.session_state.lang)
         
-        # Enable selection listening on Plotly click
         selected_data = st.plotly_chart(
             fig_2d, 
             use_container_width=True, 
@@ -1489,12 +1488,10 @@ with tab_map:
         point = selected_data["selection"]["points"][0]
         clicked_id = None
 
-        # Check for customdata first, fallback to matching by text label
         if "customdata" in point and point["customdata"]:
             clicked_id = point["customdata"]
         elif "text" in point:
             raw_text = point["text"]
-            # Find matching room key from POI translations
             for room_key in ROOM_POLYGONS.keys():
                 t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
                 if t_name == raw_text or room_key == raw_text:
@@ -1504,7 +1501,6 @@ with tab_map:
         if clicked_id and clicked_id in ROOM_POLYGONS:
             st.session_state.clicked_location = clicked_id
 
-    # Display dynamic action bar when a location is clicked on the map
     if st.session_state.clicked_location:
         loc_id = st.session_state.clicked_location
         loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(loc_id, loc_id)
