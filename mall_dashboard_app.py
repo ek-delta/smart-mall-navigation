@@ -1,3 +1,5 @@
+%%writefile mall_dashboard_app.py
+
 import math
 import heapq
 import os
