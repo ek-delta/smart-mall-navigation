@@ -729,9 +729,28 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
-    
+    for room_id, info in ROOM_POLYGONS.items():
+        if info["z"] == active_floor_z:
+            shape = draw_polygon_shape(info["coords"], info["color"])
+            fig.add_trace(shape)
 
-    
+            cx = sum(p[0] for p in info["coords"]) / len(info["coords"])
+            cy = sum(p[1] for p in info["coords"]) / len(info["coords"])
+
+            translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+
+            fig.add_trace(go.Scatter(
+                x=[cx], y=[cy],
+                text=[translated_name],
+                mode="text",
+                textfont=dict(
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
+                ),
+                hoverinfo="text",
+                showlegend=False
+            ))
 
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
@@ -797,31 +816,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     showlegend=False
                 )
             )
-
-        for room_id, info in ROOM_POLYGONS.items():
-        if info["z"] == active_floor_z:
-            shape = draw_polygon_shape(info["coords"], info["color"])
-            fig.add_trace(shape)
-
-            cx = sum(p[0] for p in info["coords"]) / len(info["coords"])
-            cy = sum(p[1] for p in info["coords"]) / len(info["coords"])
-
-            translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-
-            fig.add_trace(go.Scatter(
-                x=[cx], y=[cy],
-                text=[translated_name],
-                mode="text",
-                textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
-                ),
-                hoverinfo="text",
-                showlegend=False
-            ))
-
-        
 
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
