@@ -729,7 +729,14 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
-    if len(floor_path) > 1:
+    
+
+    
+
+    if route_path:
+        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
+
+        if len(floor_path) > 1:
             path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
             path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
 
@@ -756,15 +763,9 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     arrowwidth=2.5, arrowcolor="#CC0000"
                 )
 
-    if route_path:
-        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
-
-       
-
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
-        # Draw Start Marker (Red) if on current active floor
         if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
             start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
             fig.add_trace(
@@ -781,7 +782,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-        # Draw Destination Marker (Green) if on current active floor
         if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
             dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
             fig.add_trace(
@@ -797,8 +797,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     showlegend=False
                 )
             )
-
-         
 
         for room_id, info in ROOM_POLYGONS.items():
         if info["z"] == active_floor_z:
@@ -822,6 +820,8 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 hoverinfo="text",
                 showlegend=False
             ))
+
+        
 
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
