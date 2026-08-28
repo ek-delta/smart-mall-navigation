@@ -513,7 +513,7 @@ MULTI_CAD_NODES = {
     "A_L0_Restroom": [41.5, 30.0, 0],
     "A_L0_Elevator": [41.5, 14.0, 0],
     "A_L0_Escalator": [41.5, 0.0, 0],
-    "A_L0_Stairs": [41.5, -14.0, 0]
+    "A_L0_Stairs": [41.5, -14.0, 0],
 
     # 1st floor
     "A_L1_Hallway":    (55.0, 35.0, 1.0), "Tech Gadgets": (20.0, 22.5, 1.0), "Jewel Box": (20.0, 47.5, 1.0),
