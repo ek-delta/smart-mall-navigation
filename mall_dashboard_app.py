@@ -744,20 +744,24 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
+        # Add Room Polygons to 2D Plot
         fig.add_trace(
             go.Scatter(
                 x=x_coords,
                 y=y_coords,
                 fill="toself",
-                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
+                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.4)"),
                 line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
+                hoveron="fills",  # Allows clicking anywhere inside the shape
                 text=translated_name,
                 customdata=[room_id] * len(x_coords),
                 showlegend=False,
+                # CRITICAL FOR STREAMLIT SELECTION MODE:
+                selected=dict(marker=dict(opacity=1)),
+                unselected=dict(marker=dict(opacity=1))
             )
         )
-
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -1467,27 +1471,29 @@ with tab_map:
     # Process selection payload from whichever chart is active
     active_selection = None
 
-    if view_type == t["view_2d"]:
-        floor_select = st.selectbox(
-            t["active_floor"],
-            options=[0, 1, 2, 3],
-            format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
+    if view_mode == "2D CAD View":
+        fig_2d = render_2d_cad_view(
+            route_path=st.session_state.get("current_route"),
+            current_lang=st.session_state.lang
         )
-        fig_2d = render_2d_cad_view(floor_select, route_path=path, current_lang=st.session_state.lang)
-
-        selected_data = st.plotly_chart(
+        active_selection = st.plotly_chart(
             fig_2d,
             use_container_width=True,
             on_select="rerun",
-            selection_mode="points"
+            selection_mode="points",
+            key="map_2d_chart"
         )
     else:
-        fig_3d = render_3d_isometric_view(route_path=path, current_lang=st.session_state.lang)
-        selected_data = st.plotly_chart(
+        fig_3d = render_3d_isometric_view(
+            route_path=st.session_state.get("current_route"),
+            current_lang=st.session_state.lang
+        )
+        active_selection = st.plotly_chart(
             fig_3d,
             use_container_width=True,
             on_select="rerun",
-            selection_mode="points"
+            selection_mode="points",
+            key="map_3d_chart"
         )
 
     # Extract room ID from click interaction
