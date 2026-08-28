@@ -859,14 +859,13 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
-        xaxis=dict(range=[min_x, max_x], showgrid=True, zeroline=False),
-        yaxis=dict(range=[min_y, max_y], showgrid=True, zeroline=False, scaleanchor="x"),
-        height=480,
-        margin=dict(l=10, r=10, t=20, b=10),
+        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=True, zeroline=False, gridcolor="#E2E8F0"),
+        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=True, zeroline=False, gridcolor="#E2E8F0", scaleanchor="x"),
+        height=650,  
+        margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
-        plot_bgcolor="#F8F9FA"
+        plot_bgcolor="#F8FAFC"
     )
-
     return fig
 
 def render_3d_isometric_view(route_path=None, current_lang="English"):
@@ -957,12 +956,12 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
 
     fig.update_layout(
         scene=dict(
-            xaxis=dict(title="X (m)"),
-            yaxis=dict(title="Y (m)"),
-            zaxis=dict(title="Floor Level"),
+            xaxis=dict(title="X (m)", backgroundcolor="#F8FAFC"),
+            yaxis=dict(title="Y (m)", backgroundcolor="#F8FAFC"),
+            zaxis=dict(title="Floor Level", backgroundcolor="#F8FAFC"),
             aspectmode="data"
         ),
-        height=520,
+        height=680,  
         margin=dict(l=0, r=0, t=0, b=0)
     )
     return fig
