@@ -428,8 +428,8 @@ ROOM_POLYGONS = {
     "Fashion Hub":     {"z": 0, "coords": [(-15, -18), (-1, -18), (-1, -2), (-15, -2)], "color": "#E6E6FA"},
     "Mega Supermarket":{"z": 0, "coords": [(1, -18), (15, -18), (15, -2), (1, -2)], "color": "#98FB98"},
     "A_L0_Elevator":   {"z": 0, "coords": [(18, 5), (24, 5), (24, 11), (18, 11)], "color": "#FFD700"},
-    "A_L0_Stairs":     {"z": 0, "coords": [(25, 12), (31, 12), (31, 18), (25, 18)], "color": "#FF8C00"},
-    "A_L0_Escalator":  {"z": 0, "coords": [(18, 12), (24, 12), (24, 18), (18, 18)], "color": "#FFA07A"},
+    "A_L0_Stairs":     {"z": 0, "coords": [(18, -11), (24, -11), (24, -3), (18, -3)], "color": "#FF8C00"},
+    "A_L0_Escalator":  {"z": 0, "coords": [(18, -2), (24, -2), (24, 4), (18, 4)], "color": "#FFA07A"},
     "A_L0_Restroom":   {"z": 0, "coords": [(25, 5), (31, 5), (31, 11), (25, 11)], "color": "#E0FFFF"},
 
     # 1st floor
