@@ -561,7 +561,7 @@ MULTI_CAD_NODES = {
     "A_L1_Restroom": [42.5, 30.0, 1],
     "A_L1_Elevator": [42.5, 14.0, 1],
     "A_L1_Escalator": [42.5, -2.0, 1],
-    "A_L1_Stairs": [42.5, -18.0, 1]
+    "A_L1_Stairs": [42.5, -18.0, 1],
 
     # 2nd floor
     "B_L2_Corridor":   (55.0, 35.0, 2.0), "Cineplex Theater": (20.0, 22.5, 2.0), "VR World & Arcade": (20.0, 47.5, 2.0),
