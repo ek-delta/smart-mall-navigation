@@ -423,14 +423,14 @@ def get_location_icon(node_id):
 ROOM_POLYGONS = {
     # Ground floor
     "A_L0_Entrance":   {"z": 0, "coords": [(-25, -5), (-15, -5), (-15, 5), (-25, 5)], "color": "#708090"},
-    "A_L0_Lobby":      {"z": 0, "coords": [(-15, 5), (15, 5), (15, 20), (-15, 20)], "color": "#B0C4DE"},
-    "A_L0_Info":       {"z": 0, "coords": [(-18, 8), (-16, 8), (-16, 14), (-18, 14)], "color": "#ADD8E6"},
-    "Fashion Hub":     {"z": 0, "coords": [(-18, -20), (-1, -20), (-1, 2), (-18, 2)], "color": "#E6E6FA"},
-    "Mega Supermarket":{"z": 0, "coords": [(1, -20), (18, -20), (18, 2), (1, 2)], "color": "#98FB98"},
-    "A_L0_Elevator":   {"z": 0, "coords": [(20, 8), (26, 8), (26, 14), (20, 14)], "color": "#FFD700"},
+    "A_L0_Lobby":      {"z": 0, "coords": [(-15, 2), (15, 2), (15, 18), (-15, 18)], "color": "#B0C4DE"},
+    "A_L0_Info":       {"z": 0, "coords": [(-22, 7), (-17, 7), (-17, 12), (-22, 12)], "color": "#ADD8E6"},
+    "Fashion Hub":     {"z": 0, "coords": [(-15, -18), (-1, -18), (-1, -2), (-15, -2)], "color": "#E6E6FA"},
+    "Mega Supermarket":{"z": 0, "coords": [(1, -18), (15, -18), (15, -2), (1, -2)], "color": "#98FB98"},
+    "A_L0_Elevator":   {"z": 0, "coords": [(18, 5), (24, 5), (24, 11), (18, 11)], "color": "#FFD700"},
     "A_L0_Stairs":     {"z": 0, "coords": [(80, 10), (95, 10), (95, 25), (80, 25)], "color": "#FF8C00"},
     "A_L0_Escalator":  {"z": 0, "coords": [(80, 30), (95, 30), (95, 45), (80, 45)], "color": "#FFA07A"},
-    "A_L0_Restroom":   {"z": 0, "coords": [(27, 8), (33, 8), (33, 14), (27, 14)], "color": "#E0FFFF"},
+    "A_L0_Restroom":   {"z": 0, "coords": [(25, 5), (31, 5), (31, 11), (25, 11)], "color": "#E0FFFF"},
 
     # 1st floor
     "A_L1_Hallway":    {"z": 1, "coords": [(30, 10), (80, 10), (80, 60), (30, 60)], "color": "#87CEFA"},
@@ -469,8 +469,8 @@ ROOM_POLYGONS = {
 
 MULTI_CAD_NODES = {
     # Ground floor
-    "A_L0_Entrance":   (-20, 0.0, 0), "A_L0_Lobby": (0.0, 12.5, 0), "A_L0_Info": (-17.0, 11.0, 0),
-    "Fashion Hub":     (-9.5, -9.0, 0), "Mega Supermarket": (9.5, -9.0, 0),
+    "A_L0_Entrance":   (-20, 0.0, 0), "A_L0_Lobby": (0.0, 10.0, 0), "A_L0_Info": (-17.0, 11.0, 0),
+    "Fashion Hub":     (-8.0, -10.0, 0), "Mega Supermarket": (8.0, -10.0, 0),
     "A_L0_Elevator":   (23.0, 11.0, 0), "A_L0_Stairs": (87.5, 17.5, 0.0), "A_L0_Escalator": (87.5, 37.5, 0.0),
     "A_L0_Restroom":   (30.0, 11.0, 0),
 
