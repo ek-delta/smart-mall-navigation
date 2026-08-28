@@ -422,36 +422,36 @@ def get_location_icon(node_id):
 
 ROOM_POLYGONS = {
     # ==================== GROUND FLOOR (z=0) ====================
-    # Store Row (Ground Floor): Fashion Hub (Apparel), Mega Supermarket (Supermarket)
+    # Separate Wing Layout: Fashion Hub (West) vs. Mega Supermarket (East)
     "A_L0_Entrance":    {"z": 0, "coords": [[10, 5],  [30, 5],  [30, 25], [10, 25]], "color": "#708090"},
     "Fashion Hub":      {"z": 0, "coords": [[10, 25], [30, 25], [30, 55], [10, 55]], "color": "#E6E6FA"},
-    "A_L0_Lobby":       {"z": 0, "coords": [[30, 5],  [80, 5],  [80, 55], [30, 55]], "color": "#B0C4DE"},
-    "A_L0_Info":        {"z": 0, "coords": [[35, 10], [55, 10], [55, 28], [35, 28]], "color": "#ADD8E6"},
-    "Mega Supermarket": {"z": 0, "coords": [[55, 10], [75, 10], [75, 28], [55, 28]], "color": "#98FB98"},
-    "A_L0_Restroom":    {"z": 0, "coords": [[35, 32], [50, 32], [50, 50], [35, 50]], "color": "#E0FFFF"},
+    "A_L0_Lobby":       {"z": 0, "coords": [[30, 5],  [65, 5],  [65, 55], [30, 55]], "color": "#B0C4DE"},
+    "A_L0_Info":        {"z": 0, "coords": [[35, 10], [50, 10], [50, 28], [35, 28]], "color": "#ADD8E6"},
+    "A_L0_Restroom":    {"z": 0, "coords": [[52, 10], [62, 10], [62, 28], [52, 28]], "color": "#E0FFFF"},
+    "Mega Supermarket": {"z": 0, "coords": [[65, 5],  [80, 5],  [80, 55], [65, 55]], "color": "#98FB98"},
     "A_L0_Stairs":      {"z": 0, "coords": [[80, 5],  [95, 5],  [95, 20], [80, 20]], "color": "#FF8C00"},
     "A_L0_Escalator":   {"z": 0, "coords": [[80, 22], [95, 22], [95, 38], [80, 38]], "color": "#FFA07A"},
     "A_L0_Elevator":    {"z": 0, "coords": [[80, 40], [95, 40], [95, 55], [80, 55]], "color": "#FFD700"},
 
     # ==================== 1ST FLOOR (z=1) ====================
-    # Store Row (1st Floor): Tech Gadgets (Electronics), Jewel Box (Jewelry), Book Nook (Books)
+    # Distinct Separated Locations: Tech Gadgets (West), Jewel Box (Central-North), Book Nook (East)
     "Tech Gadgets":     {"z": 1, "coords": [[10, 5],  [30, 5],  [30, 30], [10, 30]], "color": "#9370DB"},
-    "Jewel Box":        {"z": 1, "coords": [[10, 30], [30, 30], [30, 55], [10, 55]], "color": "#D8BFD8"},
-    "A_L1_Hallway":     {"z": 1, "coords": [[30, 5],  [80, 5],  [80, 55], [30, 55]], "color": "#87CEFA"},
-    "Book Nook":        {"z": 1, "coords": [[35, 10], [55, 10], [55, 30], [35, 30]], "color": "#F5DEB3"},
-    "A_L1_Restroom":    {"z": 1, "coords": [[35, 35], [50, 35], [50, 50], [35, 50]], "color": "#E0FFFF"},
+    "A_L1_Hallway":     {"z": 1, "coords": [[30, 5],  [65, 5],  [65, 55], [30, 55]], "color": "#87CEFA"},
+    "Jewel Box":        {"z": 1, "coords": [[35, 35], [50, 35], [50, 50], [35, 50]], "color": "#D8BFD8"},
+    "A_L1_Restroom":    {"z": 1, "coords": [[52, 35], [62, 35], [62, 50], [52, 50]], "color": "#E0FFFF"},
+    "Book Nook":        {"z": 1, "coords": [[65, 5],  [80, 5],  [80, 55], [65, 55]], "color": "#F5DEB3"},
     "A_L1_Stairs":      {"z": 1, "coords": [[80, 5],  [95, 5],  [95, 20], [80, 20]], "color": "#FF8C00"},
     "A_L1_Escalator":   {"z": 1, "coords": [[80, 22], [95, 22], [95, 38], [80, 38]], "color": "#FFA07A"},
     "A_L1_Elevator":    {"z": 1, "coords": [[80, 40], [95, 40], [95, 55], [80, 55]], "color": "#FFD700"},
 
     # ==================== 2ND FLOOR (z=2) ====================
-    # Store Row (2nd Floor): Cineplex Theater (Cinema), VR World & Arcade (Arcade), Sky Food Court & Gourmet Bites (Food & Beverage)
+    # Distinct Dining Zones: Sky Food Court (South-Central) vs Gourmet Bites (East Wing)
     "Cineplex Theater": {"z": 2, "coords": [[10, 5],  [30, 5],  [30, 30], [10, 30]], "color": "#CD5C5C"},
     "VR World & Arcade":{"z": 2, "coords": [[10, 30], [30, 30], [30, 55], [10, 55]], "color": "#FF69B4"},
-    "B_L2_Corridor":    {"z": 2, "coords": [[30, 5],  [80, 5],  [80, 55], [30, 55]], "color": "#5F9EA0"},
-    "Sky Food Court":   {"z": 2, "coords": [[35, 10], [75, 10], [75, 30], [35, 30]], "color": "#FF7F50"},
-    "Gourmet Bites":    {"z": 2, "coords": [[35, 35], [55, 35], [55, 50], [35, 50]], "color": "#F4A460"},
-    "B_L2_Restroom":    {"z": 2, "coords": [[60, 35], [75, 35], [75, 50], [60, 50]], "color": "#E0FFFF"},
+    "B_L2_Corridor":    {"z": 2, "coords": [[30, 5],  [65, 5],  [65, 55], [30, 55]], "color": "#5F9EA0"},
+    "Sky Food Court":   {"z": 2, "coords": [[35, 10], [55, 10], [55, 30], [35, 30]], "color": "#FF7F50"},
+    "B_L2_Restroom":    {"z": 2, "coords": [[52, 35], [62, 35], [62, 50], [52, 50]], "color": "#E0FFFF"},
+    "Gourmet Bites":    {"z": 2, "coords": [[65, 5],  [80, 5],  [80, 55], [65, 55]], "color": "#F4A460"},
     "B_L2_Stairs":      {"z": 2, "coords": [[80, 5],  [95, 5],  [95, 20], [80, 20]], "color": "#FF8C00"},
     "B_L2_Escalator":   {"z": 2, "coords": [[80, 22], [95, 22], [95, 38], [80, 38]], "color": "#FFA07A"},
     "B_L2_Elevator":    {"z": 2, "coords": [[80, 40], [95, 40], [95, 55], [80, 55]], "color": "#FFD700"},
@@ -472,34 +472,34 @@ ROOM_POLYGONS = {
 
 # Calculated Centroids [x, y, z] for pathfinding and graph algorithms
 MULTI_CAD_NODES = {
-    # Ground Floor (Apparel & Supermarket)
+    # Ground Floor
     "A_L0_Entrance":    [20.0, 15.0, 0],
     "Fashion Hub":      [20.0, 40.0, 0],
-    "A_L0_Lobby":       [55.0, 30.0, 0],
-    "A_L0_Info":        [45.0, 19.0, 0],
-    "Mega Supermarket": [65.0, 19.0, 0],
-    "A_L0_Restroom":    [42.5, 41.0, 0],
+    "A_L0_Lobby":       [47.5, 30.0, 0],
+    "A_L0_Info":        [42.5, 19.0, 0],
+    "A_L0_Restroom":    [57.0, 19.0, 0],
+    "Mega Supermarket": [72.5, 30.0, 0],
     "A_L0_Stairs":      [87.5, 12.5, 0],
     "A_L0_Escalator":   [87.5, 30.0, 0],
     "A_L0_Elevator":    [87.5, 47.5, 0],
 
-    # 1st Floor (Electronics, Jewelry, Books)
+    # 1st Floor
     "Tech Gadgets":     [20.0, 17.5, 1],
-    "Jewel Box":        [20.0, 42.5, 1],
-    "A_L1_Hallway":     [55.0, 30.0, 1],
-    "Book Nook":        [45.0, 20.0, 1],
-    "A_L1_Restroom":    [42.5, 42.5, 1],
+    "A_L1_Hallway":     [47.5, 30.0, 1],
+    "Jewel Box":        [42.5, 42.5, 1],
+    "A_L1_Restroom":    [57.0, 42.5, 1],
+    "Book Nook":        [72.5, 30.0, 1],
     "A_L1_Stairs":      [87.5, 12.5, 1],
     "A_L1_Escalator":   [87.5, 30.0, 1],
     "A_L1_Elevator":    [87.5, 47.5, 1],
 
-    # 2nd Floor (Cinema, Arcade, Food & Beverage)
+    # 2nd Floor
     "Cineplex Theater": [20.0, 17.5, 2],
     "VR World & Arcade":[20.0, 42.5, 2],
-    "B_L2_Corridor":    [55.0, 30.0, 2],
-    "Sky Food Court":   [55.0, 20.0, 2],
-    "Gourmet Bites":    [45.0, 42.5, 2],
-    "B_L2_Restroom":    [67.5, 42.5, 2],
+    "B_L2_Corridor":    [47.5, 30.0, 2],
+    "Sky Food Court":   [45.0, 20.0, 2],
+    "B_L2_Restroom":    [57.0, 42.5, 2],
+    "Gourmet Bites":    [72.5, 30.0, 2],
     "B_L2_Stairs":      [87.5, 12.5, 2],
     "B_L2_Escalator":   [87.5, 30.0, 2],
     "B_L2_Elevator":    [87.5, 47.5, 2],
