@@ -471,8 +471,8 @@ MULTI_CAD_NODES = {
     # Ground floor
     "A_L0_Entrance":   (-20, 0.0, 0), "A_L0_Lobby": (0.0, 10.0, 0), "A_L0_Info": (-17.0, 11.0, 0),
     "Fashion Hub":     (-8.0, -10.0, 0), "Mega Supermarket": (8.0, -10.0, 0),
-    "A_L0_Elevator":   (23.0, 11.0, 0), "A_L0_Stairs": (28.0, 15.0, 0), "A_L0_Escalator": (21.0, 15.0, 0),
-    "A_L0_Restroom":   (30.0, 11.0, 0),
+    "A_L0_Elevator":   (21.0, 8.0, 0), "A_L0_Stairs": (21.0, -7.0, 0), "A_L0_Escalator": (21.0, 1.0, 0),
+    "A_L0_Restroom":   (28.0, 8.0, 0),
 
     # 1st floor
     "A_L1_Hallway":    (55.0, 35.0, 1.0), "Tech Gadgets": (20.0, 22.5, 1.0), "Jewel Box": (20.0, 47.5, 1.0),
