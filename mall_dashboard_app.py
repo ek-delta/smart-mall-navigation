@@ -422,7 +422,7 @@ def get_location_icon(node_id):
 
 ROOM_POLYGONS = {
     # Ground floor
-    "A_L0_Entrance":   {"z": 0, "coords": [(-25, -5), (-20, -5), (-20, 5), (-25, 5)], "color": "#708090"},
+    "A_L0_Entrance":   {"z": 0, "coords": [(-25, -5), (-15, -5), (-15, 5), (-25, 5)], "color": "#708090"},
     "A_L0_Lobby":      {"z": 0, "coords": [(-15, 5), (15, 5), (15, 20), (-15, 20)], "color": "#B0C4DE"},
     "A_L0_Info":       {"z": 0, "coords": [(-18, 8), (-16, 8), (-16, 14), (-18, 14)], "color": "#ADD8E6"},
     "Fashion Hub":     {"z": 0, "coords": [(-18, -20), (-1, -20), (-1, 2), (-18, 2)], "color": "#E6E6FA"},
@@ -469,7 +469,7 @@ ROOM_POLYGONS = {
 
 MULTI_CAD_NODES = {
     # Ground floor
-    "A_L0_Entrance":   (-22.5, 0.0, 0), "A_L0_Lobby": (0.0, 12.5, 0), "A_L0_Info": (-17.0, 11.0, 0),
+    "A_L0_Entrance":   (-20, 0.0, 0), "A_L0_Lobby": (0.0, 12.5, 0), "A_L0_Info": (-17.0, 11.0, 0),
     "Fashion Hub":     (-9.5, -9.0, 0), "Mega Supermarket": (9.5, -9.0, 0),
     "A_L0_Elevator":   (23.0, 11.0, 0), "A_L0_Stairs": (87.5, 17.5, 0.0), "A_L0_Escalator": (87.5, 37.5, 0.0),
     "A_L0_Restroom":   (30.0, 11.0, 0),
