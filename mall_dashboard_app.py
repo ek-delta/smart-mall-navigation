@@ -1467,29 +1467,27 @@ with tab_map:
     # Process selection payload from whichever chart is active
     active_selection = None
 
-    if view_mode == "2D CAD View":
-        fig_2d = render_2d_cad_view(
-            route_path=st.session_state.get("current_route"),
-            current_lang=st.session_state.lang
+    if view_type == t["view_2d"]:
+        floor_select = st.selectbox(
+            t["active_floor"],
+            options=[0, 1, 2, 3],
+            format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
         )
-        active_selection = st.plotly_chart(
+        fig_2d = render_2d_cad_view(floor_select, route_path=path, current_lang=st.session_state.lang)
+
+        selected_data = st.plotly_chart(
             fig_2d,
             use_container_width=True,
             on_select="rerun",
-            selection_mode="points",
-            key="map_2d_chart"
+            selection_mode="points"
         )
     else:
-        fig_3d = render_3d_isometric_view(
-            route_path=st.session_state.get("current_route"),
-            current_lang=st.session_state.lang
-        )
-        active_selection = st.plotly_chart(
+        fig_3d = render_3d_isometric_view(route_path=path, current_lang=st.session_state.lang)
+        selected_data = st.plotly_chart(
             fig_3d,
             use_container_width=True,
             on_select="rerun",
-            selection_mode="points",
-            key="map_3d_chart"
+            selection_mode="points"
         )
 
     # Extract room ID from click interaction
