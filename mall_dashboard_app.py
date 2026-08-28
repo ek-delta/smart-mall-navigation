@@ -758,7 +758,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 showlegend=False,
             )
         )
-        )
+        
 
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
