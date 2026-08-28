@@ -900,12 +900,23 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
-        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=True, zeroline=False, gridcolor="#E2E8F0"),
-        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=True, zeroline=False, gridcolor="#E2E8F0", scaleanchor="x"),
         height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
-        plot_bgcolor="#F8FAFC"
+        plot_bgcolor="#FFB6C1",
+        paper_bgcolor="#FFB6C1",
+        xaxis=dict(
+            showgrid=False,       
+            zeroline=False,       
+            showticklabels=False, 
+            visible=False         
+        ),
+        yaxis=dict(
+            showgrid=False,       
+            zeroline=False,       
+            showticklabels=False,
+            visible=False         
+        )
     )
     return fig
 
