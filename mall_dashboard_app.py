@@ -848,10 +848,6 @@ MULTI_CAD_GRAPH = {
         "P_L3_Aisle_Main": 35.36,
         "P_L3_Restroom": 18.94
     },
-    "P_L3_Restroom": {
-        "P_L3_Elevator": 16.0,
-        "P8": 18.94
-    },
     "P_L3_Elevator": {
         "P_L3_Aisle_Main": 42.92,
         "P_L3_Restroom": 16.0,
