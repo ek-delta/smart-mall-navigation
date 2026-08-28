@@ -869,103 +869,19 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
 
     return fig
 
-def render_3d_isometric_view(route_path=None, current_lang="English"):
-    fig = go.Figure()
+# Render the 3D map with selection tracking enabled
+fig_3d = render_3d_isometric_view(
+    route_path=st.session_state.get("current_route"),
+    current_lang=st.session_state.lang
+)
 
-    for room_id, info in ROOM_POLYGONS.items():
-        z_level = info["z"] * 40
-        coords = info["coords"]
-
-        x_pts = [p[0] for p in coords] + [coords[0][0]]
-        y_pts = [p[1] for p in coords] + [coords[0][1]]
-        z_pts = [z_level] * len(x_pts)
-
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-
-        fig.add_trace(go.Scatter3d(
-            x=x_pts, y=y_pts, z=z_pts,
-            mode="lines",
-            line=dict(color=info["color"], width=4),
-            name=translated_name,
-            showlegend=False
-        ))
-
-    if route_path and len(route_path) > 0:
-        sx, sy, sz = MULTI_CAD_NODES[route_path[0]]
-        dx, dy, dz = MULTI_CAD_NODES[route_path[-1]]
-
-        fig.add_trace(
-            go.Scatter3d(
-                x=[sx], y=[sy], z=[sz * 40],
-                mode="markers+text",
-                marker=dict(size=8, color="#FF0000"),
-                text=["Start"],
-                textposition="top center",
-                textfont=dict(color="#FF0000", size=11),
-                showlegend=False
-            )
-        )
-
-        fig.add_trace(
-            go.Scatter3d(
-                x=[dx], y=[dy], z=[dz * 40],
-                mode="markers+text",
-                marker=dict(size=8, color="#00FF00"),
-                text=["Destination"],
-                textposition="top center",
-                textfont=dict(color="#00AA00", size=11),
-                showlegend=False
-            )
-        )
-
-    if route_path and len(route_path) > 1:
-        rx = [MULTI_CAD_NODES[n][0] for n in route_path]
-        ry = [MULTI_CAD_NODES[n][1] for n in route_path]
-        rz = [MULTI_CAD_NODES[n][2] * 40 for n in route_path]
-
-        fig.add_trace(go.Scatter3d(
-            x=rx, y=ry, z=rz,
-            mode="lines+markers",
-            line=dict(color="#FF0000", width=6),
-            marker=dict(size=6, color="#8B0000"),
-            name="Route Path"
-        ))
-
-        cone_x, cone_y, cone_z = [], [], []
-        cone_u, cone_v, cone_w = [], [], []
-
-        for i in range(len(route_path) - 1):
-            x1, y1, z1_idx = MULTI_CAD_NODES[route_path[i]]
-            x2, y2, z2_idx = MULTI_CAD_NODES[route_path[i+1]]
-            z1, z2 = z1_idx * 40, z2_idx * 40
-
-            cone_x.append(x1 + 0.6 * (x2 - x1))
-            cone_y.append(y1 + 0.6 * (y2 - y1))
-            cone_z.append(z1 + 0.6 * (z2 - z1))
-
-            cone_u.append(x2 - x1)
-            cone_v.append(y2 - y1)
-            cone_w.append(z2 - z1)
-
-        if cone_x:
-            fig.add_trace(go.Cone(
-                x=cone_x, y=cone_y, z=cone_z,
-                u=cone_u, v=cone_v, w=cone_w,
-                colorscale=[[0, '#CC0000'], [1, '#CC0000']],
-                showscale=False, sizemode="absolute", sizeref=8, anchor="tip"
-            ))
-
-    fig.update_layout(
-        scene=dict(
-            xaxis=dict(title="X (m)"),
-            yaxis=dict(title="Y (m)"),
-            zaxis=dict(title="Floor Level"),
-            aspectmode="data"
-        ),
-        height=520,
-        margin=dict(l=0, r=0, t=0, b=0)
-    )
-    return fig
+selected_3d_data = st.plotly_chart(
+    fig_3d,
+    use_container_width=True,
+    on_select="rerun",
+    selection_mode="points",
+    key="map_3d_chart"
+)
 
 def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang="English"):
     fig = go.Figure()
@@ -1483,22 +1399,32 @@ with tab_map:
             selection_mode="points"
         )
 
-    if selected_data and "selection" in selected_data and selected_data["selection"]["points"]:
-        point = selected_data["selection"]["points"][0]
-        clicked_id = None
+    # Unify 2D or 3D chart selection events
+active_selection = selected_data or selected_3d_data
 
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
+if active_selection and "selection" in active_selection and active_selection["selection"].get("points"):
+    point = active_selection["selection"]["points"][0]
+    clicked_id = None
 
-        if clicked_id and clicked_id in ROOM_POLYGONS:
-            st.session_state.clicked_location = clicked_id
+    # Check customdata array/scalar
+    if "customdata" in point and point["customdata"] is not None:
+        cdata = point["customdata"]
+        clicked_id = cdata[0] if isinstance(cdata, (list, tuple)) else cdata
+
+    # Fallback to label matching via text
+    elif "text" in point:
+        raw_text = point["text"]
+        if isinstance(raw_text, (list, tuple)):
+            raw_text = raw_text[0]
+        for room_key in ROOM_POLYGONS.keys():
+            t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
+            if t_name == raw_text or room_key == raw_text:
+                clicked_id = room_key
+                break
+
+    if clicked_id and clicked_id in ROOM_POLYGONS:
+        st.session_state.clicked_location = clicked_id
+        st.rerun()
 
     if st.session_state.clicked_location:
         loc_id = st.session_state.clicked_location
