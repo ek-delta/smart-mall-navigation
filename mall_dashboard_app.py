@@ -509,7 +509,7 @@ MULTI_CAD_NODES = {
     "A_L0_Entrance": [-40.5, 8.0, 0],
     "A_L0_Info": [-40.5, 30.0, 0],
     "Mega Supermarket": [0.0, 34.0, 0],
-    "Fashion Hub": [0.0, -18.0, 0]
+    "Fashion Hub": [0.0, -18.0, 0],
     "A_L0_Restroom": [36.0, 26.0, 0],
     "A_L0_Elevator": [36.0, 12.0, 0],
     "A_L0_Escalator": [36.0, -2.0, 0],
