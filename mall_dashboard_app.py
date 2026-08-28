@@ -422,49 +422,49 @@ def get_location_icon(node_id):
 
 ROOM_POLYGONS = {
     # Ground floor
-    "A_L0_Entrance": {
-        "z": 0,
-        "coords": [(-48, -4), (-33, -4), (-33, 20), (-48, 20)],
-        "color": "#708090"
-    },
-    "A_L0_Info": {
-        "z": 0,
-        "coords": [(-48, 24), (-33, 24), (-33, 36), (-48, 36)],
-        "color": "#ADD8E6"
-    },
     "Mega Supermarket": {
         "z": 0,
         "coords": [(-30, 24), (30, 24), (30, 44), (-30, 44)],
         "color": "#98FB98"
-    },
-    "Fashion Hub": {
-        "z": 0,
-        "coords": [(-30, -28), (30, -28), (30, -8), (-30, -8)],
-        "color": "#E6E6FA"
     },
     "A_L0_Lobby": {
         "z": 0,
         "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)],
         "color": "#B0C4DE"
     },
+    "Fashion Hub": {
+        "z": 0,
+        "coords": [(-30, -28), (30, -28), (30, -8), (-30, -8)],
+        "color": "#E6E6FA"
+    },
+    "A_L0_Info": {
+        "z": 0,
+        "coords": [(-50, 24), (-35, 24), (-35, 36), (-50, 36)],
+        "color": "#ADD8E6"
+    },
+    "A_L0_Entrance": {
+        "z": 0,
+        "coords": [(-50, 4), (-35, 4), (-35, 16), (-50, 16)],
+        "color": "#708090"
+    },
     "A_L0_Restroom": {
         "z": 0,
-        "coords": [(35, 24), (48, 24), (48, 36), (35, 36)],
+        "coords": [(35, 24), (50, 24), (50, 36), (35, 36)],
         "color": "#E0FFFF"
     },
     "A_L0_Elevator": {
         "z": 0,
-        "coords": [(35, 8), (48, 8), (48, 20), (35, 20)],
+        "coords": [(35, 8), (50, 8), (50, 20), (35, 20)],
         "color": "#FFD700"
     },
     "A_L0_Escalator": {
         "z": 0,
-        "coords": [(35, -6), (48, -6), (48, 6), (35, 6)],
+        "coords": [(35, -8), (50, -8), (50, 4), (35, 4)],
         "color": "#FFA07A"
     },
     "A_L0_Stairs": {
         "z": 0,
-        "coords": [(35, -20), (48, -20), (48, -8), (35, -8)],
+        "coords": [(35, -24), (50, -24), (50, -12), (35, -12)],
         "color": "#FF8C00"
     },
 
@@ -505,15 +505,15 @@ ROOM_POLYGONS = {
 
 MULTI_CAD_NODES = {
     # Ground floor
-    "A_L0_Lobby": [0.0, 8.0, 0],
-    "A_L0_Entrance": [-40.5, 8.0, 0],
-    "A_L0_Info": [-40.5, 30.0, 0],
     "Mega Supermarket": [0.0, 34.0, 0],
+    "A_L0_Lobby": [0.0, 8.0, 0],
     "Fashion Hub": [0.0, -18.0, 0],
-    "A_L0_Restroom": [41.5, 30.0, 0],
-    "A_L0_Elevator": [41.5, 14.0, 0],
-    "A_L0_Escalator": [41.5, 0.0, 0],
-    "A_L0_Stairs": [41.5, -14.0, 0],
+    "A_L0_Info": [-42.5, 30.0, 0],
+    "A_L0_Entrance": [-42.5, 10.0, 0],
+    "A_L0_Restroom": [42.5, 30.0, 0],
+    "A_L0_Elevator": [42.5, 14.0, 0],
+    "A_L0_Escalator": [42.5, -2.0, 0],
+    "A_L0_Stairs": [42.5, -18.0, 0],
 
     # 1st floor
     "A_L1_Hallway":    (55.0, 35.0, 1.0), "Tech Gadgets": (20.0, 22.5, 1.0), "Jewel Box": (20.0, 47.5, 1.0),
