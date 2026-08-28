@@ -1451,97 +1451,100 @@ with tab_home:
 
 # Mall map tab
 with tab_map:
-    view_type = st.radio(
-        t["view_mode"],
-        options=[t["view_2d"], t["view_3d"]],
-        horizontal=True
+    # --------------------------------------------------------------------------
+    # 1. Map View Toggle (2D CAD vs 3D Isometric)
+    # --------------------------------------------------------------------------
+    view_mode = st.radio(
+        label="Select Map Mode",
+        options=["2D CAD View", "3D Isometric View"],
+        horizontal=True,
+        label_visibility="collapsed"
     )
 
-    selected_data = None
+    # --------------------------------------------------------------------------
+    # 2. Click-to-Select Location Event Handler
+    # --------------------------------------------------------------------------
+    # Process selection payload from whichever chart is active
+    active_selection = None
 
-    if view_type == t["view_2d"]:
-        floor_select = st.selectbox(
-            t["active_floor"],
-            options=[0, 1, 2, 3],
-            format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
+    if view_mode == "2D CAD View":
+        fig_2d = render_2d_cad_view(
+            route_path=st.session_state.get("current_route"),
+            current_lang=st.session_state.lang
         )
-        fig_2d = render_2d_cad_view(floor_select, route_path=path, current_lang=st.session_state.lang)
-
-        selected_data = st.plotly_chart(
+        active_selection = st.plotly_chart(
             fig_2d,
             use_container_width=True,
             on_select="rerun",
-            selection_mode="points"
+            selection_mode="points",
+            key="map_2d_chart"
         )
     else:
-        
-
-        # Render the 3D map with selection tracking enabled
         fig_3d = render_3d_isometric_view(
             route_path=st.session_state.get("current_route"),
             current_lang=st.session_state.lang
         )
-
-        selected_3d_data = st.plotly_chart(
-           fig_3d,
-           use_container_width=True,
-           on_select="rerun",
-           selection_mode="points",
-           key="map_3d_chart"
+        active_selection = st.plotly_chart(
+            fig_3d,
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="points",
+            key="map_3d_chart"
         )
-        
 
-    # Unify 2D or 3D chart selection events
-active_selection = selected_data or selected_3d_data
+    # Extract room ID from click interaction
+    if active_selection and "selection" in active_selection and active_selection["selection"].get("points"):
+        point = active_selection["selection"]["points"][0]
+        clicked_id = None
 
-if active_selection and "selection" in active_selection and active_selection["selection"].get("points"):
-    point = active_selection["selection"]["points"][0]
-    clicked_id = None
+        # Method A: Extract room_id directly from customdata
+        if "customdata" in point and point["customdata"] is not None:
+            cdata = point["customdata"]
+            clicked_id = cdata[0] if isinstance(cdata, (list, tuple)) else cdata
 
-    # Check customdata array/scalar
-    if "customdata" in point and point["customdata"] is not None:
-        cdata = point["customdata"]
-        clicked_id = cdata[0] if isinstance(cdata, (list, tuple)) else cdata
+        # Method B: Fallback string matching on point text
+        elif "text" in point and point["text"]:
+            raw_text = point["text"]
+            if isinstance(raw_text, (list, tuple)):
+                raw_text = raw_text[0]
+            
+            for room_key in ROOM_POLYGONS.keys():
+                t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
+                if t_name == raw_text or room_key == raw_text:
+                    clicked_id = room_key
+                    break
 
-    # Fallback to label matching via text
-    elif "text" in point:
-        raw_text = point["text"]
-        if isinstance(raw_text, (list, tuple)):
-            raw_text = raw_text[0]
-        for room_key in ROOM_POLYGONS.keys():
-            t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
-            if t_name == raw_text or room_key == raw_text:
-                clicked_id = room_key
-                break
+        # Apply clicked location to state
+        if clicked_id and clicked_id in ROOM_POLYGONS:
+            st.session_state.clicked_location = clicked_id
 
-    if clicked_id and clicked_id in ROOM_POLYGONS:
-        st.session_state.clicked_location = clicked_id
-        st.rerun()
+    # --------------------------------------------------------------------------
+    # 3. Interactive Location Assignment Controls
+    # --------------------------------------------------------------------------
+    if st.session_state.get("clicked_location"):
+        clicked_loc = st.session_state.clicked_location
+        translated_clicked = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(clicked_loc, clicked_loc)
 
-    if st.session_state.clicked_location:
-        loc_id = st.session_state.clicked_location
-        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(loc_id, loc_id)
+        st.info(f"📍 Selected Location from Map: **{translated_clicked}**")
 
-        st.info(f"📍 Selected on map: **{loc_name}**")
-        col_btn1, col_btn2, col_btn3 = st.columns(3)
+        btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 1])
 
-        with col_btn1:
-            if st.button("🚩 Set as Start", key="btn_set_start", use_container_width=True):
-                st.session_state.selected_start = loc_id
+        with btn_col1:
+            if st.button("Set as Starting Point", use_container_width=True):
+                st.session_state.start_node = clicked_loc
                 st.session_state.clicked_location = None
                 st.rerun()
 
-        with col_btn2:
-            if st.button("🏁 Set as Destination", key="btn_set_dest", use_container_width=True):
-                st.session_state.selected_dest = loc_id
+        with btn_col2:
+            if st.button("Set as Destination", use_container_width=True):
+                st.session_state.end_node = clicked_loc
                 st.session_state.clicked_location = None
                 st.rerun()
 
-        with col_btn3:
-            if st.button("❌ Cancel", key="btn_cancel_select", use_container_width=True):
+        with btn_col3:
+            if st.button("Cancel Selection", use_container_width=True):
                 st.session_state.clicked_location = None
                 st.rerun()
-
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
