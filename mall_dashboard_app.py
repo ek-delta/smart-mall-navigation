@@ -494,7 +494,7 @@ MULTI_CAD_NODES = {
 
 # Neighbouring nodes
 MULTI_CAD_GRAPH = {
-    # Ground floor 
+    # Ground floor
     "A_L0_Entrance": {"A_L0_Lobby": 35.0, "Fashion Hub": 27.5},
     "Fashion Hub":   {"A_L0_Entrance": 27.5, "A_L0_Lobby": 37.5},
     "A_L0_Lobby":    {"A_L0_Entrance": 35.0, "Fashion Hub": 37.5, "A_L0_Info": 16.0, "Mega Supermarket": 20.0, "A_L0_Restroom": 15.0, "A_L0_Elevator": 38.0, "A_L0_Stairs": 38.0, "A_L0_Escalator": 33.0},
@@ -505,7 +505,7 @@ MULTI_CAD_GRAPH = {
     "A_L0_Stairs":   {"A_L0_Lobby": 38.0, "A_L1_Stairs": 15.0},
     "A_L0_Escalator":{"A_L0_Lobby": 33.0, "A_L1_Escalator": 12.0},
 
-    # 1st floor 
+    # 1st floor
     "A_L1_Elevator": {"A_L0_Elevator": 15.0, "A_L1_Hallway": 38.0, "B_L2_Elevator": 15.0},
     "A_L1_Stairs":   {"A_L0_Stairs": 15.0, "A_L1_Hallway": 38.0, "B_L2_Stairs": 15.0},
     "A_L1_Escalator":{"A_L0_Escalator": 12.0, "A_L1_Hallway": 33.0, "B_L2_Escalator": 12.0},
@@ -855,7 +855,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 showlegend=False
             )
         )
-        
+
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
@@ -868,7 +868,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     )
 
     return fig
-    
+
 def render_3d_isometric_view(route_path=None, current_lang="English"):
     fig = go.Figure()
 
@@ -887,9 +887,6 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
             mode="lines",
             line=dict(color=info["color"], width=4),
             name=translated_name,
-            text=[translated_name] * len(x_pts),
-            customdata=[room_id] * len(x_pts),  # Pass room_id to click events
-            hoverinfo="text",
             showlegend=False
         ))
 
@@ -969,7 +966,7 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
         margin=dict(l=0, r=0, t=0, b=0)
     )
     return fig
-    
+
 def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang="English"):
     fig = go.Figure()
 
@@ -1451,7 +1448,7 @@ with tab_home:
 
     st.divider()
 
-    
+
 
 # Mall map tab
 with tab_map:
@@ -1470,19 +1467,19 @@ with tab_map:
             format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
         )
         fig_2d = render_2d_cad_view(floor_select, route_path=path, current_lang=st.session_state.lang)
-        
+
         selected_data = st.plotly_chart(
-            fig_2d, 
-            use_container_width=True, 
-            on_select="rerun", 
+            fig_2d,
+            use_container_width=True,
+            on_select="rerun",
             selection_mode="points"
         )
     else:
         fig_3d = render_3d_isometric_view(route_path=path, current_lang=st.session_state.lang)
         selected_data = st.plotly_chart(
-            fig_3d, 
-            use_container_width=True, 
-            on_select="rerun", 
+            fig_3d,
+            use_container_width=True,
+            on_select="rerun",
             selection_mode="points"
         )
 
@@ -1491,13 +1488,9 @@ with tab_map:
         clicked_id = None
 
         if "customdata" in point and point["customdata"]:
-            cdata = point["customdata"]
-            # Handle both scalar strings (2D) and list formats (3D)
-            clicked_id = cdata[0] if isinstance(cdata, list) else cdata
+            clicked_id = point["customdata"]
         elif "text" in point:
             raw_text = point["text"]
-            if isinstance(raw_text, list):
-                raw_text = raw_text[0]
             for room_key in ROOM_POLYGONS.keys():
                 t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
                 if t_name == raw_text or room_key == raw_text:
@@ -1506,6 +1499,30 @@ with tab_map:
 
         if clicked_id and clicked_id in ROOM_POLYGONS:
             st.session_state.clicked_location = clicked_id
+
+    if st.session_state.clicked_location:
+        loc_id = st.session_state.clicked_location
+        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(loc_id, loc_id)
+
+        st.info(f"📍 Selected on map: **{loc_name}**")
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+        with col_btn1:
+            if st.button("🚩 Set as Start", key="btn_set_start", use_container_width=True):
+                st.session_state.selected_start = loc_id
+                st.session_state.clicked_location = None
+                st.rerun()
+
+        with col_btn2:
+            if st.button("🏁 Set as Destination", key="btn_set_dest", use_container_width=True):
+                st.session_state.selected_dest = loc_id
+                st.session_state.clicked_location = None
+                st.rerun()
+
+        with col_btn3:
+            if st.button("❌ Cancel", key="btn_cancel_select", use_container_width=True):
+                st.session_state.clicked_location = None
+                st.rerun()
 
 # Directions tab
 with tab_dir:
