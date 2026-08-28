@@ -905,8 +905,8 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         showlegend=False,
         plot_bgcolor="#FFB6C1",
         paper_bgcolor="#FFB6C1",
-        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=True, zeroline=False, gridcolor="#E2E8F0"),
-        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=True, zeroline=False, gridcolor="#E2E8F0", scaleanchor="x")
+        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=True, zeroline=True, gridcolor="#E2E8F0"),
+        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=True, zeroline=True, gridcolor="#E2E8F0", scaleanchor="x")
     )
     return fig
 
