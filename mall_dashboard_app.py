@@ -422,108 +422,98 @@ def get_location_icon(node_id):
 
 ROOM_POLYGONS = {
     # ==================== GROUND FLOOR (z=0) ====================
-    # North Wing Row
-    "Fashion Hub":      {"z": 0, "coords": [[10, 35], [30, 35], [30, 55], [10, 55]], "color": "#E6E6FA"},
-    "A_L0_Info":        {"z": 0, "coords": [[30, 35], [50, 35], [50, 55], [30, 55]], "color": "#ADD8E6"},
-    "A_L0_Restroom":    {"z": 0, "coords": [[50, 35], [65, 35], [65, 55], [50, 55]], "color": "#E0FFFF"},
-    "A_L0_Elevator":    {"z": 0, "coords": [[65, 35], [75, 35], [75, 55], [65, 55]], "color": "#FFD700"},
-    "A_L0_Escalator":   {"z": 0, "coords": [[75, 35], [85, 35], [85, 55], [75, 55]], "color": "#FFA07A"},
-    "A_L0_Stairs":      {"z": 0, "coords": [[85, 35], [95, 35], [95, 55], [85, 55]], "color": "#FF8C00"},
-
-    # South Wing Row
-    "A_L0_Entrance":    {"z": 0, "coords": [[10, 5],  [30, 5],  [30, 20], [10, 20]], "color": "#708090"},
-    "Mega Supermarket": {"z": 0, "coords": [[30, 5],  [65, 5],  [65, 20], [30, 20]], "color": "#98FB98"},
-    "A_L0_Lobby":       {"z": 0, "coords": [[65, 5],  [95, 5],  [95, 20], [65, 20]], "color": "#B0C4DE"},
+    # Restored Original Layout Architecture with Side-by-Side Store Rows
+    "A_L0_Entrance":    {"z": 0, "coords": [[10, 5],  [30, 5],  [30, 25], [10, 25]], "color": "#708090"},
+    "Fashion Hub":      {"z": 0, "coords": [[10, 25], [30, 25], [30, 55], [10, 55]], "color": "#E6E6FA"},
+    "A_L0_Lobby":       {"z": 0, "coords": [[30, 5],  [80, 5],  [80, 55], [30, 55]], "color": "#B0C4DE"},
+    "A_L0_Info":        {"z": 0, "coords": [[35, 10], [55, 10], [55, 28], [35, 28]], "color": "#ADD8E6"},
+    "Mega Supermarket": {"z": 0, "coords": [[55, 10], [75, 10], [75, 28], [55, 28]], "color": "#98FB98"},
+    "A_L0_Restroom":    {"z": 0, "coords": [[35, 32], [50, 32], [50, 50], [35, 50]], "color": "#E0FFFF"},
+    "A_L0_Stairs":      {"z": 0, "coords": [[80, 5],  [95, 5],  [95, 20], [80, 20]], "color": "#FF8C00"},
+    "A_L0_Escalator":   {"z": 0, "coords": [[80, 22], [95, 22], [95, 38], [80, 38]], "color": "#FFA07A"},
+    "A_L0_Elevator":    {"z": 0, "coords": [[80, 40], [95, 40], [95, 55], [80, 55]], "color": "#FFD700"},
 
     # ==================== 1ST FLOOR (z=1) ====================
-    # North Wing Row
-    "Tech Gadgets":     {"z": 1, "coords": [[10, 35], [30, 35], [30, 55], [10, 55]], "color": "#9370DB"},
-    "Jewel Box":        {"z": 1, "coords": [[30, 35], [50, 35], [50, 55], [30, 55]], "color": "#D8BFD8"},
-    "A_L1_Restroom":    {"z": 1, "coords": [[50, 35], [65, 35], [65, 55], [50, 55]], "color": "#E0FFFF"},
-    "A_L1_Elevator":    {"z": 1, "coords": [[65, 35], [75, 35], [75, 55], [65, 55]], "color": "#FFD700"},
-    "A_L1_Escalator":   {"z": 1, "coords": [[75, 35], [85, 35], [85, 55], [75, 55]], "color": "#FFA07A"},
-    "A_L1_Stairs":      {"z": 1, "coords": [[85, 35], [95, 35], [95, 55], [85, 55]], "color": "#FF8C00"},
-
-    # South Wing Row
-    "Book Nook":        {"z": 1, "coords": [[10, 5],  [40, 5],  [40, 20], [10, 20]], "color": "#F5DEB3"},
-    "A_L1_Hallway":     {"z": 1, "coords": [[40, 5],  [95, 5],  [95, 20], [40, 20]], "color": "#87CEFA"},
+    "Tech Gadgets":     {"z": 1, "coords": [[10, 5],  [30, 5],  [30, 30], [10, 30]], "color": "#9370DB"},
+    "Jewel Box":        {"z": 1, "coords": [[10, 30], [30, 30], [30, 55], [10, 55]], "color": "#D8BFD8"},
+    "A_L1_Hallway":     {"z": 1, "coords": [[30, 5],  [80, 5],  [80, 55], [30, 55]], "color": "#87CEFA"},
+    "Book Nook":        {"z": 1, "coords": [[35, 10], [55, 10], [55, 30], [35, 30]], "color": "#F5DEB3"},
+    "A_L1_Restroom":    {"z": 1, "coords": [[35, 35], [50, 35], [50, 50], [35, 50]], "color": "#E0FFFF"},
+    "A_L1_Stairs":      {"z": 1, "coords": [[80, 5],  [95, 5],  [95, 20], [80, 20]], "color": "#FF8C00"},
+    "A_L1_Escalator":   {"z": 1, "coords": [[80, 22], [95, 22], [95, 38], [80, 38]], "color": "#FFA07A"},
+    "A_L1_Elevator":    {"z": 1, "coords": [[80, 40], [95, 40], [95, 55], [80, 55]], "color": "#FFD700"},
 
     # ==================== 2ND FLOOR (z=2) ====================
-    # North Wing Row
-    "Cineplex Theater": {"z": 2, "coords": [[10, 35], [35, 35], [35, 55], [10, 55]], "color": "#CD5C5C"},
-    "VR World & Arcade":{"z": 2, "coords": [[35, 35], [50, 35], [50, 55], [35, 55]], "color": "#FF69B4"},
-    "B_L2_Restroom":    {"z": 2, "coords": [[50, 35], [65, 35], [65, 55], [50, 55]], "color": "#E0FFFF"},
-    "B_L2_Elevator":    {"z": 2, "coords": [[65, 35], [75, 35], [75, 55], [65, 55]], "color": "#FFD700"},
-    "B_L2_Escalator":   {"z": 2, "coords": [[75, 35], [85, 35], [85, 55], [75, 55]], "color": "#FFA07A"},
-    "B_L2_Stairs":      {"z": 2, "coords": [[85, 35], [95, 35], [95, 55], [85, 55]], "color": "#FF8C00"},
-
-    # South Wing Row
-    "Sky Food Court":   {"z": 2, "coords": [[10, 5],  [50, 5],  [50, 20], [10, 20]], "color": "#FF7F50"},
-    "Gourmet Bites":    {"z": 2, "coords": [[50, 5],  [75, 5],  [75, 20], [50, 20]], "color": "#F4A460"},
-    "B_L2_Corridor":    {"z": 2, "coords": [[75, 5],  [95, 5],  [95, 20], [75, 20]], "color": "#5F9EA0"},
+    "Cineplex Theater": {"z": 2, "coords": [[10, 5],  [30, 5],  [30, 30], [10, 30]], "color": "#CD5C5C"},
+    "VR World & Arcade":{"z": 2, "coords": [[10, 30], [30, 30], [30, 55], [10, 55]], "color": "#FF69B4"},
+    "B_L2_Corridor":    {"z": 2, "coords": [[30, 5],  [80, 5],  [80, 55], [30, 55]], "color": "#5F9EA0"},
+    "Sky Food Court":   {"z": 2, "coords": [[35, 10], [75, 10], [75, 30], [35, 30]], "color": "#FF7F50"},
+    "Gourmet Bites":    {"z": 2, "coords": [[35, 35], [55, 35], [55, 50], [35, 50]], "color": "#F4A460"},
+    "B_L2_Restroom":    {"z": 2, "coords": [[60, 35], [75, 35], [75, 50], [60, 50]], "color": "#E0FFFF"},
+    "B_L2_Stairs":      {"z": 2, "coords": [[80, 5],  [95, 5],  [95, 20], [80, 20]], "color": "#FF8C00"},
+    "B_L2_Escalator":   {"z": 2, "coords": [[80, 22], [95, 22], [95, 38], [80, 38]], "color": "#FFA07A"},
+    "B_L2_Elevator":    {"z": 2, "coords": [[80, 40], [95, 40], [95, 55], [80, 55]], "color": "#FFD700"},
 
     # ==================== PARKING LOT (z=3) ====================
-    "P_L3_Aisle_Main":  {"z": 3, "coords": [[10, 22], [95, 22], [95, 38], [10, 38]], "color": "#A9A9A9"},
-    "P_L3_Elevator":    {"z": 3, "coords": [[65, 42], [80, 42], [80, 58], [65, 58]], "color": "#FFD700"},
-    "P_L3_Stairs":      {"z": 3, "coords": [[80, 42], [95, 42], [95, 58], [80, 58]], "color": "#FF8C00"},
-
-    # Parking Slots (Top & Bottom Bays)
-    "P1":               {"z": 3, "coords": [[10, 42], [22, 42], [22, 58], [10, 58]], "color": "#4682B4"},
-    "P2":               {"z": 3, "coords": [[24, 42], [36, 42], [36, 58], [24, 58]], "color": "#4682B4"},
-    "P3":               {"z": 3, "coords": [[38, 42], [50, 42], [50, 58], [38, 58]], "color": "#4682B4"},
-    "P4":               {"z": 3, "coords": [[52, 42], [64, 42], [64, 58], [52, 58]], "color": "#4682B4"},
-    "P5":               {"z": 3, "coords": [[10, 2],  [22, 2],  [22, 18], [10, 18]], "color": "#4682B4"},
-    "P6":               {"z": 3, "coords": [[24, 2],  [36, 2],  [36, 18], [24, 18]], "color": "#4682B4"},
-    "P7":               {"z": 3, "coords": [[38, 2],  [50, 2],  [50, 18], [38, 18]], "color": "#4682B4"},
-    "P8":               {"z": 3, "coords": [[52, 2],  [64, 2],  [64, 18], [52, 18]], "color": "#4682B4"},
+    "P_L3_Aisle_Main":  {"z": 3, "coords": [[10, 28], [95, 28], [95, 42], [10, 42]], "color": "#A9A9A9"},
+    "P_L3_Stairs":      {"z": 3, "coords": [[80, 5],  [95, 5],  [95, 22], [80, 22]], "color": "#FF8C00"},
+    "P_L3_Elevator":    {"z": 3, "coords": [[80, 45], [95, 45], [95, 60], [80, 60]], "color": "#FFD700"},
+    "P1":               {"z": 3, "coords": [[10, 5],  [25, 5],  [25, 25], [10, 25]], "color": "#4682B4"},
+    "P2":               {"z": 3, "coords": [[27, 5],  [42, 5],  [42, 25], [27, 25]], "color": "#4682B4"},
+    "P3":               {"z": 3, "coords": [[44, 5],  [59, 5],  [59, 25], [44, 25]], "color": "#4682B4"},
+    "P4":               {"z": 3, "coords": [[61, 5],  [76, 5],  [76, 25], [61, 25]], "color": "#4682B4"},
+    "P5":               {"z": 3, "coords": [[10, 45], [25, 45], [25, 60], [10, 60]], "color": "#4682B4"},
+    "P6":               {"z": 3, "coords": [[27, 45], [42, 45], [42, 60], [27, 60]], "color": "#4682B4"},
+    "P7":               {"z": 3, "coords": [[44, 45], [59, 45], [59, 60], [44, 60]], "color": "#4682B4"},
+    "P8":               {"z": 3, "coords": [[61, 45], [76, 45], [76, 60], [61, 60]], "color": "#4682B4"},
 }
 
 # Calculated Centroids [x, y, z] for pathfinding and graph algorithms
 MULTI_CAD_NODES = {
     # Ground Floor
-    "Fashion Hub":      [20.0, 45.0, 0],
-    "A_L0_Info":        [40.0, 45.0, 0],
-    "A_L0_Restroom":    [57.5, 45.0, 0],
-    "A_L0_Elevator":    [70.0, 45.0, 0],
-    "A_L0_Escalator":   [80.0, 45.0, 0],
-    "A_L0_Stairs":      [90.0, 45.0, 0],
-    "A_L0_Entrance":    [20.0, 12.5, 0],
-    "Mega Supermarket": [47.5, 12.5, 0],
-    "A_L0_Lobby":       [80.0, 12.5, 0],
+    "A_L0_Entrance":    [20.0, 15.0, 0],
+    "Fashion Hub":      [20.0, 40.0, 0],
+    "A_L0_Lobby":       [55.0, 30.0, 0],
+    "A_L0_Info":        [45.0, 19.0, 0],
+    "Mega Supermarket": [65.0, 19.0, 0],
+    "A_L0_Restroom":    [42.5, 41.0, 0],
+    "A_L0_Stairs":      [87.5, 12.5, 0],
+    "A_L0_Escalator":   [87.5, 30.0, 0],
+    "A_L0_Elevator":    [87.5, 47.5, 0],
 
     # 1st Floor
-    "Tech Gadgets":     [20.0, 45.0, 1],
-    "Jewel Box":        [40.0, 45.0, 1],
-    "A_L1_Restroom":    [57.5, 45.0, 1],
-    "A_L1_Elevator":    [70.0, 45.0, 1],
-    "A_L1_Escalator":   [80.0, 45.0, 1],
-    "A_L1_Stairs":      [90.0, 45.0, 1],
-    "Book Nook":        [25.0, 12.5, 1],
-    "A_L1_Hallway":     [67.5, 12.5, 1],
+    "Tech Gadgets":     [20.0, 17.5, 1],
+    "Jewel Box":        [20.0, 42.5, 1],
+    "A_L1_Hallway":     [55.0, 30.0, 1],
+    "Book Nook":        [45.0, 20.0, 1],
+    "A_L1_Restroom":    [42.5, 42.5, 1],
+    "A_L1_Stairs":      [87.5, 12.5, 1],
+    "A_L1_Escalator":   [87.5, 30.0, 1],
+    "A_L1_Elevator":    [87.5, 47.5, 1],
 
     # 2nd Floor
-    "Cineplex Theater": [22.5, 45.0, 2],
-    "VR World & Arcade":[42.5, 45.0, 2],
-    "B_L2_Restroom":    [57.5, 45.0, 2],
-    "B_L2_Elevator":    [70.0, 45.0, 2],
-    "B_L2_Escalator":   [80.0, 45.0, 2],
-    "B_L2_Stairs":      [90.0, 45.0, 2],
-    "Sky Food Court":   [30.0, 12.5, 2],
-    "Gourmet Bites":    [62.5, 12.5, 2],
-    "B_L2_Corridor":    [85.0, 12.5, 2],
+    "Cineplex Theater": [20.0, 17.5, 2],
+    "VR World & Arcade":[20.0, 42.5, 2],
+    "B_L2_Corridor":    [55.0, 30.0, 2],
+    "Sky Food Court":   [55.0, 20.0, 2],
+    "Gourmet Bites":    [45.0, 42.5, 2],
+    "B_L2_Restroom":    [67.5, 42.5, 2],
+    "B_L2_Stairs":      [87.5, 12.5, 2],
+    "B_L2_Escalator":   [87.5, 30.0, 2],
+    "B_L2_Elevator":    [87.5, 47.5, 2],
 
     # Parking Lot
-    "P_L3_Aisle_Main":  [52.5, 30.0, 3],
-    "P_L3_Elevator":    [72.5, 50.0, 3],
-    "P_L3_Stairs":      [87.5, 50.0, 3],
-    "P1":               [16.0, 50.0, 3],
-    "P2":               [30.0, 50.0, 3],
-    "P3":               [44.0, 50.0, 3],
-    "P4":               [58.0, 50.0, 3],
-    "P5":               [16.0, 10.0, 3],
-    "P6":               [30.0, 10.0, 3],
-    "P7":               [44.0, 10.0, 3],
-    "P8":               [58.0, 10.0, 3],
+    "P_L3_Aisle_Main":  [52.5, 35.0, 3],
+    "P_L3_Stairs":      [87.5, 13.5, 3],
+    "P_L3_Elevator":    [87.5, 52.5, 3],
+    "P1":               [17.5, 15.0, 3],
+    "P2":               [34.5, 15.0, 3],
+    "P3":               [51.5, 15.0, 3],
+    "P4":               [68.5, 15.0, 3],
+    "P5":               [17.5, 52.5, 3],
+    "P6":               [34.5, 52.5, 3],
+    "P7":               [51.5, 52.5, 3],
+    "P8":               [68.5, 52.5, 3],
 }
 
 # Neighbouring nodes
