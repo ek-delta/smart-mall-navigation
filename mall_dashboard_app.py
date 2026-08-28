@@ -469,14 +469,52 @@ ROOM_POLYGONS = {
     },
 
     # 1st floor
-    "A_L1_Hallway":    {"z": 1, "coords": [(30, 10), (80, 10), (80, 60), (30, 60)], "color": "#87CEFA"},
-    "Tech Gadgets":    {"z": 1, "coords": [(10, 10), (30, 10), (30, 35), (10, 35)], "color": "#9370DB"},
-    "Jewel Box":       {"z": 1, "coords": [(10, 35), (30, 35), (30, 60), (10, 60)], "color": "#D8BFD8"},
-    "Book Nook":       {"z": 1, "coords": [(35, 15), (55, 15), (55, 35), (35, 35)], "color": "#F5DEB3"},
-    "A_L1_Elevator":   {"z": 1, "coords": [(80, 50), (95, 50), (95, 65), (80, 65)], "color": "#FFD700"},
-    "A_L1_Stairs":     {"z": 1, "coords": [(80, 10), (95, 10), (95, 25), (80, 25)], "color": "#FF8C00"},
-    "A_L1_Escalator":  {"z": 1, "coords": [(80, 30), (95, 30), (95, 45), (80, 45)], "color": "#FFA07A"},
-    "A_L1_Restroom":   {"z": 1, "coords": [(35, 40), (50, 40), (50, 55), (35, 55)], "color": "#E0FFFF"},
+    "Jewel Box": {
+        "z": 1,
+        "coords": [(-30, 24), (30, 24), (30, 44), (-30, 44)],
+        "color": "#D8BFD8"
+    },
+    
+    # A_L1_Hallway (Central Corridor - Aligned with Ground Floor Lobby geometry)
+    "A_L1_Hallway": {
+        "z": 1,
+        "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)],
+        "color": "#87CEFA"
+    },
+    
+    # Positioned BELOW Central Hallway (Split into Book Nook & Tech Gadgets)
+    "Book Nook": {
+        "z": 1,
+        "coords": [(-30, -28), (-2, -28), (-2, -8), (-30, -8)],
+        "color": "#F5DEB3"
+    },
+    "Tech Gadgets": {
+        "z": 1,
+        "coords": [(2, -28), (30, -28), (30, -8), (2, -8)],
+        "color": "#9370DB"
+    },
+
+    # Right Vertical Core & Amenities Column (Aligned with Ground Floor X-coordinates)
+    "A_L1_Restroom": {
+        "z": 1,
+        "coords": [(35, 24), (50, 24), (50, 36), (35, 36)],
+        "color": "#E0FFFF"
+    },
+    "A_L1_Elevator": {
+        "z": 1,
+        "coords": [(35, 8), (50, 8), (50, 20), (35, 20)],
+        "color": "#FFD700"
+    },
+    "A_L1_Escalator": {
+        "z": 1,
+        "coords": [(35, -8), (50, -8), (50, 4), (35, 4)],
+        "color": "#FFA07A"
+    },
+    "A_L1_Stairs": {
+        "z": 1,
+        "coords": [(35, -24), (50, -24), (50, -12), (35, -12)],
+        "color": "#FF8C00"
+    },
 
     # 2nd floor
     "B_L2_Corridor":   {"z": 2, "coords": [(30, 10), (80, 10), (80, 60), (30, 60)], "color": "#5F9EA0"},
@@ -516,9 +554,14 @@ MULTI_CAD_NODES = {
     "A_L0_Stairs": [42.5, -18.0, 0],
 
     # 1st floor
-    "A_L1_Hallway":    (55.0, 35.0, 1.0), "Tech Gadgets": (20.0, 22.5, 1.0), "Jewel Box": (20.0, 47.5, 1.0),
-    "Book Nook":       (45.0, 25.0, 1.0), "A_L1_Restroom": (42.5, 47.5, 1.0),
-    "A_L1_Elevator":   (87.5, 57.5, 1.0), "A_L1_Stairs": (87.5, 17.5, 1.0), "A_L1_Escalator": (87.5, 37.5, 1.0),
+    "Jewel Box": [0.0, 34.0, 1],
+    "A_L1_Hallway": [0.0, 8.0, 1],
+    "Book Nook": [-16.0, -18.0, 1],
+    "Tech Gadgets": [16.0, -18.0, 1],
+    "A_L1_Restroom": [42.5, 30.0, 1],
+    "A_L1_Elevator": [42.5, 14.0, 1],
+    "A_L1_Escalator": [42.5, -2.0, 1],
+    "A_L1_Stairs": [42.5, -18.0, 1]
 
     # 2nd floor
     "B_L2_Corridor":   (55.0, 35.0, 2.0), "Cineplex Theater": (20.0, 22.5, 2.0), "VR World & Arcade": (20.0, 47.5, 2.0),
