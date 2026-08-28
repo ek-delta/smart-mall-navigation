@@ -869,19 +869,102 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
 
     return fig
 
-# Render the 3D map with selection tracking enabled
-fig_3d = render_3d_isometric_view(
-    route_path=st.session_state.get("current_route"),
-    current_lang=st.session_state.lang
-)
+def render_3d_isometric_view(route_path=None, current_lang="English"):
+    fig = go.Figure()
 
-selected_3d_data = st.plotly_chart(
-    fig_3d,
-    use_container_width=True,
-    on_select="rerun",
-    selection_mode="points",
-    key="map_3d_chart"
-)
+    for room_id, info in ROOM_POLYGONS.items():
+        z_level = info["z"] * 40
+        coords = info["coords"]
+
+        x_pts = [p[0] for p in coords]
+        y_pts = [p[1] for p in coords]
+        
+        # Calculate room centroid for clean 3D marker placement
+        avg_x = sum(x_pts) / len(x_pts)
+        avg_y = sum(y_pts) / len(y_pts)
+
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+
+        # 1. Visual 3D Polygon Outline
+        x_line = x_pts + [x_pts[0]]
+        y_line = y_pts + [y_pts[0]]
+        z_line = [z_level] * len(x_line)
+
+        fig.add_trace(go.Scatter3d(
+            x=x_line, y=y_line, z=z_line,
+            mode="lines",
+            line=dict(color=info.get("color", "#4A5568"), width=5),
+            hoverinfo="skip",
+            showlegend=False
+        ))
+
+        # 2. Clickable 3D Room Target (Centroid Marker + Text Label)
+        fig.add_trace(go.Scatter3d(
+            x=[avg_x],
+            y=[avg_y],
+            z=[z_level],
+            mode="markers+text",
+            marker=dict(size=18, color=info.get("color", "#1F77B4"), opacity=0.85),
+            text=[translated_name],
+            textposition="top center",
+            textfont=dict(size=10, color="#2D3748"),
+            customdata=[room_id],  # Passed directly to Streamlit selection payload
+            hoverinfo="text",
+            name=translated_name,
+            showlegend=False
+        ))
+
+    # Route Start/Destination Markers
+    if route_path and len(route_path) > 0:
+        sx, sy, sz = MULTI_CAD_NODES[route_path[0]]
+        dx, dy, dz = MULTI_CAD_NODES[route_path[-1]]
+
+        fig.add_trace(go.Scatter3d(
+            x=[sx], y=[sy], z=[sz * 40],
+            mode="markers+text",
+            marker=dict(size=10, color="#FF0000"),
+            text=["Start"],
+            textposition="top center",
+            textfont=dict(color="#FF0000", size=11),
+            showlegend=False
+        ))
+
+        fig.add_trace(go.Scatter3d(
+            x=[dx], y=[dy], z=[dz * 40],
+            mode="markers+text",
+            marker=dict(size=10, color="#00FF00"),
+            text=["Destination"],
+            textposition="top center",
+            textfont=dict(color="#00AA00", size=11),
+            showlegend=False
+        ))
+
+    # Path lines & cones
+    if route_path and len(route_path) > 1:
+        rx = [MULTI_CAD_NODES[n][0] for n in route_path]
+        ry = [MULTI_CAD_NODES[n][1] for n in route_path]
+        rz = [MULTI_CAD_NODES[n][2] * 40 for n in route_path]
+
+        fig.add_trace(go.Scatter3d(
+            x=rx, y=ry, z=rz,
+            mode="lines+markers",
+            line=dict(color="#FF0000", width=6),
+            marker=dict(size=5, color="#8B0000"),
+            name="Route Path"
+        ))
+
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(title="X (m)"),
+            yaxis=dict(title="Y (m)"),
+            zaxis=dict(title="Floor Level"),
+            aspectmode="data"
+        ),
+        height=520,
+        margin=dict(l=0, r=0, t=0, b=0),
+        clickmode="event+select"  # Ensures click events propagate back to Streamlit
+    )
+    return fig
 
 def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang="English"):
     fig = go.Figure()
@@ -1391,13 +1474,22 @@ with tab_map:
             selection_mode="points"
         )
     else:
-        fig_3d = render_3d_isometric_view(route_path=path, current_lang=st.session_state.lang)
-        selected_data = st.plotly_chart(
-            fig_3d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points"
+        
+
+        # Render the 3D map with selection tracking enabled
+        fig_3d = render_3d_isometric_view(
+            route_path=st.session_state.get("current_route"),
+            current_lang=st.session_state.lang
         )
+
+        selected_3d_data = st.plotly_chart(
+           fig_3d,
+           use_container_width=True,
+           on_select="rerun",
+           selection_mode="points",
+           key="map_3d_chart"
+        )
+        
 
     # Unify 2D or 3D chart selection events
 active_selection = selected_data or selected_3d_data
