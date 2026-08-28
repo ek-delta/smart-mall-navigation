@@ -1473,6 +1473,8 @@ with tab_map:
 
     if view_mode == "2D CAD View":
         fig_2d = render_2d_cad_view(
+            start_node=st.session_state.get("start_node"),
+            end_node=st.session_state.get("end_node"),
             route_path=st.session_state.get("current_route"),
             current_lang=st.session_state.lang
         )
@@ -1482,18 +1484,6 @@ with tab_map:
             on_select="rerun",
             selection_mode="points",
             key="map_2d_chart"
-        )
-    else:
-        fig_3d = render_3d_isometric_view(
-            route_path=st.session_state.get("current_route"),
-            current_lang=st.session_state.lang
-        )
-        active_selection = st.plotly_chart(
-            fig_3d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-            key="map_3d_chart"
         )
 
     # Extract room ID from click interaction
