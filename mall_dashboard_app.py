@@ -439,7 +439,7 @@ ROOM_POLYGONS = {
     },
     "A_L0_Lobby": {
         "z": 0,
-        "coords": [(-25, -2), (25, -2), (25, 14), (-25, 14)],
+        "coords": [(-40, -10), (20, -10), (20, 15), (-40, 15)],
         "color": "#B0C4DE"
     },
     "Fashion Hub": {
@@ -508,7 +508,7 @@ MULTI_CAD_NODES = {
     "A_L0_Info": [-37.5, 24.0, 0],
     "A_L0_Entrance": [-37.5, 6.0, 0],
     "Mega Supermarket": [0.0, 28.0, 0],
-    "A_L0_Lobby": [0.0, 6.0, 0],
+    "A_L0_Lobby": [-10.0, 2.5, 0],
     "Fashion Hub": [0.0, -14.0, 0],
     "A_L0_Restroom": [36.0, 26.0, 0],
     "A_L0_Elevator": [36.0, 12.0, 0],
