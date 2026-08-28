@@ -887,6 +887,9 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
             mode="lines",
             line=dict(color=info["color"], width=4),
             name=translated_name,
+            text=[translated_name] * len(x_pts),
+            customdata=[room_id] * len(x_pts),  # Pass room_id to click events
+            hoverinfo="text",
             showlegend=False
         ))
 
@@ -1488,9 +1491,13 @@ with tab_map:
         clicked_id = None
 
         if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
+            cdata = point["customdata"]
+            # Handle both scalar strings (2D) and list formats (3D)
+            clicked_id = cdata[0] if isinstance(cdata, list) else cdata
         elif "text" in point:
             raw_text = point["text"]
+            if isinstance(raw_text, list):
+                raw_text = raw_text[0]
             for room_key in ROOM_POLYGONS.keys():
                 t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
                 if t_name == raw_text or room_key == raw_text:
@@ -1499,30 +1506,6 @@ with tab_map:
 
         if clicked_id and clicked_id in ROOM_POLYGONS:
             st.session_state.clicked_location = clicked_id
-
-    if st.session_state.clicked_location:
-        loc_id = st.session_state.clicked_location
-        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(loc_id, loc_id)
-        
-        st.info(f"📍 Selected on map: **{loc_name}**")
-        col_btn1, col_btn2, col_btn3 = st.columns(3)
-        
-        with col_btn1:
-            if st.button("🚩 Set as Start", key="btn_set_start", use_container_width=True):
-                st.session_state.selected_start = loc_id
-                st.session_state.clicked_location = None
-                st.rerun()
-                
-        with col_btn2:
-            if st.button("🏁 Set as Destination", key="btn_set_dest", use_container_width=True):
-                st.session_state.selected_dest = loc_id
-                st.session_state.clicked_location = None
-                st.rerun()
-                
-        with col_btn3:
-            if st.button("❌ Cancel", key="btn_cancel_select", use_container_width=True):
-                st.session_state.clicked_location = None
-                st.rerun()
 
 # Directions tab
 with tab_dir:
