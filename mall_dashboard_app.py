@@ -878,36 +878,20 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
         z_level = info["z"] * 40
         coords = info["coords"]
 
-        x_pts = [p[0] for p in coords]
-        y_pts = [p[1] for p in coords]
+        x_pts = [p[0] for p in coords] + [coords[0][0]]
+        y_pts = [p[1] for p in coords] + [coords[0][1]]
         z_pts = [z_level] * len(x_pts)
 
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
-        # 1. Solid Clickable 3D Surface (Mesh3d)
-        fig.add_trace(go.Mesh3d(
-            x=x_pts,
-            y=y_pts,
-            z=z_pts,
-            color=info.get("color", "rgba(200,200,200,0.5)"),
-            opacity=0.5,
+        fig.add_trace(go.Scatter3d(
+            x=x_pts, y=y_pts, z=z_pts,
+            mode="lines",
+            line=dict(color=info["color"], width=4),
             name=translated_name,
             text=[translated_name] * len(x_pts),
-            customdata=[room_id] * len(x_pts),
+            customdata=[room_id] * len(x_pts),  # Pass room_id to click events
             hoverinfo="text",
-            showlegend=False
-        ))
-
-        # 2. Outline Lines for clean visualization
-        x_pts_line = x_pts + [x_pts[0]]
-        y_pts_line = y_pts + [y_pts[0]]
-        z_pts_line = [z_level] * len(x_pts_line)
-
-        fig.add_trace(go.Scatter3d(
-            x=x_pts_line, y=y_pts_line, z=z_pts_line,
-            mode="lines",
-            line=dict(color="#4A5568", width=4),
-            hoverinfo="skip",
             showlegend=False
         ))
 
@@ -1508,12 +1492,13 @@ with tab_map:
         point = selected_data["selection"]["points"][0]
         clicked_id = None
 
-        if "customdata" in point and point["customdata"] is not None:
+        if "customdata" in point and point["customdata"]:
             cdata = point["customdata"]
-            clicked_id = cdata[0] if isinstance(cdata, (list, tuple)) else cdata
+            # Handle both scalar strings (2D) and list formats (3D)
+            clicked_id = cdata[0] if isinstance(cdata, list) else cdata
         elif "text" in point:
             raw_text = point["text"]
-            if isinstance(raw_text, (list, tuple)):
+            if isinstance(raw_text, list):
                 raw_text = raw_text[0]
             for room_key in ROOM_POLYGONS.keys():
                 t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
