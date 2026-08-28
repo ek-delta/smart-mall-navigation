@@ -517,15 +517,57 @@ ROOM_POLYGONS = {
     },
 
     # 2nd floor
-    "B_L2_Corridor":   {"z": 2, "coords": [(30, 10), (80, 10), (80, 60), (30, 60)], "color": "#5F9EA0"},
-    "Cineplex Theater":{"z": 2, "coords": [(10, 10), (30, 10), (30, 35), (10, 35)], "color": "#CD5C5C"},
-    "VR World & Arcade":{"z": 2, "coords": [(10, 35), (30, 35), (30, 60), (10, 60)], "color": "#FF69B4"},
-    "Sky Food Court":  {"z": 2, "coords": [(35, 15), (75, 15), (75, 35), (35, 35)], "color": "#FF7F50"},
-    "Gourmet Bites":   {"z": 2, "coords": [(35, 40), (55, 40), (55, 55), (35, 55)], "color": "#F4A460"},
-    "B_L2_Elevator":   {"z": 2, "coords": [(80, 50), (95, 50), (95, 65), (80, 65)], "color": "#FFD700"},
-    "B_L2_Stairs":     {"z": 2, "coords": [(80, 10), (95, 10), (95, 25), (80, 25)], "color": "#FF8C00"},
-    "B_L2_Escalator":  {"z": 2, "coords": [(80, 30), (95, 30), (95, 45), (80, 45)], "color": "#FFA07A"},
-    "B_L2_Restroom":   {"z": 2, "coords": [(60, 40), (75, 40), (75, 55), (60, 55)], "color": "#E0FFFF"},
+    "Cineplex Theater": {
+        "z": 2,
+        "coords": [(-30, 24), (-2, 24), (-2, 44), (-30, 44)],
+        "color": "#CD5C5C"
+    },
+    "VR World & Arcade": {
+        "z": 2,
+        "coords": [(2, 24), (30, 24), (30, 44), (2, 44)],
+        "color": "#FF69B4"
+    },
+    
+    # Central Corridor (Aligned with lower floors lobby/hallway geometry)
+    "B_L2_Corridor": {
+        "z": 2,
+        "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)],
+        "color": "#5F9EA0"
+    },
+    
+    # Positioned BELOW B_L2_Corridor (Split into Sky Food Court & Gourmet Bites)
+    "Sky Food Court": {
+        "z": 2,
+        "coords": [(-30, -28), (-2, -28), (-2, -8), (-30, -8)],
+        "color": "#FF7F50"
+    },
+    "Gourmet Bites": {
+        "z": 2,
+        "coords": [(2, -28), (30, -28), (30, -8), (2, -8)],
+        "color": "#F4A460"
+    },
+
+    # Right Vertical Core & Amenities Column (Aligned with lower floors X-coordinates)
+    "B_L2_Restroom": {
+        "z": 2,
+        "coords": [(35, 24), (50, 24), (50, 36), (35, 36)],
+        "color": "#E0FFFF"
+    },
+    "B_L2_Elevator": {
+        "z": 2,
+        "coords": [(35, 8), (50, 8), (50, 20), (35, 20)],
+        "color": "#FFD700"
+    },
+    "B_L2_Escalator": {
+        "z": 2,
+        "coords": [(35, -8), (50, -8), (50, 4), (35, 4)],
+        "color": "#FFA07A"
+    },
+    "B_L2_Stairs": {
+        "z": 2,
+        "coords": [(35, -24), (50, -24), (50, -12), (35, -12)],
+        "color": "#FF8C00"
+    },
 
     # Parking lot
     "P_L3_Aisle_Main": {"z": 3, "coords": [(10, 30), (95, 30), (95, 45), (10, 45)], "color": "#A9A9A9"},
@@ -564,9 +606,15 @@ MULTI_CAD_NODES = {
     "A_L1_Stairs": [42.5, -18.0, 1],
 
     # 2nd floor
-    "B_L2_Corridor":   (55.0, 35.0, 2.0), "Cineplex Theater": (20.0, 22.5, 2.0), "VR World & Arcade": (20.0, 47.5, 2.0),
-    "Sky Food Court":  (55.0, 25.0, 2.0), "Gourmet Bites": (45.0, 47.5, 2.0), "B_L2_Restroom": (67.5, 47.5, 2.0),
-    "B_L2_Elevator":   (87.5, 57.5, 2.0), "B_L2_Stairs": (87.5, 17.5, 2.0), "B_L2_Escalator": (87.5, 37.5, 2.0),
+    "Cineplex Theater": [-16.0, 34.0, 2],
+    "VR World & Arcade": [16.0, 34.0, 2],
+    "B_L2_Corridor": [0.0, 8.0, 2],
+    "Sky Food Court": [-16.0, -18.0, 2],
+    "Gourmet Bites": [16.0, -18.0, 2],
+    "B_L2_Restroom": [42.5, 30.0, 2],
+    "B_L2_Elevator": [42.5, 14.0, 2],
+    "B_L2_Escalator": [42.5, -2.0, 2],
+    "B_L2_Stairs": [42.5, -18.0, 2],
 
     # Parking lot
     "P1": (17.5, 19.0, 3.0), "P2": (34.5, 19.0, 3.0), "P3": (51.5, 19.0, 3.0), "P4": (68.5, 19.0, 3.0),
