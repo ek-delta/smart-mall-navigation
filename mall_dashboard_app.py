@@ -904,7 +904,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
         plot_bgcolor="#FFB6C1",
-        paper_bgcolor="#FFB6C1",
+        paper_bgcolor="#000000",
         xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
         yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
     )
