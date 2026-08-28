@@ -425,7 +425,7 @@ ROOM_POLYGONS = {
     "A_L0_Entrance":   {"z": 0, "coords": [(-25, -5), (-15, -5), (-15, 5), (-25, 5)], "color": "#708090"},
     "A_L0_Lobby":      {"z": 0, "coords": [(-15, 2), (15, 2), (15, 18), (-15, 18)], "color": "#B0C4DE"},
     "A_L0_Info":       {"z": 0, "coords": [(-22, 7), (-17, 7), (-17, 12), (-22, 12)], "color": "#ADD8E6"},
-    "Fashion Hub":     {"z": 0, "coords": [(-15, -18), (-1, -18), (-1, -2), (-15, -2)], "color": "#E6E6FA"},
+    "Fashion Hub":     {"z": 0, "coords": [(-15, -16), (15, -16), (15, 0), (-15, 0)], "color": "#E6E6FA"},
     "Mega Supermarket":{"z": 0, "coords": [(-15, 20), (15, 20), (15, 36), (-15, 36)], "color": "#98FB98"},
     "A_L0_Elevator":   {"z": 0, "coords": [(18, 5), (24, 5), (24, 11), (18, 11)], "color": "#FFD700"},
     "A_L0_Stairs":     {"z": 0, "coords": [(18, -11), (24, -11), (24, -3), (18, -3)], "color": "#FF8C00"},
@@ -470,7 +470,7 @@ ROOM_POLYGONS = {
 MULTI_CAD_NODES = {
     # Ground floor
     "A_L0_Entrance":   (-20, 0.0, 0), "A_L0_Lobby": (0.0, 10.0, 0), "A_L0_Info": (-17.0, 11.0, 0),
-    "Fashion Hub":     (-8.0, -10.0, 0), "Mega Supermarket": (0.0, 28.0, 0),
+    "Fashion Hub":     (0.0, -8.0, 0), "Mega Supermarket": (0.0, 28.0, 0),
     "A_L0_Elevator":   (21.0, 8.0, 0), "A_L0_Stairs": (21.0, -7.0, 0), "A_L0_Escalator": (21.0, 1.0, 0),
     "A_L0_Restroom":   (21.0, 15.0, 0),
 
