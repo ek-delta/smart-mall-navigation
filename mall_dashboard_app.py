@@ -748,119 +748,93 @@ def get_floor_bounds(floor_z):
 # 3. Theta* pathfinding algorithm
 # ==============================================================================
 
-# Dynamic vertical movement penalties (in meters/cost)
-VERTICAL_PENALIZATION = {
-    "elevator": {"fixed_wait": 15.0, "cost_per_floor": 3.0},
-    "stairs":   {"climb_up": 18.0,   "climb_down": 8.0},
-    "escalator":{"transit": 10.0}
-}
+def extract_wall_segments(room_polygons):
+    walls_by_floor = {}
+    for room_info in room_polygons.values():
+        z = room_info["z"]
+        coords = room_info["coords"]
+        if z not in walls_by_floor:
+            walls_by_floor[z] = []
+        num_pts = len(coords)
+        for i in range(num_pts):
+            walls_by_floor[z].append((coords[i], coords[(i + 1) % num_pts]))
+    return walls_by_floor
 
-FLOOR_HEURISTIC_PENALTY = 25.0  # Extra heuristic penalty per floor layer diff
+WALL_SEGMENTS_BY_FLOOR = extract_wall_segments(ROOM_POLYGONS)
 
-def euclidean_3d(node1: dict, node2: dict) -> float:
-    """Calculates 3D Euclidean distance between two CAD node dicts."""
-    dx = node1["x"] - node2["x"]
-    dy = node1["y"] - node2["y"]
-    dz = (node1.get("z", 0) - node2.get("z", 0)) * 3.5
-    return math.sqrt(dx * dx + dy * dy + dz * dz)
+def line_segments_intersect(p1, p2, p3, p4):
+    def ccw(a, b, c):
+        return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
+    return (ccw(p1, p3, p4) != ccw(p2, p3, p4)) and (ccw(p1, p2, p3) != ccw(p1, p2, p4))
 
-def heuristic(node_a_id: str, node_b_id: str, nodes: dict) -> float:
-    """Multi-floor heuristic: 3D Euclidean distance + Floor change penalty."""
-    nA = nodes[node_a_id]
-    nB = nodes[node_b_id]
-    base_dist = euclidean_3d(nA, nB)
-    floor_diff = abs(nA.get("z", 0) - nB.get("z", 0))
-    return base_dist + (floor_diff * FLOOR_HEURISTIC_PENALTY)
+def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
+    x1, y1, z1 = node_coords[node_a]
+    x2, y2, z2 = node_coords[node_b]
 
-def line_of_sight(u_id: str, v_id: str, nodes: dict) -> bool:
-    """Intra-floor Line of Sight check. Restricted strictly to same z-level."""
-    node_u = nodes[u_id]
-    node_v = nodes[v_id]
-    if node_u.get("z") != node_v.get("z"):
+    if z1 != z2:
         return False
+
+    p1, p2 = (x1, y1), (x2, y2)
+    floor_z = int(z1)
+
+    if floor_z in wall_segments:
+        for w1, w2 in wall_segments[floor_z]:
+            if p1 == w1 or p1 == w2 or p2 == w1 or p2 == w2:
+                continue
+            if line_segments_intersect(p1, p2, w1, w2):
+                return False
     return True
 
-def get_edge_weight(u_id: str, v_id: str, nodes: dict, base_graph: dict) -> float:
-    """Computes dynamic weight accounting for floor transitions and vertical types."""
-    base_weight = base_graph.get(u_id, {}).get(v_id, euclidean_3d(nodes[u_id], nodes[v_id]))
-    node_u = nodes[u_id]
-    node_v = nodes[v_id]
-    
-    if node_u.get("z") == node_v.get("z"):
-        return base_weight
+def euclidean_distance_3d(node_a, node_b, node_coords):
+    x1, y1, z1 = node_coords[node_a]
+    x2, y2, z2 = node_coords[node_b]
+    return math.sqrt((x1 - x2)**2 + (y1 - y2)**2 + ((z1 - z2) * 15.0)**2)
 
-    transit_type = node_v.get("type", "").lower()
-    z_diff = node_v.get("z", 0) - node_u.get("z", 0)
-
-    if "elevator" in transit_type or "elevator" in u_id.lower():
-        pen = VERTICAL_PENALIZATION["elevator"]
-        return base_weight + pen["fixed_wait"] + (abs(z_diff) * pen["cost_per_floor"])
-    elif "stairs" in transit_type or "stairs" in u_id.lower():
-        pen = VERTICAL_PENALIZATION["stairs"]
-        return base_weight + (pen["climb_up"] if z_diff > 0 else pen["climb_down"])
-    elif "escalator" in transit_type or "escalator" in u_id.lower():
-        return base_weight + VERTICAL_PENALIZATION["escalator"]["transit"]
-        
-    return base_weight
-
-def theta_star_3d(
-    start_id: str, 
-    goal_id: str, 
-    nodes: dict, 
-    graph: dict
-) -> Tuple[List[str], float]:
-    """Optimized 3D Theta* Pathfinding Engine."""
-    if start_id not in nodes or goal_id not in nodes:
-        return [], float("inf")
-
+def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
     open_set = []
-    heapq.heappush(open_set, (0.0, start_id))
+    heapq.heappush(open_set, (0, start))
 
-    parent: Dict[str, str] = {start_id: start_id}
-    g_score: Dict[str, float] = {start_id: 0.0}
-    closed_set = set()
+    parent = {start: start}
+    g_score = {node: float('inf') for node in graph}
+    g_score[start] = 0.0
+
+    f_score = {node: float('inf') for node in graph}
+    f_score[start] = euclidean_distance_3d(start, goal, node_coords)
 
     while open_set:
         _, current = heapq.heappop(open_set)
 
-        if current == goal_id:
+        if current == goal:
             path = []
-            curr = goal_id
-            while curr != parent[curr]:
-                path.append(curr)
-                curr = parent[curr]
-            path.append(start_id)
-            path.reverse()
-            return path, g_score[goal_id]
+            while current != parent[current]:
+                path.append(current)
+                current = parent[current]
+            path.append(start)
+            return path[::-1]
 
-        if current in closed_set:
-            continue
-            
-        closed_set.add(current)
-
-        for neighbor in graph.get(current, {}):
-            if neighbor in closed_set:
+        for neighbor, weight in graph[current].items():
+            if accessible_only and ("Stairs" in neighbor or "Escalator" in neighbor):
                 continue
 
-            curr_parent = parent[current]
+            p_curr = parent[current]
 
-            if line_of_sight(curr_parent, neighbor, nodes):
-                edge_cost = get_edge_weight(curr_parent, neighbor, nodes, graph)
-                tentative_g = g_score[curr_parent] + edge_cost
-                candidate_parent = curr_parent
+            if has_line_of_sight_3d(p_curr, neighbor, node_coords, WALL_SEGMENTS_BY_FLOOR):
+                candidate_g = g_score[p_curr] + euclidean_distance_3d(p_curr, neighbor, node_coords)
+                if candidate_g < g_score[neighbor]:
+                    parent[neighbor] = p_curr
+                    g_score[neighbor] = candidate_g
+                    f_score[neighbor] = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
+                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
             else:
-                edge_cost = get_edge_weight(current, neighbor, nodes, graph)
-                tentative_g = g_score[current] + edge_cost
-                candidate_parent = current
+                candidate_g = g_score[current] + weight
+                if candidate_g < g_score[neighbor]:
+                    parent[neighbor] = current
+                    g_score[neighbor] = candidate_g
+                    f_score[neighbor] = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
+                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
-            if neighbor not in g_score or tentative_g < g_score[neighbor]:
-                g_score[neighbor] = tentative_g
-                parent[neighbor] = candidate_parent
-                f_score = tentative_g + heuristic(neighbor, goal_id, nodes)
-                heapq.heappush(open_set, (f_score, neighbor))
-
-    return [], float("inf")
-
+    return None
+    
 # ==============================================================================
 # 4. Map generation with Plotly
 # ==============================================================================
@@ -1462,34 +1436,30 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     return directions
 
-def compute_route_summary(path: List[str]) -> dict:
-    if not path or len(path) < 2:
-        return {"total_distance": 0.0, "floors_crossed": 0, "steps": 0}
+def compute_route_summary(path):
+    if not path or len(path) < 2: return {"total_distance": 0, "floors_crossed": 0, "steps": 0}
 
-    total_distance = 0.0
+    total_dist = 0
     floors_visited = set()
 
     for i in range(len(path) - 1):
-        node_a = MULTI_CAD_NODES[path[i]]
-        node_b = MULTI_CAD_NODES[path[i + 1]]
+        curr_node, nxt_node = path[i], path[i+1]
+        z1, z2 = MULTI_CAD_NODES[curr_node][2], MULTI_CAD_NODES[nxt_node][2]
 
-        floors_visited.add(node_a.get("z", 0))
-        floors_visited.add(node_b.get("z", 0))
+        floors_visited.add(z1)
+        floors_visited.add(z2)
 
-        # Real metric distance between path points
-        total_distance += euclidean_3d(node_a, node_b)
-
-    # Average human step length ≈ 0.75 meters
-    estimated_steps = int(total_distance / 0.75)
-    floors_crossed = max(0, len(floors_visited) - 1)
+        if z1 == z2:
+            total_dist += euclidean_distance_3d(curr_node, nxt_node, MULTI_CAD_NODES)
+        else:
+            total_dist += 15.0
 
     return {
-        "total_distance": round(total_distance, 1),
-        "floors_crossed": floors_crossed,
-        "steps": estimated_steps
+        "total_distance": round(total_dist, 1),
+        "floors_crossed": max(0, len(floors_visited) - 1),
+        "steps": len(path) - 1
     }
-
-
+    
 def format_location_label(room_id, lang):
     icon = get_location_icon(room_id)
     z_val = int(MULTI_CAD_NODES[room_id][2])
@@ -1560,26 +1530,21 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         f"{t['current_route_lbl']}: `{format_location_label(st.session_state.selected_start, st.session_state.lang)}` ➔ `{format_location_label(st.session_state.selected_dest, st.session_state.lang)}`"
     )
 
-if st.session_state.selected_start and st.session_state.selected_end:
-    path, total_cost = theta_star_3d(
-        st.session_state.selected_start,
-        st.session_state.selected_end,
-        MULTI_CAD_NODES,
-        MULTI_CAD_GRAPH
-    )
-else:
-    path = []
+path = theta_star_3d(
+    st.session_state.selected_start,
+    st.session_state.selected_dest,
+    MULTI_CAD_GRAPH,
+    MULTI_CAD_NODES,
+    accessible_only=accessible_flag
+)
 
-# Update Rooftop Parking route calculation
-if st.session_state.get("assigned_parking"):
-    parking_path, parking_cost = theta_star_3d(
-        st.session_state.selected_start,
-        st.session_state.assigned_parking,
-        MULTI_CAD_NODES,
-        MULTI_CAD_GRAPH
-    )
-else:
-    parking_path = []
+nearest_slot_id, parking_path = find_nearest_available_parking(
+    st.session_state.selected_start,
+    MULTI_CAD_GRAPH,
+    MULTI_CAD_NODES,
+    accessible_only=accessible_flag
+)
+st.session_state.assigned_parking = nearest_slot_id
 
 home_tab_title = {
     "English": "🏠 Home",
