@@ -677,7 +677,7 @@ MULTI_CAD_NODES = {
 
 # Neighbouring nodes
 MULTI_CAD_GRAPH = {
-    # Ground Floor 
+    # Ground floor 
     "A_L0_Entrance": {
         "A_L0_Lobby": 35.0, 
         "Fashion Hub": 27.5
@@ -718,7 +718,7 @@ MULTI_CAD_GRAPH = {
         "A_L1_Escalator": 12.0
     },
 
-    # 1st Floor
+    # 1st floor
     "A_L1_Elevator": {
         "A_L0_Elevator": 15.0, 
         "A_L1_Hallway": 38.0, 
@@ -756,7 +756,7 @@ MULTI_CAD_GRAPH = {
         "A_L1_Hallway": 15.0
     },
 
-    # 2nd Floor 
+    # 2nd floor 
     "B_L2_Elevator": {
         "A_L1_Elevator": 15.0, 
         "B_L2_Corridor": 38.0, 
@@ -797,7 +797,7 @@ MULTI_CAD_GRAPH = {
         "B_L2_Corridor": 20.0
     },
 
-    # Rooftop Parking Lot 
+    # Parking lot 
     "P1": {"P_L3_Aisle_Main": 20.0},
     "P2": {"P_L3_Aisle_Main": 20.0},
     "P3": {"P_L3_Aisle_Main": 20.0},
