@@ -475,14 +475,12 @@ ROOM_POLYGONS = {
         "color": "#D8BFD8"
     },
     
-    # A_L1_Hallway (Central Corridor - Aligned with Ground Floor Lobby geometry)
     "A_L1_Hallway": {
         "z": 1,
         "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)],
         "color": "#87CEFA"
     },
     
-    # Positioned BELOW Central Hallway (Split into Book Nook & Tech Gadgets)
     "Book Nook": {
         "z": 1,
         "coords": [(-30, -28), (-2, -28), (-2, -8), (-30, -8)],
@@ -494,7 +492,6 @@ ROOM_POLYGONS = {
         "color": "#9370DB"
     },
 
-    # Right Vertical Core & Amenities Column (Aligned with Ground Floor X-coordinates)
     "A_L1_Restroom": {
         "z": 1,
         "coords": [(35, 24), (50, 24), (50, 36), (35, 36)],
@@ -519,7 +516,7 @@ ROOM_POLYGONS = {
     # 2nd floor
     "Cineplex Theater": {
         "z": 2,
-        "coords": [(2.0, 10.0), (18.0, 10.0), (18.0, 30.0), (2.0, 30.0)],
+        "coords": [(-50, -4), (-35, -4), (-35, 20), (-50, 20)],
         "color": "#CD5C5C"
     },
     "VR World & Arcade": {
@@ -528,14 +525,12 @@ ROOM_POLYGONS = {
         "color": "#FF69B4"
     },
     
-    # Central Corridor (Aligned with lower floors lobby/hallway geometry)
     "B_L2_Corridor": {
         "z": 2,
         "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)],
         "color": "#5F9EA0"
     },
     
-    # Positioned BELOW B_L2_Corridor (Split into Sky Food Court & Gourmet Bites)
     "Sky Food Court": {
         "z": 2,
         "coords": [(-30, -28), (-2, -28), (-2, -8), (-30, -8)],
@@ -547,7 +542,6 @@ ROOM_POLYGONS = {
         "color": "#F4A460"
     },
 
-    # Right Vertical Core & Amenities Column (Aligned with lower floors X-coordinates)
     "B_L2_Restroom": {
         "z": 2,
         "coords": [(35, 24), (50, 24), (50, 36), (35, 36)],
@@ -576,7 +570,6 @@ ROOM_POLYGONS = {
         "color": "#A9A9A9"
     },
 
-    # Upper Parking Bays (Above Main Aisle)
     "P5": {
         "z": 3,
         "coords": [(-30, 24), (-16, 24), (-16, 44), (-30, 44)],
@@ -597,8 +590,6 @@ ROOM_POLYGONS = {
         "coords": [(18, 24), (30, 24), (30, 44), (18, 44)],
         "color": "#4682B4"
     },
-
-    # Lower Parking Bays (Below Main Aisle)
     "P1": {
         "z": 3,
         "coords": [(-30, -28), (-16, -28), (-16, -8), (-30, -8)],
@@ -659,7 +650,7 @@ MULTI_CAD_NODES = {
     "A_L1_Stairs": (42.5, -18.0, 1),
 
     # 2nd floor
-    "Cineplex Theater": (10.0, 20.0, 2),
+    "Cineplex Theater": (-42.5, 8.0, 2),
     "VR World & Arcade": (16.0, 34.0, 2),
     "B_L2_Corridor": (0.0, 8.0, 2),
     "Sky Food Court": (-16.0, -18.0, 2),
