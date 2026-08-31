@@ -1560,21 +1560,26 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         f"{t['current_route_lbl']}: `{format_location_label(st.session_state.selected_start, st.session_state.lang)}` ➔ `{format_location_label(st.session_state.selected_dest, st.session_state.lang)}`"
     )
 
-path = theta_star_3d(
-    st.session_state.selected_start,
-    st.session_state.selected_dest,
-    MULTI_CAD_GRAPH,
-    MULTI_CAD_NODES,
-    accessible_only=accessible_flag
-)
+if st.session_state.selected_start and st.session_state.selected_end:
+    path, total_cost = theta_star_3d(
+        st.session_state.selected_start,
+        st.session_state.selected_end,
+        MULTI_CAD_NODES,
+        MULTI_CAD_GRAPH
+    )
+else:
+    path = []
 
-nearest_slot_id, parking_path = find_nearest_available_parking(
-    st.session_state.selected_start,
-    MULTI_CAD_GRAPH,
-    MULTI_CAD_NODES,
-    accessible_only=accessible_flag
-)
-st.session_state.assigned_parking = nearest_slot_id
+# Update Rooftop Parking route calculation
+if st.session_state.get("assigned_parking"):
+    parking_path, parking_cost = theta_star_3d(
+        st.session_state.selected_start,
+        st.session_state.assigned_parking,
+        MULTI_CAD_NODES,
+        MULTI_CAD_GRAPH
+    )
+else:
+    parking_path = []
 
 home_tab_title = {
     "English": "🏠 Home",
