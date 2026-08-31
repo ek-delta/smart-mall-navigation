@@ -516,12 +516,12 @@ ROOM_POLYGONS = {
     # 2nd floor
     "Cineplex Theater": {
         "z": 2,
-        "coords": [(-50, -4), (-35, -4), (-35, 20), (-50, 20)],
+        "coords": [(-30, 24), (30, 24), (30, 44), (-30, 44)],
         "color": "#CD5C5C"
     },
     "VR World & Arcade": {
         "z": 2,
-        "coords": [(2, 24), (30, 24), (30, 44), (2, 44)],
+        "coords": [(-50, -4), (-35, -4), (-35, 20), (-50, 20)],
         "color": "#FF69B4"
     },
     
@@ -650,8 +650,8 @@ MULTI_CAD_NODES = {
     "A_L1_Stairs": (42.5, -18.0, 1),
 
     # 2nd floor
-    "Cineplex Theater": (-42.5, 8.0, 2),
-    "VR World & Arcade": (16.0, 34.0, 2),
+    "Cineplex Theater": (0.0, 34.0, 2),
+    "VR World & Arcade": (-42.5, 8.0, 2),
     "B_L2_Corridor": (0.0, 8.0, 2),
     "Sky Food Court": (-16.0, -18.0, 2),
     "Gourmet Bites": (16.0, -18.0, 2),
