@@ -519,7 +519,7 @@ ROOM_POLYGONS = {
     # 2nd floor
     "Cineplex Theater": {
         "z": 2,
-        "coords": [(-30, 24), (-2, 24), (-2, 44), (-30, 44)],
+        "coords": [(2.0, 10.0), (18.0, 10.0), (18.0, 30.0), (2.0, 30.0)],
         "color": "#CD5C5C"
     },
     "VR World & Arcade": {
@@ -638,50 +638,50 @@ ROOM_POLYGONS = {
 
 MULTI_CAD_NODES = {
     # Ground floor
-    "Mega Supermarket": [0.0, 34.0, 0],
-    "A_L0_Lobby": [0.0, 8.0, 0],
-    "Fashion Hub": [0.0, -18.0, 0],
-    "A_L0_Info": [-42.5, 30.0, 0],
-    "A_L0_Entrance": [-42.5, 8.0, 0],
-    "A_L0_Restroom": [42.5, 30.0, 0],
-    "A_L0_Elevator": [42.5, 14.0, 0],
-    "A_L0_Escalator": [42.5, -2.0, 0],
-    "A_L0_Stairs": [42.5, -18.0, 0],
+    "Mega Supermarket": (0.0, 34.0, 0),
+    "A_L0_Lobby": (0.0, 8.0, 0),
+    "Fashion Hub": (0.0, -18.0, 0),
+    "A_L0_Info": (-42.5, 30.0, 0),
+    "A_L0_Entrance": (-42.5, 8.0, 0),
+    "A_L0_Restroom": (42.5, 30.0, 0),
+    "A_L0_Elevator": (42.5, 14.0, 0),
+    "A_L0_Escalator": (42.5, -2.0, 0),
+    "A_L0_Stairs": (42.5, -18.0, 0),
 
     # 1st floor
-    "Jewel Box": [0.0, 34.0, 1],
-    "A_L1_Hallway": [0.0, 8.0, 1],
-    "Book Nook": [-16.0, -18.0, 1],
-    "Tech Gadgets": [16.0, -18.0, 1],
-    "A_L1_Restroom": [42.5, 30.0, 1],
-    "A_L1_Elevator": [42.5, 14.0, 1],
-    "A_L1_Escalator": [42.5, -2.0, 1],
-    "A_L1_Stairs": [42.5, -18.0, 1],
+    "Jewel Box": (0.0, 34.0, 1),
+    "A_L1_Hallway": (0.0, 8.0, 1),
+    "Book Nook": (-16.0, -18.0, 1),
+    "Tech Gadgets": (16.0, -18.0, 1),
+    "A_L1_Restroom": (42.5, 30.0, 1),
+    "A_L1_Elevator": (42.5, 14.0, 1),
+    "A_L1_Escalator": (42.5, -2.0, 1),
+    "A_L1_Stairs": (42.5, -18.0, 1),
 
     # 2nd floor
-    "Cineplex Theater": [-16.0, 34.0, 2],
-    "VR World & Arcade": [16.0, 34.0, 2],
-    "B_L2_Corridor": [0.0, 8.0, 2],
-    "Sky Food Court": [-16.0, -18.0, 2],
-    "Gourmet Bites": [16.0, -18.0, 2],
-    "B_L2_Restroom": [42.5, 30.0, 2],
-    "B_L2_Elevator": [42.5, 14.0, 2],
-    "B_L2_Escalator": [42.5, -2.0, 2],
-    "B_L2_Stairs": [42.5, -18.0, 2],
+    "Cineplex Theater": (10.0, 20.0, 2),
+    "VR World & Arcade": (16.0, 34.0, 2),
+    "B_L2_Corridor": (0.0, 8.0, 2),
+    "Sky Food Court": (-16.0, -18.0, 2),
+    "Gourmet Bites": (16.0, -18.0, 2),
+    "B_L2_Restroom": (42.5, 30.0, 2),
+    "B_L2_Elevator": (42.5, 14.0, 2),
+    "B_L2_Escalator": (42.5, -2.0, 2),
+    "B_L2_Stairs": (42.5, -18.0, 2),
 
     # Parking lot
-    "P_L3_Aisle_Main": [0.0, 8.0, 3.0],
-    "P1": [-23.0, -18.0, 3.0],
-    "P2": [-7.0, -18.0, 3.0],
-    "P3": [9.0, -18.0, 3.0],
-    "P4": [24.0, -18.0, 3.0],
-    "P5": [-23.0, 34.0, 3.0],
-    "P6": [-7.0, 34.0, 3.0],
-    "P7": [9.0, 34.0, 3.0],
-    "P8": [24.0, 34.0, 3.0],
-    "P_L3_Elevator": [42.5, 14.0, 3.0],
-    "P_L3_Escalator": [42.5, -2.0, 3.0],
-    "P_L3_Stairs": [42.5, -18.0, 3.0]
+    "P_L3_Aisle_Main": (0.0, 8.0, 3.0),
+    "P1": (-23.0, -18.0, 3.0),
+    "P2": (-7.0, -18.0, 3.0),
+    "P3": (9.0, -18.0, 3.0),
+    "P4": (24.0, -18.0, 3.0),
+    "P5": (-23.0, 34.0, 3.0),
+    "P6": (-7.0, 34.0, 3.0),
+    "P7": (9.0, 34.0, 3.0),
+    "P8": (24.0, 34.0, 3.0),
+    "P_L3_Elevator": (42.5, 14.0, 3.0),
+    "P_L3_Escalator": (42.5, -2.0, 3.0),
+    "P_L3_Stairs": (42.5, -18.0, 3.0)
 }
 
 # Neighbouring nodes
