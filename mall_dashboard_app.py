@@ -674,6 +674,7 @@ MULTI_CAD_NODES = {
     "P_L3_Escalator": (42.5, -2.0, 3.0),
     "P_L3_Stairs": (42.5, -18.0, 3.0)
 }
+
 # Neighbouring nodes
 MULTI_CAD_GRAPH = {
     # Ground floor
@@ -700,7 +701,7 @@ MULTI_CAD_GRAPH = {
     # 2nd floor
     "B_L2_Elevator": {"A_L1_Elevator": 15.0, "B_L2_Corridor": 38.0, "P_L3_Elevator": 15.0},
     "B_L2_Stairs":   {"A_L1_Stairs": 15.0, "B_L2_Corridor": 38.0, "P_L3_Stairs": 15.0},
-    "B_L2_Escalator":{"A_L1_Escalator": 12.0, "B_L2_Corridor": 33.0},
+    "B_L2_Escalator":{"A_L1_Escalator": 12.0, "B_L2_Corridor": 33.0, "P_L3_Escalator": 12.0},
     "B_L2_Corridor": {"B_L2_Elevator": 38.0, "B_L2_Stairs": 38.0, "B_L2_Escalator": 33.0, "Cineplex Theater": 37.5, "VR World & Arcade": 37.5, "Sky Food Court": 20.0, "Gourmet Bites": 20.0, "B_L2_Restroom": 20.0},
     "Cineplex Theater":  {"B_L2_Corridor": 37.5},
     "VR World & Arcade": {"B_L2_Corridor": 37.5},
@@ -716,10 +717,11 @@ MULTI_CAD_GRAPH = {
     "P_L3_Aisle_Main": {
         "P1": 20.0, "P2": 20.0, "P3": 20.0, "P4": 20.0,
         "P5": 20.0, "P6": 20.0, "P7": 20.0, "P8": 20.0,
-        "P_L3_Elevator": 40.0, "P_L3_Stairs": 40.0
+        "P_L3_Elevator": 40.0, "P_L3_Stairs": 40.0, "P_L3_Escalator": 35.0
     },
     "P_L3_Elevator": {"P_L3_Aisle_Main": 40.0, "B_L2_Elevator": 15.0},
     "P_L3_Stairs":   {"P_L3_Aisle_Main": 40.0, "B_L2_Stairs": 15.0},
+    "P_L3_Escalator": {"P_L3_Aisle_Main": 35.0, "B_L2_Escalator": 12.0},
 }
 
 PARKING_SLOTS = {
