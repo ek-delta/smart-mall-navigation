@@ -677,50 +677,149 @@ MULTI_CAD_NODES = {
 
 # Neighbouring nodes
 MULTI_CAD_GRAPH = {
-    # Ground floor
-    "A_L0_Entrance": {"A_L0_Lobby": 35.0, "Fashion Hub": 27.5},
-    "Fashion Hub":   {"A_L0_Entrance": 27.5, "A_L0_Lobby": 37.5},
-    "A_L0_Lobby":    {"A_L0_Entrance": 35.0, "Fashion Hub": 37.5, "A_L0_Info": 16.0, "Mega Supermarket": 20.0, "A_L0_Restroom": 15.0, "A_L0_Elevator": 38.0, "A_L0_Stairs": 38.0, "A_L0_Escalator": 33.0},
-    "A_L0_Info":     {"A_L0_Lobby": 16.0},
-    "Mega Supermarket": {"A_L0_Lobby": 20.0},
-    "A_L0_Restroom": {"A_L0_Lobby": 15.0},
-    "A_L0_Elevator": {"A_L0_Lobby": 38.0, "A_L1_Elevator": 15.0},
-    "A_L0_Stairs":   {"A_L0_Lobby": 38.0, "A_L1_Stairs": 15.0},
-    "A_L0_Escalator":{"A_L0_Lobby": 33.0, "A_L1_Escalator": 12.0},
+    # Ground Floor 
+    "A_L0_Entrance": {
+        "A_L0_Lobby": 35.0, 
+        "Fashion Hub": 27.5
+    },
+    "Fashion Hub": {
+        "A_L0_Entrance": 27.5, 
+        "A_L0_Lobby": 37.5
+    },
+    "A_L0_Lobby": {
+        "A_L0_Entrance": 35.0,
+        "Fashion Hub": 37.5,
+        "A_L0_Info": 16.0,
+        "Mega Supermarket": 20.0,
+        "A_L0_Restroom": 15.0,
+        "A_L0_Elevator": 38.0,
+        "A_L0_Stairs": 38.0,
+        "A_L0_Escalator": 33.0
+    },
+    "A_L0_Info": {
+        "A_L0_Lobby": 16.0
+    },
+    "Mega Supermarket": {
+        "A_L0_Lobby": 20.0
+    },
+    "A_L0_Restroom": {
+        "A_L0_Lobby": 15.0
+    },
+    "A_L0_Elevator": {
+        "A_L0_Lobby": 38.0, 
+        "A_L1_Elevator": 15.0
+    },
+    "A_L0_Stairs": {
+        "A_L0_Lobby": 38.0, 
+        "A_L1_Stairs": 15.0
+    },
+    "A_L0_Escalator": {
+        "A_L0_Lobby": 33.0, 
+        "A_L1_Escalator": 12.0
+    },
 
-    # 1st floor
-    "A_L1_Elevator": {"A_L0_Elevator": 15.0, "A_L1_Hallway": 38.0, "B_L2_Elevator": 15.0},
-    "A_L1_Stairs":   {"A_L0_Stairs": 15.0, "A_L1_Hallway": 38.0, "B_L2_Stairs": 15.0},
-    "A_L1_Escalator":{"A_L0_Escalator": 12.0, "A_L1_Hallway": 33.0, "B_L2_Escalator": 12.0},
-    "A_L1_Hallway":  {"A_L1_Elevator": 38.0, "A_L1_Stairs": 38.0, "A_L1_Escalator": 33.0, "Tech Gadgets": 37.5, "Jewel Box": 37.5, "Book Nook": 20.0, "A_L1_Restroom": 15.0},
-    "Tech Gadgets":  {"A_L1_Hallway": 37.5},
-    "Jewel Box":     {"A_L1_Hallway": 37.5},
-    "Book Nook":     {"A_L1_Hallway": 20.0},
-    "A_L1_Restroom": {"A_L1_Hallway": 15.0},
+    # 1st Floor
+    "A_L1_Elevator": {
+        "A_L0_Elevator": 15.0, 
+        "A_L1_Hallway": 38.0, 
+        "B_L2_Elevator": 15.0
+    },
+    "A_L1_Stairs": {
+        "A_L0_Stairs": 15.0, 
+        "A_L1_Hallway": 38.0, 
+        "B_L2_Stairs": 15.0
+    },
+    "A_L1_Escalator": {
+        "A_L0_Escalator": 12.0, 
+        "A_L1_Hallway": 33.0, 
+        "B_L2_Escalator": 12.0
+    },
+    "A_L1_Hallway": {
+        "A_L1_Elevator": 38.0,
+        "A_L1_Stairs": 38.0,
+        "A_L1_Escalator": 33.0,
+        "Tech Gadgets": 37.5,
+        "Jewel Box": 37.5,
+        "Book Nook": 20.0,
+        "A_L1_Restroom": 15.0
+    },
+    "Tech Gadgets": {
+        "A_L1_Hallway": 37.5
+    },
+    "Jewel Box": {
+        "A_L1_Hallway": 37.5
+    },
+    "Book Nook": {
+        "A_L1_Hallway": 20.0
+    },
+    "A_L1_Restroom": {
+        "A_L1_Hallway": 15.0
+    },
 
-    # 2nd floor
-    "B_L2_Elevator": {"A_L1_Elevator": 15.0, "B_L2_Corridor": 38.0, "P_L3_Elevator": 15.0},
-    "B_L2_Stairs":   {"A_L1_Stairs": 15.0, "B_L2_Corridor": 38.0, "P_L3_Stairs": 15.0},
-    "B_L2_Escalator":{"A_L1_Escalator": 12.0, "B_L2_Corridor": 33.0},
-    "B_L2_Corridor": {"B_L2_Elevator": 38.0, "B_L2_Stairs": 38.0, "B_L2_Escalator": 33.0, "Cineplex Theater": 37.5, "VR World & Arcade": 37.5, "Sky Food Court": 20.0, "Gourmet Bites": 20.0, "B_L2_Restroom": 20.0},
-    "Cineplex Theater":  {"B_L2_Corridor": 37.5},
-    "VR World & Arcade": {"B_L2_Corridor": 37.5},
-    "Sky Food Court":    {"B_L2_Corridor": 20.0},
-    "Gourmet Bites":     {"B_L2_Corridor": 20.0},
-    "B_L2_Restroom":     {"B_L2_Corridor": 20.0},
+    # 2nd Floor 
+    "B_L2_Elevator": {
+        "A_L1_Elevator": 15.0, 
+        "B_L2_Corridor": 38.0, 
+        "P_L3_Elevator": 15.0
+    },
+    "B_L2_Stairs": {
+        "A_L1_Stairs": 15.0, 
+        "B_L2_Corridor": 38.0, 
+        "P_L3_Stairs": 15.0
+    },
+    "B_L2_Escalator": {
+        "A_L1_Escalator": 12.0, 
+        "B_L2_Corridor": 33.0
+    },
+    "B_L2_Corridor": {
+        "B_L2_Elevator": 38.0,
+        "B_L2_Stairs": 38.0,
+        "B_L2_Escalator": 33.0,
+        "Cineplex Theater": 37.5,
+        "VR World & Arcade": 37.5,
+        "Sky Food Court": 20.0,
+        "Gourmet Bites": 20.0,
+        "B_L2_Restroom": 20.0
+    },
+    "Cineplex Theater": {
+        "B_L2_Corridor": 37.5
+    },
+    "VR World & Arcade": {
+        "B_L2_Corridor": 37.5
+    },
+    "Sky Food Court": {
+        "B_L2_Corridor": 20.0
+    },
+    "Gourmet Bites": {
+        "B_L2_Corridor": 20.0
+    },
+    "B_L2_Restroom": {
+        "B_L2_Corridor": 20.0
+    },
 
-    # Parking lot
-    "P1": {"P_L3_Aisle_Main": 20.0}, "P2": {"P_L3_Aisle_Main": 20.0},
-    "P3": {"P_L3_Aisle_Main": 20.0}, "P4": {"P_L3_Aisle_Main": 20.0},
-    "P5": {"P_L3_Aisle_Main": 20.0}, "P6": {"P_L3_Aisle_Main": 20.0},
-    "P7": {"P_L3_Aisle_Main": 20.0}, "P8": {"P_L3_Aisle_Main": 20.0},
+    # Rooftop Parking Lot 
+    "P1": {"P_L3_Aisle_Main": 20.0},
+    "P2": {"P_L3_Aisle_Main": 20.0},
+    "P3": {"P_L3_Aisle_Main": 20.0},
+    "P4": {"P_L3_Aisle_Main": 20.0},
+    "P5": {"P_L3_Aisle_Main": 20.0},
+    "P6": {"P_L3_Aisle_Main": 20.0},
+    "P7": {"P_L3_Aisle_Main": 20.0},
+    "P8": {"P_L3_Aisle_Main": 20.0},
     "P_L3_Aisle_Main": {
         "P1": 20.0, "P2": 20.0, "P3": 20.0, "P4": 20.0,
         "P5": 20.0, "P6": 20.0, "P7": 20.0, "P8": 20.0,
-        "P_L3_Elevator": 40.0, "P_L3_Stairs": 40.0
+        "P_L3_Elevator": 40.0, 
+        "P_L3_Stairs": 40.0
     },
-    "P_L3_Elevator": {"P_L3_Aisle_Main": 40.0, "B_L2_Elevator": 15.0},
-    "P_L3_Stairs":   {"P_L3_Aisle_Main": 40.0, "B_L2_Stairs": 15.0},
+    "P_L3_Elevator": {
+        "P_L3_Aisle_Main": 40.0, 
+        "B_L2_Elevator": 15.0
+    },
+    "P_L3_Stairs": {
+        "P_L3_Aisle_Main": 40.0, 
+        "B_L2_Stairs": 15.0
+    },
 }
 
 PARKING_SLOTS = {
