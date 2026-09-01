@@ -947,7 +947,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 y=y_coords,
                 fill="toself",
                 fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
-                line=dict(color="#4A5568", width=1.5),
+                line=dict(color="#4A5568", width=0),
                 hoverinfo="text",
                 text=translated_name,
                 customdata=[room_id] * len(x_coords),
