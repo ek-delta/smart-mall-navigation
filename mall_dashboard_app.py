@@ -1351,14 +1351,22 @@ def format_turn_instruction(angle_diff, distance, target_name, lang="English"):
 
     lang_dict = phrases.get(lang, phrases["English"])
 
-    if -22.5 <= angle_diff <= 22.5: return lang_dict["straight"]
-    elif 22.5 < angle_diff <= 67.5: return lang_dict["slight_right"]
-    elif 67.5 < angle_diff <= 112.5: return lang_dict["right"]
-    elif 112.5 < angle_diff <= 157.5: return lang_dict["sharp_right"]
-    elif -67.5 <= angle_diff < -22.5: return lang_dict["slight_left"]
-    elif -112.5 <= angle_diff < -67.5: return lang_dict["left"]
-    elif -157.5 <= angle_diff < -112.5: return lang_dict["sharp_left"]
-    else: return lang_dict["u_turn"]
+    if -22.5 <= angle_diff <= 22.5:
+        return lang_dict["straight"]
+    elif -67.5 <= angle_diff < -22.5:
+        return lang_dict["slight_right"]
+    elif -112.5 <= angle_diff < -67.5:
+        return lang_dict["right"]
+    elif -157.5 <= angle_diff < -112.5:
+        return lang_dict["sharp_right"]
+    elif 22.5 < angle_diff <= 67.5:
+        return lang_dict["slight_left"]
+    elif 67.5 < angle_diff <= 112.5:
+        return lang_dict["left"]
+    elif 112.5 < angle_diff <= 157.5:
+        return lang_dict["sharp_left"]
+    else:
+        return lang_dict["u_turn"]
 
 def generate_detailed_directions(path, node_coords, lang="English"):
     if not path or len(path) < 2: return []
@@ -1425,7 +1433,7 @@ def generate_detailed_directions(path, node_coords, lang="English"):
         instruction_str = format_turn_instruction(angle_diff, step_dist, f"**{next_poi}**", lang=lang)
 
         angle_diff_norm = (angle_diff + 180) % 360 - 180
-        icon = "↪️" if angle_diff_norm > 22.5 else ("↩️" if angle_diff_norm < -22.5 else "⬆️")
+        icon = "↪️" if angle_diff_norm < -22.5 else ("↩️" if angle_diff_norm > 22.5 else "⬆️")
 
         directions.append({"step": len(directions) + 1, "text": instruction_str, "icon": icon})
 
