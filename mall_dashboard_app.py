@@ -1589,6 +1589,7 @@ path = theta_star_3d(
 )
 
 assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
+    "P_L3_Driveway_Entrance",
     MULTI_CAD_GRAPH,
     MULTI_CAD_NODES,
     accessible_only=accessible_flag
