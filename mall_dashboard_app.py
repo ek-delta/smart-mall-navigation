@@ -804,7 +804,6 @@ def euclidean_distance_3d(node_a, node_b, node_coords):
     return math.sqrt((x1 - x2)**2 + (y1 - y2)**2 + ((z1 - z2) * 15.0)**2)
 
 def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
-    # Early validation
     if start not in node_coords or goal not in node_coords:
         return None
 
@@ -813,7 +812,6 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
 
     parent = {start: start}
     
-    # Initialize scores for all known nodes in node_coords to prevent KeyErrors
     g_score = {node: float('inf') for node in node_coords}
     g_score[start] = 0.0
 
@@ -831,22 +829,16 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
             path.append(start)
             return path[::-1]
 
-        # Process neighbors safely
         for neighbor, weight in graph.get(current, {}).items():
             if neighbor not in node_coords:
                 continue
-
-            # Accessibility filter
             if accessible_only and ("Stairs" in neighbor or "Escalator" in neighbor):
                 continue
 
             p_curr = parent[current]
-            
-            # Check 3D constraints: Line-of-sight is ONLY valid on the SAME floor (same Z-coordinate)
             same_floor = (node_coords[p_curr][2] == node_coords[neighbor][2])
             
             if same_floor and has_line_of_sight_3d(p_curr, neighbor, node_coords, WALL_SEGMENTS_BY_FLOOR):
-                # Path 2: Theta* direct shortcut from parent to neighbor
                 candidate_g = g_score[p_curr] + euclidean_distance_3d(p_curr, neighbor, node_coords)
                 if candidate_g < g_score[neighbor]:
                     parent[neighbor] = p_curr
@@ -854,7 +846,6 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
                     f_score[neighbor] = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
             else:
-                # Path 1: Standard A* step-by-step neighbor transition
                 candidate_g = g_score[current] + weight
                 if candidate_g < g_score[neighbor]:
                     parent[neighbor] = current
