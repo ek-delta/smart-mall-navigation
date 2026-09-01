@@ -380,7 +380,12 @@ if "selected_dest" not in st.session_state:
     st.session_state.selected_dest = "P1"
 if "assigned_parking" not in st.session_state:
     st.session_state.assigned_parking = None
-
+if "assigned_parking" not in st.session_state:
+    st.session_state.assigned_parking = None
+if "entry_path" not in st.session_state:
+    st.session_state.entry_path = []
+if "exit_path" not in st.session_state:
+    st.session_state.exit_path = []
 if "clicked_location" not in st.session_state:
     st.session_state.clicked_location = None
 
@@ -1583,13 +1588,14 @@ path = theta_star_3d(
     accessible_only=accessible_flag
 )
 
-nearest_slot_id, parking_path = find_nearest_available_parking(
-    st.session_state.selected_start,
+assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
     MULTI_CAD_GRAPH,
     MULTI_CAD_NODES,
     accessible_only=accessible_flag
 )
-st.session_state.assigned_parking = nearest_slot_id
+st.session_state.assigned_parking = assigned_slot_id
+st.session_state.entry_path = entry_path
+st.session_state.exit_path = exit_path
 
 home_tab_title = {
     "English": "🏠 Home",
