@@ -216,7 +216,8 @@ POI_TRANSLATIONS = {
         "P_L3_Elevator": "🛗Elevator (R)",
         "P_L3_Stairs": "🧗Stairwell (R)",
         "P_L3_Escalator": "🪜Escalator (R)",
-        "P_L3_Driveway_Entrance": "🚪Entrance/Exit (R)",
+        "P_L3_Driveway_Entrance": "🚪Entrance Ramp (R)",
+        "P_L3_Driveway_Exit": "🚪Exit Ramp (R)",
         "Fashion Hub": "👗Fashion Hub",
         "Tech Gadgets": "📱Tech Gadgets",
         "Jewel Box": "👗Jewel Box",
@@ -254,6 +255,7 @@ POI_TRANSLATIONS = {
         "P_L3_Stairs": "🧗楼顶楼梯",
         "P_L3_Escalator": "🪜楼顶自动扶梯",
         "P_L3_Driveway_Entrance": "🚪楼顶入口",
+        "P_L3_Driveway_Exit": "🚪楼顶出口",
         "Fashion Hub": "👗时尚中心 (Fashion Hub)",
         "Tech Gadgets": "📱酷科技数码 (Tech Gadgets)",
         "Jewel Box": "👗璀璨珠宝 (Jewel Box)",
@@ -291,6 +293,7 @@ POI_TRANSLATIONS = {
         "P_L3_Stairs": "🧗Tangga (Bumbung)",
         "P_L3_Escalator": "🪜Eskalator (Bumbung)",
         "P_L3_Driveway_Entrance": "🚪Laluan Masuk Kenderaan (Bumbung)",
+        "P_L3_Driveway_Exit": "🚪Laluan Keluar Kenderaan (Bumbung)",
         "Fashion Hub": "👗Fashion Hub",
         "Tech Gadgets": "📱Tech Gadgets",
         "Jewel Box": "👗Jewel Box",
@@ -571,8 +574,13 @@ ROOM_POLYGONS = {
     },
     "P_L3_Driveway_Entrance": {
         "z": 3,
-        "coords": [(-50, -4), (-30, -4), (-30, 20), (-50, 20)],
+        "coords": [(-50, -4), (-30, -4), (-30, 8), (-50, 8)],
         "color": "#A9A9A9"
+    },
+    "P_L3_Driveway_Exit": {
+        "z": 3,
+        "coords": [(-50, 8), (-30, 8), (-30, 20), (-50, 20)],
+        "color": "#708090"  
     },
     "P5": {
         "z": 3,
@@ -666,7 +674,8 @@ MULTI_CAD_NODES = {
 
     # Parking lot
     "P_L3_Aisle_Main": (0.0, 8.0, 3),
-    "P_L3_Driveway_Entrance": (-40.0, 8.0, 3),
+    "P_L3_Driveway_Entrance": (-40.0, 2.0, 3),  
+    "P_L3_Driveway_Exit": (-40.0, 14.0, 3),
     "P1": (-22.5, -16.0, 3),
     "P2": (-7.5, -16.0, 3),
     "P3": (7.5, -16.0, 3),
@@ -723,7 +732,7 @@ MULTI_CAD_GRAPH = {
         "P1": 20.0, "P2": 20.0, "P3": 20.0, "P4": 20.0,
         "P5": 20.0, "P6": 20.0, "P7": 20.0, "P8": 20.0,
         "P_L3_Elevator": 40.0, "P_L3_Stairs": 40.0, 
-        "P_L3_Escalator": 35.0, "P_L3_Driveway_Entrance": 25.0
+        "P_L3_Escalator": 35.0, "P_L3_Driveway_Entrance": 25.0, "P_L3_Driveway_Exit": 25.0,
     },
     "P_L3_Driveway_Entrance": {"P_L3_Aisle_Main": 25.0},
     "P_L3_Elevator": {"P_L3_Aisle_Main": 40.0, "B_L2_Elevator": 15.0},
