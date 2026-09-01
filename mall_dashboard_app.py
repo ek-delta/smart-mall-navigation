@@ -1306,6 +1306,7 @@ def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang
 # ==============================================================================
 
 def find_nearest_available_parking(start_node, graph, node_coords, accessible_only=False):
+    entrance_node = "P_L3_Driveway_Entrance"
     exit_node = "P_L3_Driveway_Exit"
 
     if entrance_node not in node_coords or exit_node not in node_coords:
