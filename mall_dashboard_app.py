@@ -1301,28 +1301,45 @@ def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang
 # ==============================================================================
 
 def find_nearest_available_parking(start_node, graph, node_coords, accessible_only=False):
+    entrance_node = "P_L3_Driveway_Entrance"
+    exit_node = "P_L3_Driveway_Exit"
+
+    if entrance_node not in node_coords or exit_node not in node_coords:
+        return None, [], []
+
     available_slots = [
         slot_id for slot_id, details in PARKING_SLOTS.items()
         if not details.get("occupied", False) and slot_id in node_coords
     ]
 
     if not available_slots:
-        return None, []
+        return None, [], []
 
     nearest_slot = None
-    shortest_path = []
-    min_dist = float("inf")
+    best_entry_path = []
+    best_exit_path = []
+    min_total_dist = float("inf")
 
     for slot_id in available_slots:
-        path = theta_star_3d(start_node, slot_id, graph, node_coords, accessible_only=accessible_only)
-        if path:
-            dist = compute_route_summary(path)["total_distance"]
-            if dist < min_dist:
-                min_dist = dist
-                nearest_slot = slot_id
-                shortest_path = path
+        entry_path = theta_star_3d(entrance_node, slot_id, graph, node_coords, accessible_only=accessible_only)
+        if not entry_path:
+            continue
 
-    return nearest_slot, shortest_path
+        exit_path = theta_star_3d(slot_id, exit_node, graph, node_coords, accessible_only=accessible_only)
+        if not exit_path:
+            continue
+
+        entry_dist = compute_route_summary(entry_path)["total_distance"]
+        exit_dist = compute_route_summary(exit_path)["total_distance"]
+        total_dist = entry_dist + exit_dist
+
+        if total_dist < min_total_dist:
+            min_total_dist = total_dist
+            nearest_slot = slot_id
+            best_entry_path = entry_path
+            best_exit_path = exit_path
+
+    return nearest_slot, best_entry_path, best_exit_path
 
 def calculate_heading_angle(node_a, node_b, node_coords):
     x1, y1, _ = node_coords[node_a]
@@ -1770,41 +1787,90 @@ with tab_park:
     st.subheader(t["parking_sec"])
 
     assigned_slot = st.session_state.get("assigned_parking", None)
+    entry_path = st.session_state.get("entry_path", [])
+    exit_path = st.session_state.get("exit_path", [])
 
     if assigned_slot:
-        start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
         slot_icon = get_location_icon(assigned_slot)
-        st.success(f"{t['nearest_spot_found']}: `{slot_icon} {assigned_slot}` ({t['rooftop_lot']}) {t['from_lbl']} `{start_label}`")
+        st.success(f"{t['nearest_spot_found']}: `{slot_icon} {assigned_slot}` ({t['rooftop_lot']})")
 
-        fig_parking = render_rooftop_parking_map(
-            assigned_slot=assigned_slot,
-            route_path=parking_path,
-            current_lang=st.session_state.lang
-        )
-        st.plotly_chart(fig_parking, use_container_width=True)
+        # Sub-tabs for Entry and Exit legs
+        tab_entry, tab_exit = st.tabs(["🚗 1. Entrance to Parking Spot", "🚪 2. Parking Spot to Exit"])
 
-        if parking_path:
-            p_summary = compute_route_summary(parking_path)
-            st.markdown("---")
-            st.subheader(t["parking_route_summary"])
+        # ======================================================================
+        # TAB 1: ENTRANCE -> PARKING SPOT
+        # ======================================================================
+        with tab_entry:
+            st.markdown("### 🚗 Driving to Parking Spot")
+            
+            # Render map with the entry route
+            fig_entry = render_rooftop_parking_map(
+                assigned_slot=assigned_slot,
+                route_path=entry_path,
+                current_lang=st.session_state.lang
+            )
+            st.plotly_chart(fig_entry, use_container_width=True)
 
-            p_col1, p_col2, p_col3 = st.columns(3)
-            p_col1.metric(t["dist_to_spot"], f"{p_summary['total_distance']} m")
-            p_col2.metric(t["floors_to_ascend"], p_summary["floors_crossed"])
-            p_col3.metric(t["total_steps"], p_summary["steps"])
+            if entry_path:
+                entry_summary = compute_route_summary(entry_path)
+                st.markdown("---")
+                st.subheader(t["parking_route_summary"])
 
-            st.markdown("---")
-            st.subheader(t["parking_turn_by_turn"])
-            parking_steps = generate_detailed_directions(parking_path, MULTI_CAD_NODES, lang=st.session_state.lang)
+                p_col1, p_col2, p_col3 = st.columns(3)
+                p_col1.metric(t["dist_to_spot"], f"{entry_summary['total_distance']} m")
+                p_col2.metric(t["floors_to_ascend"], entry_summary["floors_crossed"])
+                p_col3.metric(t["total_steps"], entry_summary["steps"])
 
-            for step_info in parking_steps:
-                col_icon, col_text = st.columns([0.1, 0.9])
-                with col_icon:
-                    st.markdown(f"### {step_info['icon']}")
-                with col_text:
-                    st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
-                    st.markdown(step_info["text"])
-                st.divider()
+                st.markdown("---")
+                st.subheader(t["parking_turn_by_turn"])
+                entry_steps = generate_detailed_directions(entry_path, MULTI_CAD_NODES, lang=st.session_state.lang)
+
+                for step_info in entry_steps:
+                    col_icon, col_text = st.columns([0.1, 0.9])
+                    with col_icon:
+                        st.markdown(f"### {step_info['icon']}")
+                    with col_text:
+                        st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
+                        st.markdown(step_info["text"])
+                    st.divider()
+
+        # ======================================================================
+        # TAB 2: PARKING SPOT -> EXIT
+        # ======================================================================
+        with tab_exit:
+            st.markdown("### 🚪 Leaving Parking Spot to Driveway Exit")
+
+            # Render map with the exit route
+            fig_exit = render_rooftop_parking_map(
+                assigned_slot=assigned_slot,
+                route_path=exit_path,
+                current_lang=st.session_state.lang
+            )
+            st.plotly_chart(fig_exit, use_container_width=True)
+
+            if exit_path:
+                exit_summary = compute_route_summary(exit_path)
+                st.markdown("---")
+                st.subheader(t["parking_route_summary"])
+
+                e_col1, e_col2, e_col3 = st.columns(3)
+                e_col1.metric(t["dist_to_spot"], f"{exit_summary['total_distance']} m")
+                e_col2.metric(t["floors_to_ascend"], exit_summary["floors_crossed"])
+                e_col3.metric(t["total_steps"], exit_summary["steps"])
+
+                st.markdown("---")
+                st.subheader(t["parking_turn_by_turn"])
+                exit_steps = generate_detailed_directions(exit_path, MULTI_CAD_NODES, lang=st.session_state.lang)
+
+                for step_info in exit_steps:
+                    col_icon, col_text = st.columns([0.1, 0.9])
+                    with col_icon:
+                        st.markdown(f"### {step_info['icon']}")
+                    with col_text:
+                        st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
+                        st.markdown(step_info["text"])
+                    st.divider()
+
     else:
         st.error("⚠️ No available parking spots found on the Rooftop layer.")
         fig_parking = render_rooftop_parking_map(
