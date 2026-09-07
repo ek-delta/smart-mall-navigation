@@ -386,6 +386,10 @@ CATEGORY_TRANSLATIONS = {
 
 if "lang" not in st.session_state:
     st.session_state.lang = "English"
+if "selected_start" not in st.session_state:
+    st.session_state.selected_start = "A_L0_Entrance"
+if "selected_dest" not in st.session_state:
+    st.session_state.selected_dest = "P1"
 if "assigned_parking" not in st.session_state:
     st.session_state.assigned_parking = None
 if "assigned_parking" not in st.session_state:
@@ -949,7 +953,94 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
         mode="lines"
     )
 
+def wrap_text_to_fit(text: str, max_chars_per_line: int = 12) -> str:
+    words = text.split()
+    if not words:
+        return ""
+    lines = []
+    current_line = []
+    current_len = 0
+
+    for word in words:
+        if current_len + len(word) <= max_chars_per_line:
+            current_line.append(word)
+            current_len += len(word) + 1
+        else:
+            if current_line:
+                lines.append(" ".join(current_line))
+            current_line = [word]
+            current_len = len(word) + 1
+
+    if current_line:
+        lines.append(" ".join(current_line))
+
+    return "<br>".join(lines)
+
+
+def calculate_optimal_font_size(bbox_width: float, bbox_height: float, text: str) -> int:
+    if not bbox_width or not bbox_height:
+        return 10 
+
+    min_dim = min(bbox_width, bbox_height)
+    char_count = len(text)
+
+    raw_size = int((min_dim / math.sqrt(max(char_count, 1))) * 1.5)
+    return max(8, min(14, raw_size))
+
+def get_polygon_centroid_and_bounds(coords):
+    xs = [pt[0] for pt in coords]
+    ys = [pt[1] for pt in coords]
+
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+
+    center_x = (min_x + max_x) / 2.0
+    center_y = (min_y + max_y) / 2.0
+    width = max_x - min_x
+    height = max_y - min_y
+
+    return center_x, center_y, width, height
+
+def add_poi_labels_to_map(fig, poi_nodes, current_lang="English", POI_TRANSLATIONS=None):
+    if POI_TRANSLATIONS is None:
+        POI_TRANSLATIONS = {}
+
+    for node_id, data in poi_nodes.items():
+        coords = data.get("geometry", []) 
+        raw_name = POI_TRANSLATIONS.get(current_lang, {}).get(node_id, node_id)
+
+        if not coords:
+            continue
+
+        center_x, center_y, bbox_w, bbox_h = get_polygon_centroid_and_bounds(coords)
+
+        if bbox_w < 1.0 or bbox_h < 1.0:
+            continue
+
+        wrapped_label = wrap_text_to_fit(raw_name, max_chars_per_line=10)
+        font_size = calculate_optimal_font_size(bbox_w, bbox_h, raw_name)
+
+        fig.add_annotation(
+            x=center_x,
+            y=center_y,
+            text=wrapped_label,
+            showarrow=False,
+            font=dict(
+                size=font_size,
+                color="#1E293B",  
+                family="Arial, sans-serif"
+            ),
+            align="center",
+            valign="middle",
+            width=bbox_w * 0.85,  
+            height=bbox_h * 0.85, 
+            captureevents=False  
+        )
+
+    return fig
+
 def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
+    """Wraps text using <br> based on a dynamic maximum character threshold."""
     words = text.split()
     if not words:
         return ""
@@ -970,12 +1061,18 @@ def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
     if current_line:
         lines.append(" ".join(current_line))
 
+    # Wrap in <b> tags to ensure explicit bolding across all Plotly render engines
     return "<b>" + "<br>".join(lines) + "</b>"
 
+
 def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tuple[int, int]:
+    """
+    Calculates font size (in pt) and dynamic character limit per line
+    so bold text scales to fit polygons without clipping.
+    """
     min_dim = min(bbox_w, bbox_h)
-    char_count = len(text)
-    
+
+    # Font scaling tuned specifically for heavy bold letter widths
     if min_dim < 2.0:
         font_size = 7
     elif min_dim < 4.0:
@@ -985,6 +1082,7 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     else:
         font_size = 12
 
+    # Account for wider character spacing in bold text
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
 
     return font_size, max_chars_per_line
@@ -999,6 +1097,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
+    # 1. Render Room / Store Polygons
     for room_id, coords in floor_rooms.items():
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
@@ -1019,9 +1118,11 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             )
         )
 
+    # 2. Render Bold Room / POI Labels
     for room_id, coords in floor_rooms.items():
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
         
+        # Calculate bounding box bounds and center point
         xs = [p[0] for p in coords]
         ys = [p[1] for p in coords]
         min_x, max_x = min(xs), max(xs)
@@ -1032,12 +1133,14 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         bbox_w = max_x - min_x
         bbox_h = max_y - min_y
 
+        # Skip tiny structural elements (e.g., pillars or thin walls)
         if bbox_w < 0.6 or bbox_h < 0.6:
             continue
 
         font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
         wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
 
+        # Add bold text annotation
         fig.add_annotation(
             x=cx,
             y=cy,
@@ -1053,6 +1156,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             captureevents=False
         )
 
+    # 3. Render Route Path (if present)
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -1130,18 +1234,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-    # Render Intermediate Waypoints
-    for idx, wp_id in enumerate(st.session_state.selected_waypoints):
-        if wp_id in MULTI_CAD_NODES and MULTI_CAD_NODES[wp_id][2] == active_floor_z:
-            wx, wy, _ = MULTI_CAD_NODES[wp_id]
-            fig.add_trace(go.Scatter(
-                x=[wx], y=[wy], mode="markers+text",
-                marker=dict(size=12, color="#FFA500", symbol="diamond"),
-                text=[f" 📍 Stop {idx + 1}"], textposition="top right",
-                textfont=dict(color="#FFA500", size=11, family="Arial Black"),
-                showlegend=False
-            ))
-
+    # 4. Layout Settings
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
@@ -1154,7 +1247,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
     )
     return fig
-    
+
 def render_3d_isometric_view(route_path=None, current_lang="English"):
     fig = go.Figure()
 
@@ -1408,8 +1501,8 @@ def find_nearest_available_parking(start_node, graph, node_coords, accessible_on
         if not exit_path:
             continue
 
-        entry_dist = compute_route_summary(entry_path, node_coords)["total_distance"]
-        exit_dist = compute_route_summary(exit_path, node_coords)["total_distance"]
+        entry_dist = compute_route_summary(entry_path)["total_distance"]
+        exit_dist = compute_route_summary(exit_path)["total_distance"]
         total_dist = entry_dist + exit_dist
 
         if total_dist < min_total_dist:
@@ -1420,12 +1513,10 @@ def find_nearest_available_parking(start_node, graph, node_coords, accessible_on
 
     return nearest_slot, best_entry_path, best_exit_path
 
-
 def calculate_heading_angle(node_a, node_b, node_coords):
     x1, y1, _ = node_coords[node_a]
     x2, y2, _ = node_coords[node_b]
     return math.degrees(math.atan2(y2 - y1, x2 - x1)) % 360
-
 
 def format_turn_instruction(angle_diff, distance, target_name, lang="English"):
     angle_diff = (angle_diff + 180) % 360 - 180
@@ -1482,12 +1573,13 @@ def format_turn_instruction(angle_diff, distance, target_name, lang="English"):
     else:
         return lang_dict["u_turn"]
 
-
 def generate_detailed_directions(path, node_coords, lang="English"):
-    if not path or len(path) < 2:
-        return []
+    if not path or len(path) < 2: return []
 
     directions = []
+
+    start_icon = get_location_icon(path[0])
+    dest_icon = get_location_icon(path[1])
 
     start_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[0], path[0])}"
     first_dest_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[1], path[1])}"
@@ -1502,6 +1594,9 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     for i in range(1, len(path) - 1):
         prev_node, curr_node, next_node = path[i - 1], path[i], path[i + 1]
+
+        curr_icon = get_location_icon(curr_node)
+        next_icon = get_location_icon(next_node)
 
         curr_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(curr_node, curr_node)}"
         next_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(next_node, next_node)}"
@@ -1547,7 +1642,7 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
         directions.append({"step": len(directions) + 1, "text": instruction_str, "icon": icon})
 
-    # Final arrival step
+    final_icon = get_location_icon(path[-1])
     final_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[-1], path[-1])}"
     arrival_text = {
         "English": f"You have arrived at your destination: **{final_poi}**.",
@@ -1558,40 +1653,33 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     return directions
 
+def compute_route_summary(path):
+    if not path or len(path) < 2: return {"total_distance": 0, "floors_crossed": 0, "steps": 0}
 
-def compute_route_summary(path, node_coords):
-    """Computes total distance, distinct floors crossed, and total steps along path."""
-    if not path or len(path) < 2:
-        return {"total_distance": 0.0, "floors_crossed": 0, "steps": 0}
-
-    total_dist = 0.0
+    total_dist = 0
     floors_visited = set()
 
     for i in range(len(path) - 1):
-        curr_node, nxt_node = path[i], path[i + 1]
-        z1, z2 = node_coords[curr_node][2], node_coords[nxt_node][2]
+        curr_node, nxt_node = path[i], path[i+1]
+        z1, z2 = MULTI_CAD_NODES[curr_node][2], MULTI_CAD_NODES[nxt_node][2]
 
         floors_visited.add(z1)
         floors_visited.add(z2)
 
         if z1 == z2:
-            total_dist += euclidean_distance_3d(curr_node, nxt_node, node_coords)
+            total_dist += euclidean_distance_3d(curr_node, nxt_node, MULTI_CAD_NODES)
         else:
-            total_dist += 15.0 
+            total_dist += 15.0
 
     return {
         "total_distance": round(total_dist, 1),
         "floors_crossed": max(0, len(floors_visited) - 1),
         "steps": len(path) - 1
     }
-
-
-def format_location_label(room_id, node_coords, lang="English"):
-    """Formats room options for dropdowns and selectboxes with floor codes and category tags."""
-    if room_id not in node_coords:
-        return room_id
-
-    z_val = int(node_coords[room_id][2])
+    
+def format_location_label(room_id, lang):
+    icon = get_location_icon(room_id)
+    z_val = int(MULTI_CAD_NODES[room_id][2])
     floor_code = "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
     name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id)
     clean_name = name.split('(')[0].strip()
@@ -1769,153 +1857,79 @@ with tab_home:
 
 
 # Mall map tab
-# ==============================================================================
-# TAB 1: 2D / 3D MAP & GUIDED ROUTE SELECTION
-# ==============================================================================
 with tab_map:
-    # 1. Safe State Initializations (Uses setdefault so values survive reruns)
-    st.session_state.setdefault("selection_mode", False)
-    st.session_state.setdefault("selection_step", "START")
-    st.session_state.setdefault("selected_start", None)
-    st.session_state.setdefault("selected_waypoints", [])
-    st.session_state.setdefault("selected_dest", None)
+    view_type = st.radio(
+        t["view_mode"],
+        options=[t["view_2d"], t["view_3d"]],
+        horizontal=True
+    )
 
-    # 2. Interactive Selection Control Panel
-    ctrl_col1, ctrl_col2 = st.columns([2, 1])
+    selected_data = None
 
-    with ctrl_col1:
-        if st.button("📍 Start Interactive Route Selection", use_container_width=True, type="primary"):
-            st.session_state.selection_mode = True
-            st.session_state.selection_step = "START"
-            st.session_state.selected_start = None
-            st.session_state.selected_waypoints = []
-            st.session_state.selected_dest = None
-            st.session_state.clicked_location = None
-            st.rerun()
-
-    with ctrl_col2:
-        if st.session_state.selection_mode:
-            if st.button("❌ Cancel Selection", use_container_width=True):
-                st.session_state.selection_mode = False
-                st.session_state.selection_step = "START"
-                st.session_state.clicked_location = None
-                st.rerun()
-
-    # 3. Process Map Click Events BEFORE rendering guidance banners
-    if st.session_state.selection_mode and st.session_state.get("clicked_location"):
-        clicked_id = st.session_state.clicked_location
-        # Clear the click queue immediately to avoid rerun loops
-        st.session_state.clicked_location = None  
-        
-        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(clicked_id, clicked_id)
-        current_step = st.session_state.selection_step
-
-        if current_step == "START":
-            st.session_state.selected_start = clicked_id
-            st.session_state.selection_step = "WAYPOINTS"  # Advance step
-            st.toast(f"🚩 Start set to: {loc_name}", icon="✅")
-            st.rerun()
-
-        elif current_step == "WAYPOINTS":
-            if (
-                clicked_id != st.session_state.selected_start 
-                and clicked_id not in st.session_state.selected_waypoints
-            ):
-                st.session_state.selected_waypoints.append(clicked_id)
-                st.toast(f"📍 Added Stop #{len(st.session_state.selected_waypoints)}: {loc_name}", icon="➕")
-                st.rerun()
-
-        elif current_step == "DEST":
-            if (
-                clicked_id != st.session_state.selected_start 
-                and clicked_id not in st.session_state.selected_waypoints
-            ):
-                st.session_state.selected_dest = clicked_id
-                st.session_state.selection_mode = False  # Flow complete
-                st.session_state.selection_step = "START"
-                st.toast(f"🏁 Destination set to: {loc_name}", icon="🎉")
-                st.rerun()
-
-    # 4. Display Current Guidance Banner
-    if st.session_state.selection_mode:
-        step = st.session_state.selection_step
-
-        if step == "START":
-            st.info("👇 **Step 1:** Click on a room/location on the map to set your **START** point.")
-
-        elif step == "WAYPOINTS":
-            st.warning(
-                f"👇 **Step 2:** Click on locations to add **OPTIONAL STOPS** "
-                f"(Stops added: {len(st.session_state.selected_waypoints)}).\n\n"
-                f"Currently selected: `{st.session_state.selected_start}` → "
-                f"{st.session_state.selected_waypoints}"
-            )
-            
-            wp_btn_col1, wp_btn_col2 = st.columns(2)
-            with wp_btn_col1:
-                if st.button("➡️ Done Adding Stops (Select Destination)", use_container_width=True, type="secondary"):
-                    st.session_state.selection_step = "DEST"
-                    st.rerun()
-            with wp_btn_col2:
-                if st.button("🗑️ Clear Stops", use_container_width=True):
-                    st.session_state.selected_waypoints = []
-                    st.rerun()
-
-        elif step == "DEST":
-            st.success("👇 **Step 3:** Click on a location on the map to set your **DESTINATION**.")
-
-    st.markdown("---")
-
-    # 5. Map View Toggle & Active Floor Controls
-    map_col1, map_col2 = st.columns([1, 1])
-
-    with map_col1:
-        view_mode = st.radio(
-            "Map Perspective",
-            options=["2D Floor Plan", "3D Building View"],
-            horizontal=True,
-            key="map_view_mode"
+    if view_type == t["view_2d"]:
+        floor_select = st.selectbox(
+            t["active_floor"],
+            options=[0, 1, 2, 3],
+            format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
         )
+        fig_2d = render_2d_cad_view(floor_select, route_path=path, current_lang=st.session_state.lang)
 
-    with map_col2:
-        available_floors = sorted(list(set(poly["z"] for poly in ROOM_POLYGONS.values())))
-        active_floor_z = st.selectbox(
-            "Select Active Floor",
-            options=available_floors,
-            format_func=lambda z: f"Floor Level {z}",
-            key="active_floor_select"
-        )
-
-    # 6. Map Rendering & Event Listener
-    if view_mode == "2D Floor Plan":
-        fig_2d = render_2d_cad_view(
-            active_floor_z=active_floor_z,
-            route_path=path,
-            current_lang=st.session_state.lang
-        )
-        
-        # Render Plotly Map
-        event_data = st.plotly_chart(
-            fig_2d, 
-            use_container_width=True, 
+        selected_data = st.plotly_chart(
+            fig_2d,
+            use_container_width=True,
             on_select="rerun",
             selection_mode="points"
         )
-        
-        # Capture shape click customdata
-        if event_data and "selection" in event_data and event_data["selection"]["points"]:
-            point = event_data["selection"]["points"][0]
-            if "customdata" in point and point["customdata"]:
-                st.session_state.clicked_location = point["customdata"][0]
+    else:
+        fig_3d = render_3d_isometric_view(route_path=path, current_lang=st.session_state.lang)
+        selected_data = st.plotly_chart(
+            fig_3d,
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="points"
+        )
+
+    if selected_data and "selection" in selected_data and selected_data["selection"]["points"]:
+        point = selected_data["selection"]["points"][0]
+        clicked_id = None
+
+        if "customdata" in point and point["customdata"]:
+            clicked_id = point["customdata"]
+        elif "text" in point:
+            raw_text = point["text"]
+            for room_key in ROOM_POLYGONS.keys():
+                t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
+                if t_name == raw_text or room_key == raw_text:
+                    clicked_id = room_key
+                    break
+
+        if clicked_id and clicked_id in ROOM_POLYGONS:
+            st.session_state.clicked_location = clicked_id
+
+    if st.session_state.clicked_location:
+        loc_id = st.session_state.clicked_location
+        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(loc_id, loc_id)
+
+        st.info(t["selected_on_map"].format(location=loc_name))
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+        with col_btn1:
+            if st.button(t["btn_set_start"], key="btn_set_start", use_container_width=True):
+                st.session_state.selected_start = loc_id
+                st.session_state.clicked_location = None
                 st.rerun()
 
-    else:
-        fig_3d = render_3d_cad_view(
-            route_path=path,
-            current_lang=st.session_state.lang
-        )
-        st.plotly_chart(fig_3d, use_container_width=True)
-        
+        with col_btn2:
+            if st.button(t["btn_set_dest"], key="btn_set_dest", use_container_width=True):
+                st.session_state.selected_dest = loc_id
+                st.session_state.clicked_location = None
+                st.rerun()
+
+        with col_btn3:
+            if st.button(t["btn_cancel"], key="btn_cancel_select", use_container_width=True):
+                st.session_state.clicked_location = None
+                st.rerun()
+
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
