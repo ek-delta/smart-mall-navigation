@@ -953,92 +953,53 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
         mode="lines"
     )
 
-def wrap_text_to_fit(text: str, max_chars_per_line: int = 12) -> str:
+def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
+    """Wraps text using <br> based on a dynamic maximum character threshold."""
     words = text.split()
     if not words:
         return ""
+    
     lines = []
     current_line = []
     current_len = 0
 
     for word in words:
-        if current_len + len(word) <= max_chars_per_line:
+        if current_len + len(word) <= max_chars_per_line or not current_line:
             current_line.append(word)
             current_len += len(word) + 1
         else:
-            if current_line:
-                lines.append(" ".join(current_line))
+            lines.append(" ".join(current_line))
             current_line = [word]
             current_len = len(word) + 1
 
     if current_line:
         lines.append(" ".join(current_line))
 
-    return "<br>".join(lines)
+    # Wrap in <b> tags to ensure explicit bolding across all Plotly render engines
+    return "<b>" + "<br>".join(lines) + "</b>"
 
 
-def calculate_optimal_font_size(bbox_width: float, bbox_height: float, text: str) -> int:
-    if not bbox_width or not bbox_height:
-        return 10 
+def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tuple[int, int]:
+    """
+    Calculates font size (in pt) and dynamic character limit per line
+    so bold text scales to fit polygons without clipping.
+    """
+    min_dim = min(bbox_w, bbox_h)
 
-    min_dim = min(bbox_width, bbox_height)
-    char_count = len(text)
+    # Font scaling tuned specifically for heavy bold letter widths
+    if min_dim < 2.0:
+        font_size = 7
+    elif min_dim < 4.0:
+        font_size = 8
+    elif min_dim < 7.0:
+        font_size = 10
+    else:
+        font_size = 12
 
-    raw_size = int((min_dim / math.sqrt(max(char_count, 1))) * 1.5)
-    return max(8, min(14, raw_size))
+    # Account for wider character spacing in bold text
+    max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
 
-def get_polygon_centroid_and_bounds(coords):
-    xs = [pt[0] for pt in coords]
-    ys = [pt[1] for pt in coords]
-
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
-
-    center_x = (min_x + max_x) / 2.0
-    center_y = (min_y + max_y) / 2.0
-    width = max_x - min_x
-    height = max_y - min_y
-
-    return center_x, center_y, width, height
-
-def add_poi_labels_to_map(fig, poi_nodes, current_lang="English", POI_TRANSLATIONS=None):
-    if POI_TRANSLATIONS is None:
-        POI_TRANSLATIONS = {}
-
-    for node_id, data in poi_nodes.items():
-        coords = data.get("geometry", []) 
-        raw_name = POI_TRANSLATIONS.get(current_lang, {}).get(node_id, node_id)
-
-        if not coords:
-            continue
-
-        center_x, center_y, bbox_w, bbox_h = get_polygon_centroid_and_bounds(coords)
-
-        if bbox_w < 1.0 or bbox_h < 1.0:
-            continue
-
-        wrapped_label = wrap_text_to_fit(raw_name, max_chars_per_line=10)
-        font_size = calculate_optimal_font_size(bbox_w, bbox_h, raw_name)
-
-        fig.add_annotation(
-            x=center_x,
-            y=center_y,
-            text=wrapped_label,
-            showarrow=False,
-            font=dict(
-                size=font_size,
-                color="#1E293B",  
-                family="Arial, sans-serif"
-            ),
-            align="center",
-            valign="middle",
-            width=bbox_w * 0.85,  
-            height=bbox_h * 0.85, 
-            captureevents=False  
-        )
-
-    return fig
-
+    return font_size, max_chars_per_line
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
@@ -1048,6 +1009,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
+    # 1. Render Room / Store Polygons
     for room_id, coords in floor_rooms.items():
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
@@ -1068,6 +1030,45 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             )
         )
 
+    # 2. Render Bold Room / POI Labels
+    for room_id, coords in floor_rooms.items():
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        
+        # Calculate bounding box bounds and center point
+        xs = [p[0] for p in coords]
+        ys = [p[1] for p in coords]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
+        bbox_w = max_x - min_x
+        bbox_h = max_y - min_y
+
+        # Skip tiny structural elements (e.g., pillars or thin walls)
+        if bbox_w < 0.6 or bbox_h < 0.6:
+            continue
+
+        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
+        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
+
+        # Add bold text annotation
+        fig.add_annotation(
+            x=cx,
+            y=cy,
+            text=wrapped_label,
+            showarrow=False,
+            font=dict(
+                size=font_size,
+                color="#000000",
+                family="Arial Black, Impact, sans-serif"
+            ),
+            align="center",
+            valign="middle",
+            captureevents=False
+        )
+
+    # 3. Render Route Path (if present)
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -1145,27 +1146,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-    for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        cx = sum([p[0] for p in coords]) / len(coords)
-        cy = sum([p[1] for p in coords]) / len(coords)
-
-        fig.add_trace(
-            go.Scatter(
-                x=[cx],
-                y=[cy],
-                text=[translated_name],
-                mode="text",
-                textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
-                ),
-                hoverinfo="text",
-                showlegend=False
-            )
-        )
-
+    # 4. Layout Settings
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
