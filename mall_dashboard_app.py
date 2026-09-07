@@ -1598,6 +1598,35 @@ def format_location_label(room_id, lang):
 
     return f"[{floor_code}] {clean_name}"
 
+def compute_full_multi_stop_path(start, waypoints, destination):
+    """Stitches together individual Theta* segments for multi-stop routes."""
+    if not start or not destination:
+        return []
+    
+    full_path = []
+    legs = [start] + waypoints + [destination]
+    
+    for i in range(len(legs) - 1):
+        leg_start = legs[i]
+        leg_end = legs[i + 1]
+        segment_path = run_theta_star(leg_start, leg_end)  # Your pathfinding call
+        
+        if segment_path:
+            # Avoid duplicate node connection points between legs
+            if full_path:
+                full_path.extend(segment_path[1:])
+            else:
+                full_path.extend(segment_path)
+                
+    return full_path
+
+# Replace standard path computation with this call:
+path = compute_full_multi_stop_path(
+    st.session_state.selected_start,
+    st.session_state.selected_waypoints,
+    st.session_state.selected_dest
+)
+
 # ==============================================================================
 # 6. UI configuration
 # ==============================================================================
@@ -1768,23 +1797,14 @@ with tab_home:
 # TAB 1: 2D / 3D MAP & GUIDED ROUTE SELECTION
 # ==============================================================================
 with tab_map:
-    # --------------------------------------------------------------------------
-    # 1. Initialize Interactive Selection State
-    # --------------------------------------------------------------------------
-    if "selection_mode" not in st.session_state:
-        st.session_state.selection_mode = False
-    if "selection_step" not in st.session_state:
-        st.session_state.selection_step = "START"  # "START", "WAYPOINTS", or "DEST"
-    if "selected_start" not in st.session_state:
-        st.session_state.selected_start = None
-    if "selected_waypoints" not in st.session_state:
-        st.session_state.selected_waypoints = []
-    if "selected_dest" not in st.session_state:
-        st.session_state.selected_dest = None
+    # 1. Safe State Initializations (Uses setdefault so values survive reruns)
+    st.session_state.setdefault("selection_mode", False)
+    st.session_state.setdefault("selection_step", "START")
+    st.session_state.setdefault("selected_start", None)
+    st.session_state.setdefault("selected_waypoints", [])
+    st.session_state.setdefault("selected_dest", None)
 
-    # --------------------------------------------------------------------------
     # 2. Interactive Selection Control Panel
-    # --------------------------------------------------------------------------
     ctrl_col1, ctrl_col2 = st.columns([2, 1])
 
     with ctrl_col1:
@@ -1805,7 +1825,42 @@ with tab_map:
                 st.session_state.clicked_location = None
                 st.rerun()
 
-    # Dynamic Banner Guidance during active selection mode
+    # 3. Process Map Click Events BEFORE rendering guidance banners
+    if st.session_state.selection_mode and st.session_state.get("clicked_location"):
+        clicked_id = st.session_state.clicked_location
+        # Clear the click queue immediately to avoid rerun loops
+        st.session_state.clicked_location = None  
+        
+        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(clicked_id, clicked_id)
+        current_step = st.session_state.selection_step
+
+        if current_step == "START":
+            st.session_state.selected_start = clicked_id
+            st.session_state.selection_step = "WAYPOINTS"  # Advance step
+            st.toast(f"🚩 Start set to: {loc_name}", icon="✅")
+            st.rerun()
+
+        elif current_step == "WAYPOINTS":
+            if (
+                clicked_id != st.session_state.selected_start 
+                and clicked_id not in st.session_state.selected_waypoints
+            ):
+                st.session_state.selected_waypoints.append(clicked_id)
+                st.toast(f"📍 Added Stop #{len(st.session_state.selected_waypoints)}: {loc_name}", icon="➕")
+                st.rerun()
+
+        elif current_step == "DEST":
+            if (
+                clicked_id != st.session_state.selected_start 
+                and clicked_id not in st.session_state.selected_waypoints
+            ):
+                st.session_state.selected_dest = clicked_id
+                st.session_state.selection_mode = False  # Flow complete
+                st.session_state.selection_step = "START"
+                st.toast(f"🏁 Destination set to: {loc_name}", icon="🎉")
+                st.rerun()
+
+    # 4. Display Current Guidance Banner
     if st.session_state.selection_mode:
         step = st.session_state.selection_step
 
@@ -1815,8 +1870,9 @@ with tab_map:
         elif step == "WAYPOINTS":
             st.warning(
                 f"👇 **Step 2:** Click on locations to add **OPTIONAL STOPS** "
-                f"(Stops added: {len(st.session_state.selected_waypoints)}).\n"
-                "Click **'Done Adding Stops'** when you are ready to pick your destination."
+                f"(Stops added: {len(st.session_state.selected_waypoints)}).\n\n"
+                f"Currently selected: `{st.session_state.selected_start}` → "
+                f"{st.session_state.selected_waypoints}"
             )
             
             wp_btn_col1, wp_btn_col2 = st.columns(2)
@@ -1832,73 +1888,9 @@ with tab_map:
         elif step == "DEST":
             st.success("👇 **Step 3:** Click on a location on the map to set your **DESTINATION**.")
 
-    # --------------------------------------------------------------------------
-    # 3. Handle Map Click Event Logic & State Transitions
-    # --------------------------------------------------------------------------
-    if st.session_state.selection_mode and st.session_state.clicked_location:
-        clicked_id = st.session_state.clicked_location
-        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(clicked_id, clicked_id)
-        step = st.session_state.selection_step
-
-        if step == "START":
-            st.session_state.selected_start = clicked_id
-            st.session_state.selection_step = "WAYPOINTS"
-            st.session_state.clicked_location = None
-            st.toast(f"🚩 Start set to: {loc_name}", icon="✅")
-            st.rerun()
-
-        elif step == "WAYPOINTS":
-            if (
-                clicked_id != st.session_state.selected_start 
-                and clicked_id not in st.session_state.selected_waypoints
-            ):
-                st.session_state.selected_waypoints.append(clicked_id)
-                st.toast(f"📍 Added Stop #{len(st.session_state.selected_waypoints)}: {loc_name}", icon="➕")
-            st.session_state.clicked_location = None
-            st.rerun()
-
-        elif step == "DEST":
-            if (
-                clicked_id != st.session_state.selected_start 
-                and clicked_id not in st.session_state.selected_waypoints
-            ):
-                st.session_state.selected_dest = clicked_id
-                st.session_state.selection_mode = False  # Guided flow completed!
-                st.session_state.selection_step = "START"
-                st.session_state.clicked_location = None
-                st.toast(f"🏁 Destination set to: {loc_name}", icon="🎉")
-                st.rerun()
-
-    # Fallback banner if standard map click occurs outside guided selection mode
-    elif st.session_state.clicked_location and not st.session_state.selection_mode:
-        loc_id = st.session_state.clicked_location
-        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(loc_id, loc_id)
-
-        st.info(t.get("selected_on_map", "📍 Selected on map: **{location}**").format(location=loc_name))
-        col_btn1, col_btn2, col_btn3 = st.columns(3)
-
-        with col_btn1:
-            if st.button(t.get("btn_set_start", "🚩 Set as Start"), key="btn_set_start", use_container_width=True):
-                st.session_state.selected_start = loc_id
-                st.session_state.clicked_location = None
-                st.rerun()
-
-        with col_btn2:
-            if st.button(t.get("btn_set_dest", "🏁 Set as Destination"), key="btn_set_dest", use_container_width=True):
-                st.session_state.selected_dest = loc_id
-                st.session_state.clicked_location = None
-                st.rerun()
-
-        with col_btn3:
-            if st.button(t.get("btn_cancel", "❌ Cancel"), key="btn_cancel_select", use_container_width=True):
-                st.session_state.clicked_location = None
-                st.rerun()
-
     st.markdown("---")
 
-    # --------------------------------------------------------------------------
-    # 4. Map View Toggle & Active Floor Controls
-    # --------------------------------------------------------------------------
+    # 5. Map View Toggle & Active Floor Controls
     map_col1, map_col2 = st.columns([1, 1])
 
     with map_col1:
@@ -1918,9 +1910,7 @@ with tab_map:
             key="active_floor_select"
         )
 
-    # --------------------------------------------------------------------------
-    # 5. Map Rendering
-    # --------------------------------------------------------------------------
+    # 6. Map Rendering & Event Listener
     if view_mode == "2D Floor Plan":
         fig_2d = render_2d_cad_view(
             active_floor_z=active_floor_z,
@@ -1928,7 +1918,7 @@ with tab_map:
             current_lang=st.session_state.lang
         )
         
-        # Capture click events on Plotly map shapes
+        # Render Plotly Map
         event_data = st.plotly_chart(
             fig_2d, 
             use_container_width=True, 
@@ -1936,11 +1926,12 @@ with tab_map:
             selection_mode="points"
         )
         
-        # Extract selected shape/location customdata from event
+        # Capture shape click customdata
         if event_data and "selection" in event_data and event_data["selection"]["points"]:
             point = event_data["selection"]["points"][0]
             if "customdata" in point and point["customdata"]:
                 st.session_state.clicked_location = point["customdata"][0]
+                st.rerun()
 
     else:
         fig_3d = render_3d_cad_view(
@@ -1948,7 +1939,7 @@ with tab_map:
             current_lang=st.session_state.lang
         )
         st.plotly_chart(fig_3d, use_container_width=True)
-
+        
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
