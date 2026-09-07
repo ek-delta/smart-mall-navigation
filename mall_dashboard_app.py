@@ -1042,8 +1042,8 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         min_x, max_x = min(xs), max(xs)
         min_y, max_y = min(ys), max(ys)
         
-        cx = (min_x + max_x) / 2.0
-        cy = (min_y + max_y) / 2.0
+        cx = sum([p[0] for p in coords]) / len(coords)
+        cy = sum([p[1] for p in coords]) / len(coords)
         bbox_w = max_x - min_x
         bbox_h = max_y - min_y
 
@@ -1055,20 +1055,22 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
 
         # Add bold text annotation
-        fig.add_annotation(
-            x=cx,
-            y=cy,
-            text=wrapped_label,
-            showarrow=False,
-            font=dict(
-                size=font_size,
-                color="#000000",
-                family="Arial Black, Impact, sans-serif"
-            ),
-            align="center",
-            valign="middle",
-            captureevents=False
+        fig.add_trace(
+            go.Scatter(
+                x=[cx],
+                y=[cy],
+                text=[translated_name],
+                mode="text",
+                textfont=dict(
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
+                ),
+                hoverinfo="text",
+                showlegend=False
+            )
         )
+
 
     # 3. Render Route Path (if present)
     if route_path:
