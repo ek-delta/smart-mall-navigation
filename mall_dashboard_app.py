@@ -1408,8 +1408,8 @@ def find_nearest_available_parking(start_node, graph, node_coords, accessible_on
         if not exit_path:
             continue
 
-        entry_dist = compute_route_summary(entry_path)["total_distance"]
-        exit_dist = compute_route_summary(exit_path)["total_distance"]
+        entry_dist = compute_route_summary(entry_path, node_coords)["total_distance"]
+        exit_dist = compute_route_summary(exit_path, node_coords)["total_distance"]
         total_dist = entry_dist + exit_dist
 
         if total_dist < min_total_dist:
@@ -1420,10 +1420,12 @@ def find_nearest_available_parking(start_node, graph, node_coords, accessible_on
 
     return nearest_slot, best_entry_path, best_exit_path
 
+
 def calculate_heading_angle(node_a, node_b, node_coords):
     x1, y1, _ = node_coords[node_a]
     x2, y2, _ = node_coords[node_b]
     return math.degrees(math.atan2(y2 - y1, x2 - x1)) % 360
+
 
 def format_turn_instruction(angle_diff, distance, target_name, lang="English"):
     angle_diff = (angle_diff + 180) % 360 - 180
@@ -1480,13 +1482,12 @@ def format_turn_instruction(angle_diff, distance, target_name, lang="English"):
     else:
         return lang_dict["u_turn"]
 
+
 def generate_detailed_directions(path, node_coords, lang="English"):
-    if not path or len(path) < 2: return []
+    if not path or len(path) < 2:
+        return []
 
     directions = []
-
-    start_icon = get_location_icon(path[0])
-    dest_icon = get_location_icon(path[1])
 
     start_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[0], path[0])}"
     first_dest_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[1], path[1])}"
@@ -1501,9 +1502,6 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     for i in range(1, len(path) - 1):
         prev_node, curr_node, next_node = path[i - 1], path[i], path[i + 1]
-
-        curr_icon = get_location_icon(curr_node)
-        next_icon = get_location_icon(next_node)
 
         curr_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(curr_node, curr_node)}"
         next_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(next_node, next_node)}"
@@ -1549,7 +1547,7 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
         directions.append({"step": len(directions) + 1, "text": instruction_str, "icon": icon})
 
-    final_icon = get_location_icon(path[-1])
+    # Final arrival step
     final_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[-1], path[-1])}"
     arrival_text = {
         "English": f"You have arrived at your destination: **{final_poi}**.",
@@ -1560,33 +1558,40 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     return directions
 
-def compute_route_summary(path):
-    if not path or len(path) < 2: return {"total_distance": 0, "floors_crossed": 0, "steps": 0}
 
-    total_dist = 0
+def compute_route_summary(path, node_coords):
+    """Computes total distance, distinct floors crossed, and total steps along path."""
+    if not path or len(path) < 2:
+        return {"total_distance": 0.0, "floors_crossed": 0, "steps": 0}
+
+    total_dist = 0.0
     floors_visited = set()
 
     for i in range(len(path) - 1):
-        curr_node, nxt_node = path[i], path[i+1]
-        z1, z2 = MULTI_CAD_NODES[curr_node][2], MULTI_CAD_NODES[nxt_node][2]
+        curr_node, nxt_node = path[i], path[i + 1]
+        z1, z2 = node_coords[curr_node][2], node_coords[nxt_node][2]
 
         floors_visited.add(z1)
         floors_visited.add(z2)
 
         if z1 == z2:
-            total_dist += euclidean_distance_3d(curr_node, nxt_node, MULTI_CAD_NODES)
+            total_dist += euclidean_distance_3d(curr_node, nxt_node, node_coords)
         else:
-            total_dist += 15.0
+            total_dist += 15.0 
 
     return {
         "total_distance": round(total_dist, 1),
         "floors_crossed": max(0, len(floors_visited) - 1),
         "steps": len(path) - 1
     }
-    
-def format_location_label(room_id, lang):
-    icon = get_location_icon(room_id)
-    z_val = int(MULTI_CAD_NODES[room_id][2])
+
+
+def format_location_label(room_id, node_coords, lang="English"):
+    """Formats room options for dropdowns and selectboxes with floor codes and category tags."""
+    if room_id not in node_coords:
+        return room_id
+
+    z_val = int(node_coords[room_id][2])
     floor_code = "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
     name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id)
     clean_name = name.split('(')[0].strip()
@@ -1597,35 +1602,6 @@ def format_location_label(room_id, lang):
         return f"[{floor_code}] {clean_name} ({cat_name})"
 
     return f"[{floor_code}] {clean_name}"
-
-def compute_full_multi_stop_path(start, waypoints, destination):
-    """Stitches together individual Theta* segments for multi-stop routes."""
-    if not start or not destination:
-        return []
-    
-    full_path = []
-    legs = [start] + waypoints + [destination]
-    
-    for i in range(len(legs) - 1):
-        leg_start = legs[i]
-        leg_end = legs[i + 1]
-        segment_path = run_theta_star(leg_start, leg_end)  # Your pathfinding call
-        
-        if segment_path:
-            # Avoid duplicate node connection points between legs
-            if full_path:
-                full_path.extend(segment_path[1:])
-            else:
-                full_path.extend(segment_path)
-                
-    return full_path
-
-# Replace standard path computation with this call:
-path = compute_full_multi_stop_path(
-    st.session_state.selected_start,
-    st.session_state.selected_waypoints,
-    st.session_state.selected_dest
-)
 
 # ==============================================================================
 # 6. UI configuration
