@@ -954,21 +954,21 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
     )
 
 def wrap_text_to_fit(text: str, max_chars_per_line: int = 10) -> str:
-    """Wraps text using <br> and bold tags based on a character limit."""
+    """Wraps text with <br> and <b> tags without clipping."""
     words = text.split()
     if not words:
         return ""
+    
     lines = []
     current_line = []
     current_len = 0
 
     for word in words:
-        if current_len + len(word) <= max_chars_per_line:
+        if current_len + len(word) <= max_chars_per_line or not current_line:
             current_line.append(word)
             current_len += len(word) + 1
         else:
-            if current_line:
-                lines.append(" ".join(current_line))
+            lines.append(" ".join(current_line))
             current_line = [word]
             current_len = len(word) + 1
 
@@ -978,25 +978,27 @@ def wrap_text_to_fit(text: str, max_chars_per_line: int = 10) -> str:
     return "<b>" + "<br>".join(lines) + "</b>"
 
 
-def calculate_optimal_font_size(bbox_width: float, bbox_height: float, text: str) -> tuple[int, int]:
-    """Calculates font size (pt) and max chars per line tuned to polygon dimensions."""
-    if not bbox_width or not bbox_height:
+def calculate_optimal_font_and_wrap(bbox_w: float, bbox_h: float, text: str) -> tuple[int, int]:
+    """
+    Calculates font size and dynamic wrap limit based on polygon aspect ratio.
+    """
+    if not bbox_w or not bbox_h:
         return 10, 10
 
-    min_dim = min(bbox_width, bbox_height)
+    min_dim = min(bbox_w, bbox_h)
     char_count = len(text)
 
-    raw_size = int((min_dim / math.sqrt(max(char_count, 1))) * 1.5)
-    font_size = max(8, min(14, raw_size))
+    # Base font scaling
+    raw_size = int((min_dim / math.sqrt(max(char_count, 1))) * 1.6)
+    font_size = max(8, min(13, raw_size))
 
-    # Adjust max chars per line dynamically based on bounding width and computed font size
-    max_chars_per_line = max(4, int(bbox_width * (9.0 / font_size)))
+    # Determine max characters per line from bounding box width
+    max_chars_per_line = max(4, int(bbox_w * (7.5 / font_size)))
 
     return font_size, max_chars_per_line
 
 
 def get_polygon_centroid_and_bounds(coords):
-    """Calculates center coordinate and bounding dimensions for a polygon."""
     xs = [pt[0] for pt in coords]
     ys = [pt[1] for pt in coords]
 
@@ -1020,7 +1022,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
-    # 1. Render Interactive Room Polygons (Handles Clicks & Colors)
+    # 1. Render Interactive Room Polygons (Handles Clicks)
     for room_id, coords in floor_rooms.items():
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
@@ -1036,7 +1038,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
                 text=translated_name,
-                # Explicit nested list format ensures every vertex retains room_id for clicks
+                # Explicit nested list guarantees Streamlit/Plotly receives room_id on click
                 customdata=[[room_id]] * len(x_coords),
                 showlegend=False,
             )
@@ -1048,11 +1050,11 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         
         center_x, center_y, bbox_w, bbox_h = get_polygon_centroid_and_bounds(coords)
 
-        # Ignore tiny structural details like pillars or narrow wall segments
-        if bbox_w < 0.8 or bbox_h < 0.8:
+        # Ignore tiny structural elements (pillars/walls)
+        if bbox_w < 0.6 or bbox_h < 0.6:
             continue
 
-        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
+        font_size, max_chars = calculate_optimal_font_and_wrap(bbox_w, bbox_h, translated_name)
         wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
 
         fig.add_annotation(
@@ -1067,12 +1069,11 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             ),
             align="center",
             valign="middle",
-            width=bbox_w * 0.85,
-            height=bbox_h * 0.85,
-            captureevents=False  # CRITICAL: Ensures mouse clicks pass straight through to room polygon underneath
+            # Removed width/height restrictions to stop text truncation
+            captureevents=False  # CRITICAL: Mouse clicks pass straight through text to polygon
         )
 
-    # 3. Render Route Path (If path is provided)
+    # 3. Render Route Path (if active)
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -1150,11 +1151,11 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-    # 4. Map Layout Configurations
+    # 4. Layout
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
-        height=650,
+        height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
         plot_bgcolor="#FFB6C1",
