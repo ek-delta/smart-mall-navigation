@@ -976,7 +976,7 @@ def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
         lines.append(" ".join(current_line))
 
     # Wrap in <b> tags to ensure explicit bolding across all Plotly render engines
-    return "<b>" + "<br>".join(lines) + "</b>"
+    return "<br>".join(lines)
 
 
 def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tuple[int, int]:
@@ -1138,14 +1138,17 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             go.Scatter(
                 x=[cx],
                 y=[cy],
-                text=[translated_name],
+                text=[wrapped_label],
                 mode="text",
+                textposition="middle center",
                 textfont=dict(
                     color="#000000",
                     size=12,
-                    family="Arial Black, sans-serif"
+                    family="Arial Black, Impact, sans-serif"
                 ),
+                customdata=[room_id],
                 hoverinfo="text",
+                hovertext=[translated_name],
                 showlegend=False
             )
         )
