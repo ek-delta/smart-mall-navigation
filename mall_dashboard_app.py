@@ -953,7 +953,8 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
         mode="lines"
     )
 
-def wrap_text_to_fit(text: str, max_chars_per_line: int = 12) -> str:
+def wrap_text_to_fit(text: str, max_chars_per_line: int = 10) -> str:
+    """Wraps text using <br> and bold tags based on a character limit."""
     words = text.split()
     if not words:
         return ""
@@ -974,20 +975,28 @@ def wrap_text_to_fit(text: str, max_chars_per_line: int = 12) -> str:
     if current_line:
         lines.append(" ".join(current_line))
 
-    return "<br>".join(lines)
+    return "<b>" + "<br>".join(lines) + "</b>"
 
 
-def calculate_optimal_font_size(bbox_width: float, bbox_height: float, text: str) -> int:
+def calculate_optimal_font_size(bbox_width: float, bbox_height: float, text: str) -> tuple[int, int]:
+    """Calculates font size (pt) and max chars per line tuned to polygon dimensions."""
     if not bbox_width or not bbox_height:
-        return 10 
+        return 10, 10
 
     min_dim = min(bbox_width, bbox_height)
     char_count = len(text)
 
     raw_size = int((min_dim / math.sqrt(max(char_count, 1))) * 1.5)
-    return max(8, min(14, raw_size))
+    font_size = max(8, min(14, raw_size))
+
+    # Adjust max chars per line dynamically based on bounding width and computed font size
+    max_chars_per_line = max(4, int(bbox_width * (9.0 / font_size)))
+
+    return font_size, max_chars_per_line
+
 
 def get_polygon_centroid_and_bounds(coords):
+    """Calculates center coordinate and bounding dimensions for a polygon."""
     xs = [pt[0] for pt in coords]
     ys = [pt[1] for pt in coords]
 
@@ -1001,43 +1010,6 @@ def get_polygon_centroid_and_bounds(coords):
 
     return center_x, center_y, width, height
 
-def add_poi_labels_to_map(fig, poi_nodes, current_lang="English", POI_TRANSLATIONS=None):
-    if POI_TRANSLATIONS is None:
-        POI_TRANSLATIONS = {}
-
-    for node_id, data in poi_nodes.items():
-        coords = data.get("geometry", []) 
-        raw_name = POI_TRANSLATIONS.get(current_lang, {}).get(node_id, node_id)
-
-        if not coords:
-            continue
-
-        center_x, center_y, bbox_w, bbox_h = get_polygon_centroid_and_bounds(coords)
-
-        if bbox_w < 1.0 or bbox_h < 1.0:
-            continue
-
-        wrapped_label = wrap_text_to_fit(raw_name, max_chars_per_line=10)
-        font_size = calculate_optimal_font_size(bbox_w, bbox_h, raw_name)
-
-        fig.add_annotation(
-            x=center_x,
-            y=center_y,
-            text=wrapped_label,
-            showarrow=False,
-            font=dict(
-                size=font_size,
-                color="#1E293B",  
-                family="Arial, sans-serif"
-            ),
-            align="center",
-            valign="middle",
-            width=bbox_w * 0.85,  
-            height=bbox_h * 0.85, 
-            captureevents=False  
-        )
-
-    return fig
 
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
@@ -1048,6 +1020,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
+    # 1. Render Interactive Room Polygons (Handles Clicks & Colors)
     for room_id, coords in floor_rooms.items():
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
@@ -1063,11 +1036,43 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
                 text=translated_name,
+                # Explicit nested list format ensures every vertex retains room_id for clicks
                 customdata=[[room_id]] * len(x_coords),
                 showlegend=False,
             )
         )
 
+    # 2. Render Auto-Fitting POI Labels (Overlay Annotations)
+    for room_id, coords in floor_rooms.items():
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        
+        center_x, center_y, bbox_w, bbox_h = get_polygon_centroid_and_bounds(coords)
+
+        # Ignore tiny structural details like pillars or narrow wall segments
+        if bbox_w < 0.8 or bbox_h < 0.8:
+            continue
+
+        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
+        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
+
+        fig.add_annotation(
+            x=center_x,
+            y=center_y,
+            text=wrapped_label,
+            showarrow=False,
+            font=dict(
+                size=font_size,
+                color="#000000",
+                family="Arial Black, Impact, sans-serif"
+            ),
+            align="center",
+            valign="middle",
+            width=bbox_w * 0.85,
+            height=bbox_h * 0.85,
+            captureevents=False  # CRITICAL: Ensures mouse clicks pass straight through to room polygon underneath
+        )
+
+    # 3. Render Route Path (If path is provided)
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -1145,31 +1150,11 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-    for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        cx = sum([p[0] for p in coords]) / len(coords)
-        cy = sum([p[1] for p in coords]) / len(coords)
-
-        fig.add_trace(
-            go.Scatter(
-                x=[cx],
-                y=[cy],
-                text=[translated_name],
-                mode="text",
-                textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
-                ),
-                hoverinfo="text",
-                showlegend=False
-            )
-        )
-
+    # 4. Map Layout Configurations
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
-        height=650,  
+        height=650,
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
         plot_bgcolor="#FFB6C1",
