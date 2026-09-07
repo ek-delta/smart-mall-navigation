@@ -397,17 +397,6 @@ if "exit_path" not in st.session_state:
 if "clicked_location" not in st.session_state:
     st.session_state.clicked_location = None
 
-if "selection_mode" not in st.session_state:
-    st.session_state.selection_mode = False  
-if "selection_step" not in st.session_state:
-    st.session_state.selection_step = "START"  
-if "selected_start" not in st.session_state:
-    st.session_state.selected_start = None
-if "selected_waypoints" not in st.session_state:
-    st.session_state.selected_waypoints = []
-if "selected_dest" not in st.session_state:
-    st.session_state.selected_dest = None
-
 DATASET_PATHS = ["/content/drive/MyDrive/FYP Smart Navigation/train-00", "./train-01", "./test-00"]
 
 # ==============================================================================
@@ -1141,17 +1130,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-    # Render Selected Start Location
-    if st.session_state.selected_start and MULTI_CAD_NODES[st.session_state.selected_start][2] == active_floor_z:
-        sx, sy, _ = MULTI_CAD_NODES[st.session_state.selected_start]
-        fig.add_trace(go.Scatter(
-            x=[sx], y=[sy], mode="markers+text",
-            marker=dict(size=14, color="#FF0000", symbol="circle"),
-            text=[" 🚩 Start"], textposition="top right",
-            textfont=dict(color="#FF0000", size=12, family="Arial Black"),
-            showlegend=False
-        ))
-
     # Render Intermediate Waypoints
     for idx, wp_id in enumerate(st.session_state.selected_waypoints):
         if wp_id in MULTI_CAD_NODES and MULTI_CAD_NODES[wp_id][2] == active_floor_z:
@@ -1163,17 +1141,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 textfont=dict(color="#FFA500", size=11, family="Arial Black"),
                 showlegend=False
             ))
-
-    # Render Destination Location
-    if st.session_state.selected_dest and MULTI_CAD_NODES[st.session_state.selected_dest][2] == active_floor_z:
-        dx, dy, _ = MULTI_CAD_NODES[st.session_state.selected_dest]
-        fig.add_trace(go.Scatter(
-            x=[dx], y=[dy], mode="markers+text",
-            marker=dict(size=14, color="#00FF00", symbol="circle"),
-            text=[" 🏁 Destination"], textposition="top right",
-            textfont=dict(color="#00AA00", size=12, family="Arial Black"),
-            showlegend=False
-        ))
 
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
