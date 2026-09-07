@@ -1138,7 +1138,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             go.Scatter(
                 x=[cx],
                 y=[cy],
-                text=[wrapped_label],
+                text=[translated_name],
                 mode="text",
                 textfont=dict(
                     color="#000000",
