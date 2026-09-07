@@ -953,44 +953,91 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
         mode="lines"
     )
 
-def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
+def wrap_text_to_fit(text: str, max_chars_per_line: int = 12) -> str:
     words = text.split()
     if not words:
         return ""
-    
     lines = []
     current_line = []
     current_len = 0
 
     for word in words:
-        if current_len + len(word) <= max_chars_per_line or not current_line:
+        if current_len + len(word) <= max_chars_per_line:
             current_line.append(word)
             current_len += len(word) + 1
         else:
-            lines.append(" ".join(current_line))
+            if current_line:
+                lines.append(" ".join(current_line))
             current_line = [word]
             current_len = len(word) + 1
 
     if current_line:
         lines.append(" ".join(current_line))
 
-    return "<b>" + "<br>".join(lines) + "</b>"
+    return "<br>".join(lines)
 
 
-def calculate_optimal_font_size(bbox_w: float, bbox_h: float) -> tuple[int, int]:
-    min_dim = min(bbox_w, bbox_h)
+def calculate_optimal_font_size(bbox_width: float, bbox_height: float, text: str) -> int:
+    if not bbox_width or not bbox_height:
+        return 10 
 
-    if min_dim < 2.0:
-        font_size = 7
-    elif min_dim < 4.0:
-        font_size = 8
-    elif min_dim < 7.0:
-        font_size = 10
-    else:
-        font_size = 12
+    min_dim = min(bbox_width, bbox_height)
+    char_count = len(text)
 
-    max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
-    return font_size, max_chars_per_line
+    raw_size = int((min_dim / math.sqrt(max(char_count, 1))) * 1.5)
+    return max(8, min(14, raw_size))
+
+def get_polygon_centroid_and_bounds(coords):
+    xs = [pt[0] for pt in coords]
+    ys = [pt[1] for pt in coords]
+
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+
+    center_x = (min_x + max_x) / 2.0
+    center_y = (min_y + max_y) / 2.0
+    width = max_x - min_x
+    height = max_y - min_y
+
+    return center_x, center_y, width, height
+
+def add_poi_labels_to_map(fig, poi_nodes, current_lang="English", POI_TRANSLATIONS=None):
+    if POI_TRANSLATIONS is None:
+        POI_TRANSLATIONS = {}
+
+    for node_id, data in poi_nodes.items():
+        coords = data.get("geometry", []) 
+        raw_name = POI_TRANSLATIONS.get(current_lang, {}).get(node_id, node_id)
+
+        if not coords:
+            continue
+
+        center_x, center_y, bbox_w, bbox_h = get_polygon_centroid_and_bounds(coords)
+
+        if bbox_w < 1.0 or bbox_h < 1.0:
+            continue
+
+        wrapped_label = wrap_text_to_fit(raw_name, max_chars_per_line=10)
+        font_size = calculate_optimal_font_size(bbox_w, bbox_h, raw_name)
+
+        fig.add_annotation(
+            x=center_x,
+            y=center_y,
+            text=wrapped_label,
+            showarrow=False,
+            font=dict(
+                size=font_size,
+                color="#1E293B",  
+                family="Arial, sans-serif"
+            ),
+            align="center",
+            valign="middle",
+            width=bbox_w * 0.85,  
+            height=bbox_h * 0.85, 
+            captureevents=False  
+        )
+
+    return fig
 
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
@@ -1018,27 +1065,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 text=translated_name,
                 customdata=[room_id] * len(x_coords),
                 showlegend=False,
-            )
-        )
-
-    for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        cx = sum([p[0] for p in coords]) / len(coords)
-        cy = sum([p[1] for p in coords]) / len(coords)
-
-        fig.add_trace(
-            go.Scatter(
-                x=[cx],
-                y=[cy],
-                text=[translated_name],
-                mode="text",
-                textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
-                ),
-                hoverinfo="text",
-                showlegend=False
             )
         )
 
@@ -1118,6 +1144,27 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     showlegend=False
                 )
             )
+
+    for room_id, coords in floor_rooms.items():
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        cx = sum([p[0] for p in coords]) / len(coords)
+        cy = sum([p[1] for p in coords]) / len(coords)
+
+        fig.add_trace(
+            go.Scatter(
+                x=[cx],
+                y=[cy],
+                text=[translated_name],
+                mode="text",
+                textfont=dict(
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
+                ),
+                hoverinfo="text",
+                showlegend=False
+            )
+        )
 
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
