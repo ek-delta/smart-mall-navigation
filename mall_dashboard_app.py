@@ -954,6 +954,7 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
     )
 
 def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
+    """Wraps text using <br> based on a dynamic maximum character threshold."""
     words = text.split()
     if not words:
         return ""
@@ -974,12 +975,18 @@ def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
     if current_line:
         lines.append(" ".join(current_line))
 
+    # Wrap in <b> tags to ensure explicit bolding across all Plotly render engines
     return "<b>" + "<br>".join(lines) + "</b>"
 
 
-def calculate_optimal_font_size(bbox_w: float, bbox_h: float) -> tuple[int, int]:
+def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tuple[int, int]:
+    """
+    Calculates font size (in pt) and dynamic character limit per line
+    so bold text scales to fit polygons without clipping.
+    """
     min_dim = min(bbox_w, bbox_h)
 
+    # Font scaling tuned specifically for heavy bold letter widths
     if min_dim < 2.0:
         font_size = 7
     elif min_dim < 4.0:
@@ -989,7 +996,9 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float) -> tuple[int, int]
     else:
         font_size = 12
 
+    # Account for wider character spacing in bold text
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
+
     return font_size, max_chars_per_line
 
 
