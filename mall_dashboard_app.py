@@ -1063,7 +1063,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
                 text=translated_name,
-                customdata=[room_id] * len(x_coords),
+                customdata=[[room_id]] * len(x_coords),
                 showlegend=False,
             )
         )
