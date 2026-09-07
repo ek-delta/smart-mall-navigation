@@ -987,58 +987,6 @@ def calculate_optimal_font_size(bbox_width: float, bbox_height: float, text: str
     raw_size = int((min_dim / math.sqrt(max(char_count, 1))) * 1.5)
     return max(8, min(14, raw_size))
 
-def get_polygon_centroid_and_bounds(coords):
-    xs = [pt[0] for pt in coords]
-    ys = [pt[1] for pt in coords]
-
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
-
-    center_x = (min_x + max_x) / 2.0
-    center_y = (min_y + max_y) / 2.0
-    width = max_x - min_x
-    height = max_y - min_y
-
-    return center_x, center_y, width, height
-
-def add_poi_labels_to_map(fig, poi_nodes, current_lang="English", POI_TRANSLATIONS=None):
-    if POI_TRANSLATIONS is None:
-        POI_TRANSLATIONS = {}
-
-    for node_id, data in poi_nodes.items():
-        coords = data.get("geometry", []) 
-        raw_name = POI_TRANSLATIONS.get(current_lang, {}).get(node_id, node_id)
-
-        if not coords:
-            continue
-
-        center_x, center_y, bbox_w, bbox_h = get_polygon_centroid_and_bounds(coords)
-
-        if bbox_w < 1.0 or bbox_h < 1.0:
-            continue
-
-        wrapped_label = wrap_text_to_fit(raw_name, max_chars_per_line=10)
-        font_size = calculate_optimal_font_size(bbox_w, bbox_h, raw_name)
-
-        fig.add_annotation(
-            x=center_x,
-            y=center_y,
-            text=wrapped_label,
-            showarrow=False,
-            font=dict(
-                size=font_size,
-                color="#1E293B",  
-                family="Arial, sans-serif"
-            ),
-            align="center",
-            valign="middle",
-            width=bbox_w * 0.85,  
-            height=bbox_h * 0.85, 
-            captureevents=False  
-        )
-
-    return fig
-
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
