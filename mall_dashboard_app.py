@@ -1085,7 +1085,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 x_mid = x_start + 0.6 * (x_end - x_start)
                 y_mid = y_start + 0.6 * (y_end - y_start)
 
-                fig.add_annotation(
+                fig.add_trace(
                     x=x_mid,
                     y=y_mid,
                     ax=x_start,
