@@ -1040,7 +1040,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
-    # 1. Render Room / Store Polygons (Interactive Click Targets)
     for room_id, coords in floor_rooms.items():
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
@@ -1056,47 +1055,11 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
                 text=translated_name,
-                customdata=[room_id] * len(x_coords),  # Enables click identification
+                customdata=[room_id] * len(x_coords),
                 showlegend=False,
             )
         )
 
-    # 2. Render Bold Auto-Fitting Text Annotations (Non-Blocking Overlays)
-    for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        
-        xs = [p[0] for p in coords]
-        ys = [p[1] for p in coords]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-        
-        cx = (min_x + max_x) / 2.0
-        cy = (min_y + max_y) / 2.0
-        bbox_w = max_x - min_x
-        bbox_h = max_y - min_y
-
-        if bbox_w < 0.6 or bbox_h < 0.6:
-            continue
-
-        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h)
-        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
-
-        fig.add_annotation(
-            x=cx,
-            y=cy,
-            text=wrapped_label,
-            showarrow=False,
-            font=dict(
-                size=font_size,
-                color="#000000",
-                family="Arial Black, Impact, sans-serif"
-            ),
-            align="center",
-            valign="middle",
-            captureevents=False  # CRITICAL: Mouse clicks pass through text to the polygon trace beneath
-        )
-
-    # 3. Render Route Path (if present)
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -1174,7 +1137,27 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-    # 4. Layout Settings
+    for room_id, coords in floor_rooms.items():
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        cx = sum([p[0] for p in coords]) / len(coords)
+        cy = sum([p[1] for p in coords]) / len(coords)
+
+        fig.add_trace(
+            go.Scatter(
+                x=[cx],
+                y=[cy],
+                text=[translated_name],
+                mode="text",
+                textfont=dict(
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
+                ),
+                hoverinfo="text",
+                showlegend=False
+            )
+        )
+
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
