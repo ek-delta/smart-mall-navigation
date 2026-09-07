@@ -72,6 +72,8 @@ LOCALIZATION = {
         "btn_set_start": "🚩 Set as Start",
         "btn_set_dest": "🏁 Set as Destination",
         "btn_cancel": "❌ Cancel",
+        "marker_start": " Start",
+        "marker_dest": " Destination",
     },
     "Simplified Chinese": {
         "title": "🏢 智能商场导航与停车系统",
@@ -123,6 +125,8 @@ LOCALIZATION = {
         "btn_set_start": "🚩 设为起点",
         "btn_set_dest": "🏁 设为终点",
         "btn_cancel": "❌ 取消",
+        "marker_start": " 起点",
+        "marker_dest": " 终点",
     },
     "Malay": {
         "title": "🏢 Sistem Navigasi & Tempat Letak Kereta Pusat Beli-Belah Smart",
@@ -174,6 +178,8 @@ LOCALIZATION = {
         "btn_set_start": "🚩 Tetapkan sebagai Permulaan",
         "btn_set_dest": "🏁 Tetapkan sebagai Destinasi",
         "btn_cancel": "❌ Batal",
+        "marker_start": " Permulaan",
+        "marker_dest": " Destinasi",
     }
 }
 
@@ -1076,6 +1082,9 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     arrowcolor="#CC0000"
                 )
 
+        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
+        start_lbl = lang_dict.get("marker_start", " Start")
+        dest_lbl = lang_dict.get("marker_dest", " Destination")
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
@@ -1087,7 +1096,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     y=[start_y],
                     mode="markers+text",
                     marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
-                    text=[" Start"],
+                    text=[start_lbl],
                     textposition="top right",
                     textfont=dict(color="#FF0000", size=12, family="Arial Black"),
                     name="Start Location",
@@ -1103,7 +1112,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     y=[dest_y],
                     mode="markers+text",
                     marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
-                    text=[" Destination"],
+                    text=[dest_lbl],
                     textposition="top right",
                     textfont=dict(color="#00AA00", size=12, family="Arial Black"),
                     name="Destination",
