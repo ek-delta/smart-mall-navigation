@@ -953,8 +953,8 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
         mode="lines"
     )
 
-def wrap_text_to_fit(text: str, max_chars_per_line: int = 10) -> str:
-    """Wraps text with <br> and <b> tags without clipping."""
+def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
+    """Wraps text using <br> based on a dynamic maximum character threshold."""
     words = text.split()
     if not words:
         return ""
@@ -975,42 +975,31 @@ def wrap_text_to_fit(text: str, max_chars_per_line: int = 10) -> str:
     if current_line:
         lines.append(" ".join(current_line))
 
+    # Wrap in <b> tags to ensure explicit bolding across all Plotly render engines
     return "<b>" + "<br>".join(lines) + "</b>"
 
 
-def calculate_optimal_font_and_wrap(bbox_w: float, bbox_h: float, text: str) -> tuple[int, int]:
+def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tuple[int, int]:
     """
-    Calculates font size and dynamic wrap limit based on polygon aspect ratio.
+    Calculates font size (in pt) and dynamic character limit per line
+    so bold text scales to fit polygons without clipping.
     """
-    if not bbox_w or not bbox_h:
-        return 10, 10
-
     min_dim = min(bbox_w, bbox_h)
-    char_count = len(text)
 
-    # Base font scaling
-    raw_size = int((min_dim / math.sqrt(max(char_count, 1))) * 1.6)
-    font_size = max(8, min(13, raw_size))
+    # Font scaling tuned specifically for heavy bold letter widths
+    if min_dim < 2.0:
+        font_size = 7
+    elif min_dim < 4.0:
+        font_size = 8
+    elif min_dim < 7.0:
+        font_size = 10
+    else:
+        font_size = 12
 
-    # Determine max characters per line from bounding box width
-    max_chars_per_line = max(4, int(bbox_w * (7.5 / font_size)))
+    # Account for wider character spacing in bold text
+    max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
 
     return font_size, max_chars_per_line
-
-
-def get_polygon_centroid_and_bounds(coords):
-    xs = [pt[0] for pt in coords]
-    ys = [pt[1] for pt in coords]
-
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
-
-    center_x = (min_x + max_x) / 2.0
-    center_y = (min_y + max_y) / 2.0
-    width = max_x - min_x
-    height = max_y - min_y
-
-    return center_x, center_y, width, height
 
 
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
@@ -1022,7 +1011,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
-    # 1. Render Interactive Room Polygons (Handles Clicks)
+    # 1. Render Room / Store Polygons
     for room_id, coords in floor_rooms.items():
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
@@ -1038,28 +1027,37 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
                 text=translated_name,
-                # Explicit nested list guarantees Streamlit/Plotly receives room_id on click
-                customdata=[[room_id]] * len(x_coords),
+                customdata=[room_id] * len(x_coords),
                 showlegend=False,
             )
         )
 
-    # 2. Render Auto-Fitting POI Labels (Overlay Annotations)
+    # 2. Render Bold Room / POI Labels
     for room_id, coords in floor_rooms.items():
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
         
-        center_x, center_y, bbox_w, bbox_h = get_polygon_centroid_and_bounds(coords)
+        # Calculate bounding box bounds and center point
+        xs = [p[0] for p in coords]
+        ys = [p[1] for p in coords]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
+        bbox_w = max_x - min_x
+        bbox_h = max_y - min_y
 
-        # Ignore tiny structural elements (pillars/walls)
+        # Skip tiny structural elements (e.g., pillars or thin walls)
         if bbox_w < 0.6 or bbox_h < 0.6:
             continue
 
-        font_size, max_chars = calculate_optimal_font_and_wrap(bbox_w, bbox_h, translated_name)
+        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
         wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
 
+        # Add bold text annotation
         fig.add_annotation(
-            x=center_x,
-            y=center_y,
+            x=cx,
+            y=cy,
             text=wrapped_label,
             showarrow=False,
             font=dict(
@@ -1069,11 +1067,10 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             ),
             align="center",
             valign="middle",
-            # Removed width/height restrictions to stop text truncation
-            captureevents=False  # CRITICAL: Mouse clicks pass straight through text to polygon
+            captureevents=False
         )
 
-    # 3. Render Route Path (if active)
+    # 3. Render Route Path (if present)
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -1151,7 +1148,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-    # 4. Layout
+    # 4. Layout Settings
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
