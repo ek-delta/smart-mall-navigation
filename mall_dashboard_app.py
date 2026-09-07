@@ -1042,8 +1042,8 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         min_x, max_x = min(xs), max(xs)
         min_y, max_y = min(ys), max(ys)
         
-        cx = sum([p[0] for p in coords]) / len(coords)
-        cy = sum([p[1] for p in coords]) / len(coords)
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
         bbox_w = max_x - min_x
         bbox_h = max_y - min_y
 
