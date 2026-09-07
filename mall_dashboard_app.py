@@ -68,6 +68,10 @@ LOCALIZATION = {
         "dist_to_spot": "Distance to Spot",
         "floors_to_ascend": "Floors to Ascend",
         "config_header": "⚙️ Settings",
+        "selected_on_map": "📍 Selected on map: **{location}**",
+        "btn_set_start": "🚩 Set as Start",
+        "btn_set_dest": "🏁 Set as Destination",
+        "btn_cancel": "❌ Cancel",
     },
     "Simplified Chinese": {
         "title": "🏢 智能商场导航与停车系统",
@@ -115,6 +119,10 @@ LOCALIZATION = {
         "dist_to_spot": "到达车位距离",
         "floors_to_ascend": "上升楼层",
         "config_header": "⚙️ 系统配置",
+        "selected_on_map": "📍 在地图选择：**{location}**",
+        "btn_set_start": "🚩 设为起点",
+        "btn_set_dest": "🏁 设为终点",
+        "btn_cancel": "❌ 取消",
     },
     "Malay": {
         "title": "🏢 Sistem Navigasi & Tempat Letak Kereta Pusat Beli-Belah Smart",
@@ -162,6 +170,10 @@ LOCALIZATION = {
         "dist_to_spot": "Jarak ke Tempat Letak Kereta",
         "floors_to_ascend": "Tingkat Perlu Naik",
         "config_header": "⚙️ Konfigurasi",
+        "selected_on_map": "📍 Dipilih pada peta: **{location}**",
+        "btn_set_start": "🚩 Tetapkan sebagai Permulaan",
+        "btn_set_dest": "🏁 Tetapkan sebagai Destinasi",
+        "btn_cancel": "❌ Batal",
     }
 }
 
@@ -1743,23 +1755,23 @@ with tab_map:
         loc_id = st.session_state.clicked_location
         loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(loc_id, loc_id)
 
-        st.info(f"📍 Selected on map: **{loc_name}**")
+        st.info(t["selected_on_map"].format(location=loc_name))
         col_btn1, col_btn2, col_btn3 = st.columns(3)
 
         with col_btn1:
-            if st.button("🚩 Set as Start", key="btn_set_start", use_container_width=True):
+            if st.button(t["btn_set_start"], key="btn_set_start", use_container_width=True):
                 st.session_state.selected_start = loc_id
                 st.session_state.clicked_location = None
                 st.rerun()
 
         with col_btn2:
-            if st.button("🏁 Set as Destination", key="btn_set_dest", use_container_width=True):
+            if st.button(t["btn_set_dest"], key="btn_set_dest", use_container_width=True):
                 st.session_state.selected_dest = loc_id
                 st.session_state.clicked_location = None
                 st.rerun()
 
         with col_btn3:
-            if st.button("❌ Cancel", key="btn_cancel_select", use_container_width=True):
+            if st.button(t["btn_cancel"], key="btn_cancel_select", use_container_width=True):
                 st.session_state.clicked_location = None
                 st.rerun()
 
