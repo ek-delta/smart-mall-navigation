@@ -954,6 +954,7 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
     )
 
 def wrap_text_to_fit(text: str, max_chars_per_line: int = 12) -> str:
+    """Wraps text with HTML breaks (<br>) to keep labels compact within polygons."""
     words = text.split()
     if not words:
         return ""
@@ -977,16 +978,17 @@ def wrap_text_to_fit(text: str, max_chars_per_line: int = 12) -> str:
     return "<br>".join(lines)
 
 
-def calculate_optimal_font_size(bbox_width: float, bbox_height: float, text: str) -> int:
-    if not bbox_width or not bbox_height:
-        return 10 
-
-    min_dim = min(bbox_width, bbox_height)
-    char_count = len(text)
-
-    raw_size = int((min_dim / math.sqrt(max(char_count, 1))) * 1.5)
-    return max(8, min(14, raw_size))
-
+def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> int:
+    """Dynamically scales font size based on bounding box dimensions and character count."""
+    if bbox_w <= 0 or bbox_h <= 0:
+        return 8
+    
+    min_dim = min(bbox_w, bbox_h)
+    char_count = max(len(text), 1)
+    
+    # Scale proportional to shape area vs character count, clamped between 8pt and 13pt
+    raw_size = int((min_dim / math.sqrt(char_count)) * 2.2)
+    return max(8, min(13, raw_size))
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
