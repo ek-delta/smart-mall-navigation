@@ -1798,54 +1798,7 @@ with tab_home:
 
 # Mall map tab
 with tab_map:
-    view_type = st.radio(
-        t["view_mode"],
-        options=[t["view_2d"], t["view_3d"]],
-        horizontal=True
-    )
-
-    selected_data = None
-
-    if view_type == t["view_2d"]:
-        floor_select = st.selectbox(
-            t["active_floor"],
-            options=[0, 1, 2, 3],
-            format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
-        )
-        fig_2d = render_2d_cad_view(floor_select, route_path=path, current_lang=st.session_state.lang)
-
-        selected_data = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points"
-        )
-    else:
-        fig_3d = render_3d_isometric_view(route_path=path, current_lang=st.session_state.lang)
-        selected_data = st.plotly_chart(
-            fig_3d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points"
-        )
-
-    if selected_data and "selection" in selected_data and selected_data["selection"]["points"]:
-        point = selected_data["selection"]["points"][0]
-        clicked_id = None
-
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
-
-        if clicked_id and clicked_id in ROOM_POLYGONS:
-            st.session_state.clicked_location = clicked_id
-
+    
     ctrl_col1, ctrl_col2 = st.columns([2, 1])
 
     with ctrl_col1:
