@@ -1009,7 +1009,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English", 
     route_path=st.session_state.get("current_path", None),
     current_lang=st.session_state.lang,
     clicked_point=st.session_state.get("custom_click_point", None)
-)
+    )
 
 # Render Plotly interactive chart in Streamlit with selection events
 event_data = st.plotly_chart(
