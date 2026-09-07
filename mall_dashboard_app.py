@@ -953,22 +953,23 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
         mode="lines"
     )
 
-def wrap_text_to_fit(text: str, max_chars_per_line: int = 12) -> str:
-    """Wraps text with HTML breaks (<br>) to keep labels compact within polygons."""
+def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
+    """Wraps text using <br> based on a dynamic maximum character threshold."""
     words = text.split()
     if not words:
         return ""
+    
     lines = []
     current_line = []
     current_len = 0
 
     for word in words:
-        if current_len + len(word) <= max_chars_per_line:
+        # If a single word is longer than the limit, keep it on its own line
+        if current_len + len(word) <= max_chars_per_line or not current_line:
             current_line.append(word)
             current_len += len(word) + 1
         else:
-            if current_line:
-                lines.append(" ".join(current_line))
+            lines.append(" ".join(current_line))
             current_line = [word]
             current_len = len(word) + 1
 
@@ -978,17 +979,31 @@ def wrap_text_to_fit(text: str, max_chars_per_line: int = 12) -> str:
     return "<br>".join(lines)
 
 
-def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> int:
-    """Dynamically scales font size based on bounding box dimensions and character count."""
-    if bbox_w <= 0 or bbox_h <= 0:
-        return 8
-    
+def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tuple[int, int]:
+    """
+    Calculates font size (in pt) and dynamic character limit per line
+    so text shrinks to fit smaller polygons without clipping.
+    """
     min_dim = min(bbox_w, bbox_h)
-    char_count = max(len(text), 1)
-    
-    # Scale proportional to shape area vs character count, clamped between 8pt and 13pt
-    raw_size = int((min_dim / math.sqrt(char_count)) * 2.2)
-    return max(8, min(13, raw_size))
+    char_count = len(text)
+
+    # 1. Estimate font size relative to smallest dimension
+    # Scales between 7pt (tiny rooms) and 12pt (large areas)
+    if min_dim < 2.0:
+        font_size = 7
+    elif min_dim < 4.0:
+        font_size = 8
+    elif min_dim < 7.0:
+        font_size = 10
+    else:
+        font_size = 12
+
+    # 2. Estimate maximum characters per line based on width vs font size
+    max_chars_per_line = max(4, int(bbox_w * (10 / font_size)))
+
+    return font_size, max_chars_per_line
+
+
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
@@ -1019,7 +1034,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             )
         )
 
-    # 2. Render Auto-Fitting Centroid Annotations
+    # 2. Render Room / POI Labels
     for room_id, coords in floor_rooms.items():
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
         
@@ -1034,16 +1049,15 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         bbox_w = max_x - min_x
         bbox_h = max_y - min_y
 
-        # Skip tiny structural elements (like narrow pillars)
-        if bbox_w < 0.8 or bbox_h < 0.8:
+        # Skip labeling tiny structural elements (e.g., pillars or thin walls)
+        if bbox_w < 0.6 or bbox_h < 0.6:
             continue
 
-        # Compute optimal line wrapping and dynamic font size
-        max_chars = max(6, int(bbox_w * 1.5))  # Adapt line break length to width
+        # Get adaptive font size and character wrapping threshold
+        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
         wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
-        font_size = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
 
-        # Add text annotation inside the room boundaries
+        # Add text annotation without pixel crop limits
         fig.add_annotation(
             x=cx,
             y=cy,
@@ -1052,13 +1066,10 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             font=dict(
                 size=font_size,
                 color="#000000",
-                family="Arial Black, sans-serif"
+                family="Arial, sans-serif"
             ),
             align="center",
             valign="middle",
-            # Constrain layout container within polygon bounds:
-            width=bbox_w * 0.85,
-            height=bbox_h * 0.85,
             captureevents=False
         )
 
@@ -1140,7 +1151,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-    # 4. Final Layout Configuration
+    # 4. Layout Settings
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
