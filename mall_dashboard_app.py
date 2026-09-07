@@ -1797,8 +1797,27 @@ with tab_home:
 
 
 # Mall map tab
+# ==============================================================================
+# TAB 1: 2D / 3D MAP & GUIDED ROUTE SELECTION
+# ==============================================================================
 with tab_map:
-    
+    # --------------------------------------------------------------------------
+    # 1. Initialize Interactive Selection State
+    # --------------------------------------------------------------------------
+    if "selection_mode" not in st.session_state:
+        st.session_state.selection_mode = False
+    if "selection_step" not in st.session_state:
+        st.session_state.selection_step = "START"  # "START", "WAYPOINTS", or "DEST"
+    if "selected_start" not in st.session_state:
+        st.session_state.selected_start = None
+    if "selected_waypoints" not in st.session_state:
+        st.session_state.selected_waypoints = []
+    if "selected_dest" not in st.session_state:
+        st.session_state.selected_dest = None
+
+    # --------------------------------------------------------------------------
+    # 2. Interactive Selection Control Panel
+    # --------------------------------------------------------------------------
     ctrl_col1, ctrl_col2 = st.columns([2, 1])
 
     with ctrl_col1:
