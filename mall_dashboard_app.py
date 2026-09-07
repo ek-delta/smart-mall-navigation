@@ -1144,7 +1144,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 textfont=dict(
                     color="#000000",
                     size=12,
-                    family="Arial Black, Impact, sans-serif"
+                    family="Arial Black, sans-serif"
                 ),
                 customdata=[room_id],
                 hoverinfo="text",
