@@ -1146,7 +1146,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     family="Arial Black, sans-serif"
                 ),
                 hoverinfo="text",
-                showlegend=False
+                showlegend=False,
                 align="center",
                 valign="middle",
                 captureevents=False
