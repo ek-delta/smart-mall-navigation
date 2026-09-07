@@ -1032,45 +1032,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             )
         )
 
-    # 2. Render Bold Room / POI Labels
-    for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        
-        # Calculate bounding box bounds and center point
-        xs = [p[0] for p in coords]
-        ys = [p[1] for p in coords]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-        
-        cx = (min_x + max_x) / 2.0
-        cy = (min_y + max_y) / 2.0
-        bbox_w = max_x - min_x
-        bbox_h = max_y - min_y
-
-        # Skip tiny structural elements (e.g., pillars or thin walls)
-        if bbox_w < 0.6 or bbox_h < 0.6:
-            continue
-
-        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
-        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
-
-        # Add bold text annotation
-        fig.add_trace(
-            go.Scatter(
-                x=[cx],
-                y=[cy],
-                text=[translated_name],
-                mode="text",
-                textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
-                ),
-                hoverinfo="text",
-                showlegend=False
-            )
-        )
-
 
     # 3. Render Route Path (if present)
     if route_path:
@@ -1149,6 +1110,45 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     showlegend=False
                 )
             )
+
+    # 2. Render Bold Room / POI Labels
+    for room_id, coords in floor_rooms.items():
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        
+        # Calculate bounding box bounds and center point
+        xs = [p[0] for p in coords]
+        ys = [p[1] for p in coords]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
+        bbox_w = max_x - min_x
+        bbox_h = max_y - min_y
+
+        # Skip tiny structural elements (e.g., pillars or thin walls)
+        if bbox_w < 0.6 or bbox_h < 0.6:
+            continue
+
+        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
+        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
+
+        # Add bold text annotation
+        fig.add_trace(
+            go.Scatter(
+                x=[cx],
+                y=[cy],
+                text=[translated_name],
+                mode="text",
+                textfont=dict(
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
+                ),
+                hoverinfo="text",
+                showlegend=False
+            )
+        )
 
     # 4. Layout Settings
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
