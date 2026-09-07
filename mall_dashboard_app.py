@@ -1002,8 +1002,43 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     return font_size, max_chars_per_line
 
 
-def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
+def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English", clicked_point=None):
     fig = go.Figure()
+    fig = render_2d_cad_view(
+    active_floor_z=st.session_state.current_floor,
+    route_path=st.session_state.get("current_path", None),
+    current_lang=st.session_state.lang,
+    clicked_point=st.session_state.get("custom_click_point", None)
+)
+
+# Render Plotly interactive chart in Streamlit with selection events
+event_data = st.plotly_chart(
+    fig, 
+    use_container_width=True, 
+    on_select="rerun", 
+    key="map_2d_interactive"
+)
+
+# Handle Map Click Events
+if event_data and "selection" in event_data and event_data["selection"]["points"]:
+    clicked_pt = event_data["selection"]["points"][0]
+    click_x = clicked_pt["x"]
+    click_y = clicked_pt["y"]
+    active_z = st.session_state.current_floor
+
+    # Find closest node to map click location
+    nearest_node, offset_dist = find_nearest_node(click_x, click_y, active_z)
+
+    # Save exact clicked coordinate details in session state
+    st.session_state.custom_click_point = {
+        "x": click_x,
+        "y": click_y,
+        "z": active_z,
+        "nearest_node": nearest_node,
+        "offset_dist": offset_dist
+    }
+    st.session_state.clicked_location = nearest_node
+    st.rerun()
 
     floor_rooms = {
         r_id: poly["coords"]
@@ -1011,7 +1046,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
-    # 1. Render Room / Store Polygons
+    # 1. Render Room / Store Polygons (Clickable anywhere on surface)
     for room_id, coords in floor_rooms.items():
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
@@ -1027,7 +1062,8 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
                 text=translated_name,
-                customdata=[room_id] * len(x_coords),
+                # Store coordinates in customdata for exact point identification
+                customdata=[[room_id, c[0], c[1]] for c in coords] + [[room_id, coords[0][0], coords[0][1]]],
                 showlegend=False,
             )
         )
@@ -1036,7 +1072,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     for room_id, coords in floor_rooms.items():
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
         
-        # Calculate bounding box bounds and center point
         xs = [p[0] for p in coords]
         ys = [p[1] for p in coords]
         min_x, max_x = min(xs), max(xs)
@@ -1047,14 +1082,12 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         bbox_w = max_x - min_x
         bbox_h = max_y - min_y
 
-        # Skip tiny structural elements (e.g., pillars or thin walls)
         if bbox_w < 0.6 or bbox_h < 0.6:
             continue
 
         font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
         wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
 
-        # Add bold text annotation
         fig.add_annotation(
             x=cx,
             y=cy,
@@ -1070,7 +1103,21 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             captureevents=False
         )
 
-    # 3. Render Route Path (if present)
+    # 3. Draw Arbitrary User-Clicked Point Marker (if present)
+    if clicked_point and clicked_point.get("z") == active_floor_z:
+        fig.add_trace(
+            go.Scatter(
+                x=[clicked_point["x"]],
+                y=[clicked_point["y"]],
+                mode="markers",
+                marker=dict(size=16, color="#00E5FF", symbol="cross", line=dict(color="#0088A0", width=3)),
+                name="Clicked Point",
+                hovertext=f"Selected Point ({clicked_point['x']:.2f}, {clicked_point['y']:.2f})",
+                showlegend=False
+            )
+        )
+
+    # 4. Render Route Path
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -1148,13 +1195,14 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 )
             )
 
-    # 4. Layout Settings
+    # 5. Layout Configuration (Enables Click Capture)
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
         height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
+        clickmode="event+select",  # CRITICAL: Enables exact (x, y) event dispatching
         plot_bgcolor="#FFB6C1",
         paper_bgcolor="#000000",
         xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
@@ -1604,6 +1652,50 @@ def format_location_label(room_id, lang):
         return f"[{floor_code}] {clean_name} ({cat_name})"
 
     return f"[{floor_code}] {clean_name}"
+
+def find_nearest_node(x: float, y: float, z: int) -> tuple[str, float]:
+    """
+    Finds the closest node in MULTI_CAD_NODES to an arbitrary (x, y) click point.
+    Returns (nearest_node_id, euclidean_distance_to_node).
+    """
+    nearest_id = None
+    min_dist = float("inf")
+
+    for node_id, coords in MULTI_CAD_NODES.items():
+        node_x, node_y, node_z = coords[0], coords[1], coords[2]
+        
+        # Only compare nodes on the same floor layer
+        if node_z == z:
+            dist = math.hypot(x - node_x, y - node_y)
+            if dist < min_dist:
+                min_dist = dist
+                nearest_id = node_id
+
+    return nearest_id, min_dist
+
+
+def compute_route_summary_from_points(path, start_point=None, dest_point=None):
+    """
+    Calculates total route summary including offset distance from arbitrary 
+    clicked (x, y) start/destination points to graph nodes.
+    """
+    summary = compute_route_summary(path)  # Your existing graph route distance function
+    extra_distance = 0.0
+
+    # Add euclidean offset distance from exact clicked start point to first node
+    if start_point and path:
+        first_node = path[0]
+        nx, ny, _ = MULTI_CAD_NODES[first_node]
+        extra_distance += math.hypot(start_point["x"] - nx, start_point["y"] - ny)
+
+    # Add euclidean offset distance from last node to exact clicked destination point
+    if dest_point and path:
+        last_node = path[-1]
+        nx, ny, _ = MULTI_CAD_NODES[last_node]
+        extra_distance += math.hypot(dest_point["x"] - nx, dest_point["y"] - ny)
+
+    summary["total_distance"] = round(summary["total_distance"] + extra_distance, 2)
+    return summary
 
 # ==============================================================================
 # 6. UI configuration
