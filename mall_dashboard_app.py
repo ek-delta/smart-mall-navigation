@@ -74,6 +74,21 @@ LOCALIZATION = {
         "btn_cancel": "❌ Cancel",
         "marker_start": " Start",
         "marker_dest": " Destination",
+        "intermediate_stops": "📍 Intermediate Stops",
+        "stop_lbl": "Stop {idx}",
+        "btn_add_stop_manual": "➕ Add Intermediate Stop Manually",
+        "btn_interactive_pick": "🗺️ Interactive Route Selection on Map",
+        "btn_cancel_interactive": "⏹️ Cancel Interactive Map Selection",
+        "btn_reset_all": "🗑️ Reset All",
+        "pick_step_1": "👇 *Step 1:* Click any room on the map below to set as *Start Location*.",
+        "pick_step_2": "👇 *Step 2:* Click any room on the map to add *Intermediate Stops* (or click button below when ready for Destination).",
+        "pick_step_3": "👇 *Step 3:* Click any room on the map to set as *Destination*.",
+        "btn_done_adding_stops": "➡️ Done Adding Stops (Next: Pick Destination)",
+        "btn_add_as_stop": "➕ Add as Stop",
+        "tab_parking_entry": "🚗 1. Entrance to Parking Spot",
+        "tab_parking_exit": "🚪 2. Parking Spot to Exit",
+        "drive_to_spot_title": "🚗 Driving to Parking Spot",
+        "drive_to_exit_title": "🚪 Leaving Parking Spot to Driveway Exit",
     },
     "Simplified Chinese": {
         "title": "🏢 智能商场导航与停车系统",
@@ -127,6 +142,21 @@ LOCALIZATION = {
         "btn_cancel": "❌ 取消",
         "marker_start": " 起点",
         "marker_dest": " 终点",
+        "intermediate_stops": "📍 途经点 (中转站)",
+        "stop_lbl": "途经点 {idx}",
+        "btn_add_stop_manual": "➕ 手动添加途经点",
+        "btn_interactive_pick": "🗺️ 地图交互式路线选择",
+        "btn_cancel_interactive": "⏹️ 取消地图选择模式",
+        "btn_reset_all": "🗑️ 重置全部",
+        "pick_step_1": "👇 *步骤 1：* 点击下方地图上的任意地点设为 *起点位置*。",
+        "pick_step_2": "👇 *步骤 2：* 点击地图上的房间添加 *途经点*（若已添加完毕，请点击下方按钮选择终点）。",
+        "pick_step_3": "👇 *步骤 3：* 点击地图上的任意房间设为 *终点位置*。",
+        "btn_done_adding_stops": "➡️ 完成添加途经点 (下一步: 选择终点)",
+        "btn_add_as_stop": "➕ 添加为途经点",
+        "tab_parking_entry": "🚗 1. 入口至停车位",
+        "tab_parking_exit": "🚪 2. 停车位至出口",
+        "drive_to_spot_title": "🚗 驱动至停车位路线",
+        "drive_to_exit_title": "🚪 从停车位前往车道出口",
     },
     "Malay": {
         "title": "🏢 Sistem Navigasi & Tempat Letak Kereta Pusat Beli-Belah Smart",
@@ -180,6 +210,21 @@ LOCALIZATION = {
         "btn_cancel": "❌ Batal",
         "marker_start": " Permulaan",
         "marker_dest": " Destinasi",
+        "intermediate_stops": "📍 Hentian Antara",
+        "stop_lbl": "Hentian {idx}",
+        "btn_add_stop_manual": "➕ Tambah Hentian Antara Secara Manual",
+        "btn_interactive_pick": "🗺️ Pemilihan Laluan Interaktif pada Peta",
+        "btn_cancel_interactive": "⏹️ Batal Pemilihan Peta Interaktif",
+        "btn_reset_all": "🗑️ Set Semula Semua",
+        "pick_step_1": "👇 *Langkah 1:* Klik mana-mana bilik pada peta di bawah untuk tetapkan *Lokasi Permulaan*.",
+        "pick_step_2": "👇 *Langkah 2:* Klik bilik pada peta untuk tambah *Hentian Antara* (atau klik butang di bawah apabila sedia untuk Destinasi).",
+        "pick_step_3": "👇 *Langkah 3:* Klik mana-mana bilik pada peta untuk tetapkan *Destinasi*.",
+        "btn_done_adding_stops": "➡️ Selesai Menambah Hentian (Seterusnya: Pilih Destinasi)",
+        "btn_add_as_stop": "➕ Tambah sebagai Hentian",
+        "tab_parking_entry": "🚗 1. Pintu Masuk ke Ruang Letak Kereta",
+        "tab_parking_exit": "🚪 2. Ruang Letak Kereta ke Pintu Keluar",
+        "drive_to_spot_title": "🚗 Memandu ke Ruang Letak Kereta",
+        "drive_to_exit_title": "🚪 Meninggalkan Ruang Letak Kereta ke Pintu Keluar",
     }
 }
 
@@ -1713,15 +1758,15 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     st.session_state.selected_start = start_node
     st.session_state.selected_dest = dest_node
 
-    # --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
+# --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
     if st.session_state.waypoints:
-        st.markdown("📍 **Intermediate Stops**")
+        st.markdown(t["intermediate_stops"])
 
         for idx, wp in enumerate(st.session_state.waypoints):
             wp_col1, wp_col2 = st.columns([0.85, 0.15])
             with wp_col1:
                 selected_wp = st.selectbox(
-                    f"Stop {idx + 1}",
+                    t["stop_lbl"].format(idx=idx + 1),
                     options=room_options,
                     format_func=lambda r_id: format_location_label(
                         r_id, st.session_state.lang
@@ -1742,7 +1787,7 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
                     st.session_state.waypoints.pop(idx)
                     st.rerun()
 
-    if st.button("➕ Add Intermediate Stop Manually", key="add_waypoint"):
+    if st.button(t["btn_add_stop_manual"], key="add_waypoint"):
         default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
         st.session_state.waypoints.append(default_wp)
         st.rerun()
@@ -1925,18 +1970,18 @@ with tab_map:
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
         if not st.session_state.map_pick_mode:
-            if st.button("🗺️ Interactive Route Selection on Map", use_container_width=True, type="primary"):
+            if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
                 st.session_state.map_pick_mode = True
                 st.session_state.map_pick_step = "START"
                 st.session_state.waypoints = []
                 st.rerun()
         else:
-            if st.button("⏹️ Cancel Interactive Map Selection", use_container_width=True):
+            if st.button(t["btn_cancel_interactive"], use_container_width=True):
                 st.session_state.map_pick_mode = False
                 st.rerun()
 
     with col_btn_clear:
-        if st.button("🗑️ Reset All", use_container_width=True):
+        if st.button(t["btn_reset_all"], use_container_width=True):
             st.session_state.waypoints = []
             st.session_state.map_pick_mode = False
             st.rerun()
@@ -1944,14 +1989,14 @@ with tab_map:
     # Contextual guidance banner shown when selecting points on map
     if st.session_state.map_pick_mode:
         if st.session_state.map_pick_step == "START":
-            st.info("👇 **Step 1:** Click any room/POI on the map below to set as **START LOCATION**.")
+            st.info(t["pick_step_1"])
         elif st.session_state.map_pick_step == "WAYPOINT":
-            st.warning("👇 **Step 2:** Click any room on the map to add **INTERMEDIATE STOPS** (or click button below when ready for Destination).")
-            if st.button("➡️ Done Adding Stops (Next: Pick Destination)", type="secondary"):
+            st.warning(t["pick_step_2"])
+            if st.button(t["btn_done_adding_stops"], type="secondary"):
                 st.session_state.map_pick_step = "DEST"
                 st.rerun()
         elif st.session_state.map_pick_step == "DEST":
-            st.success("👇 **Step 3:** Click any room on the map to set as **DESTINATION**.")
+            st.success(t["pick_step_3"])
 
     selected_data = None
 
