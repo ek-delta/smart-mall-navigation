@@ -1289,7 +1289,7 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
                 x=cone_x, y=cone_y, z=cone_z,
                 u=cone_u, v=cone_v, w=cone_w,
                 colorscale=[[0, '#CC0000'], [1, '#CC0000']],
-                showscale=False, sizemode="absolute", sizeref=20, anchor="tip"
+                showscale=False, sizemode="absolute", sizeref=50, anchor="tip"
             ))
 
     fig.update_layout(
