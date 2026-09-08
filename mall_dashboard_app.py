@@ -1747,6 +1747,7 @@ with st.sidebar:
 with tab_home:
     st.title(t["title"])
     st.caption(t["subtitle"])
+    st.divider()
     st.markdown(
         f"""
     ### {t['home_title']}
