@@ -1080,11 +1080,16 @@ def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
 
     # --- 1. RENDER ORIGINAL ROOM POLYGONS & SHAPES ---
     for room_id, poly_coords in ROOM_POLYGONS.items():
+        # GUARD: Skip empty, invalid, or non-list polygon definitions
+        if not poly_coords or not isinstance(poly_coords, (list, tuple)) or len(poly_coords) < 3:
+            continue
+
         # Check floor matching
         room_z = MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2]
         if abs(room_z - active_floor) > 0.5:
             continue
 
+        # Safe extraction now that poly_coords is verified to have >= 3 vertices
         x_coords = [p[0] for p in poly_coords] + [poly_coords[0][0]]
         y_coords = [p[1] for p in poly_coords] + [poly_coords[0][1]]
 
@@ -1124,7 +1129,7 @@ def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
             )
         )
 
-    # --- 2. RENDER OVERLAY NAVIGATION PATH (KEEPING ORIGINAL STYLING) ---
+    # --- 2. RENDER OVERLAY NAVIGATION PATH ---
     if route_path:
         floor_coords = []
         for node in route_path:
@@ -1142,7 +1147,6 @@ def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
             rx = [p[0] for p in floor_coords]
             ry = [p[1] for p in floor_coords]
 
-            # Route line (original pink/red highlight style)
             fig.add_trace(
                 go.Scatter(
                     x=rx,
@@ -1156,7 +1160,6 @@ def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
                 )
             )
 
-            # Start point marker
             fig.add_trace(
                 go.Scatter(
                     x=[rx[0]],
@@ -1169,7 +1172,6 @@ def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
                 )
             )
 
-            # End point marker
             fig.add_trace(
                 go.Scatter(
                     x=[rx[-1]],
@@ -1182,7 +1184,7 @@ def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
                 )
             )
 
-    # --- 3. ORIGINAL LAYOUT CONFIGURATION & CLICK ENABLEMENT ---
+    # --- 3. LAYOUT CONFIGURATION ---
     fig.update_layout(
         clickmode="event+select",
         xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
