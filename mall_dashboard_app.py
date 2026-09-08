@@ -1700,14 +1700,12 @@ def format_location_label(room_id, lang):
 
 t = LOCALIZATION[st.session_state.lang]
 
-# Dynamic localized tab titles
 home_tab_title = {
     "English": "🏠 Home",
     "Simplified Chinese": "🏠 首页",
-    "Malay": "🏠 Utama",
+    "Malay": "🏠 Halaman Utama",
 }.get(st.session_state.lang, "🏠 Home")
 
-# TOP NAVIGATION TABS (Moved directly to top of interface)
 tab_home, tab_map, tab_dir, tab_park = st.tabs(
     [
         home_tab_title,
@@ -1717,15 +1715,17 @@ tab_home, tab_map, tab_dir, tab_park = st.tabs(
     ]
 )
 
+st.title(t["title"])
+st.caption(t["subtitle"])
+
 # Initialize session state for waypoints and interactive map route builder state
 if "waypoints" not in st.session_state:
     st.session_state.waypoints = []
 if "map_pick_mode" not in st.session_state:
-    st.session_state.map_pick_mode = False
+    st.session_state.map_pick_mode = False  # True when user is clicking on map to pick sequence
 if "map_pick_step" not in st.session_state:
-    st.session_state.map_pick_step = "START"
+    st.session_state.map_pick_step = "START"  # Options: 'START', 'WAYPOINT', 'DEST'
 
-# Sidebar localization control
 with st.sidebar:
     st.header(t["config_header"])
     selected_language_key = st.selectbox(
@@ -1737,9 +1737,6 @@ with st.sidebar:
     if selected_language_key != st.session_state.lang:
         st.session_state.lang = selected_language_key
         st.rerun()
-
-st.title(t["title"])
-st.caption(t["subtitle"])
 
 with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     room_options = list(ROOM_POLYGONS.keys())
@@ -1870,11 +1867,6 @@ st.session_state.assigned_parking = assigned_slot_id
 st.session_state.entry_path = entry_path
 st.session_state.exit_path = exit_path
 
-
-# ==============================================================================
-# TAB CONTENTS
-# ==============================================================================
-
 # Home page tab
 with tab_home:
     st.markdown(
@@ -1974,6 +1966,7 @@ with tab_map:
         horizontal=True,
     )
 
+    # --- INTERACTIVE MAP ROUTE SELECTION & RESET BUTTONS BELOW DISPLAY MODE ---
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
         if not st.session_state.map_pick_mode:
@@ -1993,6 +1986,7 @@ with tab_map:
             st.session_state.map_pick_mode = False
             st.rerun()
 
+    # Contextual guidance banner shown when selecting points on map
     if st.session_state.map_pick_mode:
         if st.session_state.map_pick_step == "START":
             st.info(t["pick_step_1"])
@@ -2035,6 +2029,7 @@ with tab_map:
             selection_mode="points",
         )
 
+    # MAP CLICK HANDLER SEQUENCER (Only processes clicks when map_pick_mode is Active)
     if (
         st.session_state.map_pick_mode
         and selected_data
@@ -2068,7 +2063,7 @@ with tab_map:
 
             elif st.session_state.map_pick_step == "DEST":
                 st.session_state.selected_dest = clicked_id
-                st.session_state.map_pick_mode = False
+                st.session_state.map_pick_mode = False  # Completed cycle!
                 st.session_state.map_pick_step = "START"
                 st.rerun()
 
@@ -2114,10 +2109,14 @@ with tab_park:
             f"{t['nearest_spot_found']}: `{slot_icon} {assigned_slot}` ({t['rooftop_lot']})"
         )
 
+        # Sub-tabs for Entry and Exit legs
         tab_entry, tab_exit = st.tabs(
             ["🚗 1. Entrance to Parking Spot", "🚪 2. Parking Spot to Exit"]
         )
 
+        # ======================================================================
+        # TAB 1: ENTRANCE -> PARKING SPOT
+        # ======================================================================
         with tab_entry:
             st.markdown("### 🚗 Driving to Parking Spot")
 
@@ -2157,6 +2156,9 @@ with tab_park:
                         st.markdown(step_info["text"])
                     st.divider()
 
+        # ======================================================================
+        # TAB 2: PARKING SPOT -> EXIT
+        # ======================================================================
         with tab_exit:
             st.markdown("### 🚪 Leaving Parking Spot to Driveway Exit")
 
