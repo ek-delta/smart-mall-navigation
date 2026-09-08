@@ -1886,7 +1886,11 @@ with tab_map:
         format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang),
     )
 
-    fig_2d = render_2d_cad_view(floor_select, route_coords=path_coords, current_lang=st.session_state.lang)
+    fig_2d = render_2d_cad_view(
+    floor_select, 
+    route_path=path_coords,  # Changed route_coords to route_path
+    current_lang=st.session_state.lang
+    )
 
     selected_data = st.plotly_chart(
         fig_2d,
