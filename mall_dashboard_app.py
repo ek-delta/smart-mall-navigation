@@ -1073,28 +1073,37 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
 
 def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
     """
-    Renders 2D CAD floorplan using exact original layout, geometry, locations, and styling,
-    with clickmode enabled for interactive coordinate picking.
+    Renders 2D CAD floorplan keeping 100% of the original map layout, locations, 
+    and visual style, with safety checks to prevent indexing errors on polygon data.
     """
     fig = go.Figure()
 
     # --- 1. ORIGINAL ROOM SHAPES & LOCATIONS ---
     for room_id, poly_coords in ROOM_POLYGONS.items():
-        # Guard against empty/invalid polygon definitions
-        if not poly_coords or len(poly_coords) < 3:
+        # Unwrap nested list structures if poly_coords is wrapped like [[(x,y), ...]]
+        if isinstance(poly_coords, (list, tuple)) and len(poly_coords) == 1 and isinstance(poly_coords[0], (list, tuple)):
+            poly_coords = poly_coords[0]
+
+        # Guard: Ensure poly_coords has valid coordinate points before indexing
+        if not poly_coords or not isinstance(poly_coords, (list, tuple)) or len(poly_coords) < 3:
+            continue
+
+        # Ensure elements inside poly_coords are actual coordinate pairs (x, y)
+        if not isinstance(poly_coords[0], (list, tuple)) or len(poly_coords[0]) < 2:
             continue
 
         room_z = MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2]
         if abs(room_z - active_floor) > 0.5:
             continue
 
+        # Extract X and Y coordinates safely
         x_coords = [p[0] for p in poly_coords] + [poly_coords[0][0]]
         y_coords = [p[1] for p in poly_coords] + [poly_coords[0][1]]
 
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
         display_label = translated_name.split("(")[0].strip()
 
-        # Room boundary and fill (Your exact original styling)
+        # Room boundary and fill (Original styling intact)
         fig.add_trace(
             go.Scatter(
                 x=x_coords,
@@ -1182,9 +1191,9 @@ def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
                 )
             )
 
-    # --- 3. ORIGINAL LAYOUT + CLICK MODE CONFIGURATION ---
+    # --- 3. ORIGINAL LAYOUT CONFIGURATION ---
     fig.update_layout(
-        clickmode="event+select",  # Unlocks Streamlit click capture without changing visuals
+        clickmode="event+select",
         xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
         yaxis=dict(visible=False),
         margin=dict(l=10, r=10, t=10, b=10),
