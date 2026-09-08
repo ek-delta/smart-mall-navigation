@@ -1047,7 +1047,29 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     return font_size, max_chars_per_line
 
 
+def _extract_xy_coords(polygon_coords):
+    """
+    Safely extracts list of X and list of Y floats from various polygon formats.
+    Handles: [(x, y), ...], [[x, y], ...], or [{'x': x, 'y': y}, ...]
+    """
+    px, py = [], []
+    if not polygon_coords:
+        return px, py
 
+    for point in polygon_coords:
+        if isinstance(point, (tuple, list)) and len(point) >= 2:
+            px.append(float(point[0]))
+            py.append(float(point[1]))
+        elif isinstance(point, dict) and "x" in point and "y" in point:
+            px.append(float(point["x"]))
+            py.append(float(point["y"]))
+
+    return px, py
+
+
+# ==============================================================================
+# Render 2D CAD View Function
+# ==============================================================================
 def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
     """
     Renders a 2D floor plan view using Plotly Scatter traces.
@@ -1062,15 +1084,19 @@ def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
 
         # Only draw shapes that belong to the active floor
         if int(room_z) == int(floor_level):
-            px = [p[0] for p in polygon_coords]
-            py = [p[1] for p in polygon_coords]
-            
-            # Close polygon if not closed
+            px, py = _extract_xy_coords(polygon_coords)
+
+            if not px or not py:
+                continue
+
+            # Close polygon perimeter if not explicitly closed
             if px[0] != px[-1] or py[0] != py[-1]:
                 px.append(px[0])
                 py.append(py[0])
 
-            translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+            translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(
+                room_id, room_id
+            )
 
             fig.add_trace(
                 go.Scatter(
@@ -1081,13 +1107,14 @@ def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
                     line=dict(color="#2C3E50", width=2),
                     hoverinfo="text",
                     text=translated_name,
-                    customdata=[room_id] * len(px),  # Pass room_id to click selection event
+                    customdata=[room_id]
+                    * len(px),  # Pass room_id to click selection event
                     name=translated_name,
                     showlegend=False,
                 )
             )
 
-            # Draw Room Label at center
+            # Draw Room Label at centroid
             cx = sum(px[:-1]) / len(px[:-1])
             cy = sum(py[:-1]) / len(py[:-1])
             fig.add_trace(
@@ -1102,18 +1129,16 @@ def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
                 )
             )
 
-    # 2. Draw Navigation Route Polyline (including dynamic dynamic click nodes)
+    # 2. Draw Navigation Route Polyline
     if route_path:
         route_x, route_y = [], []
         for node_id in route_path:
             if node_id in MULTI_CAD_NODES:
                 coords = MULTI_CAD_NODES[node_id]
-                # Filter path nodes to match the selected floor level
                 if int(coords[2]) == int(floor_level):
                     route_x.append(coords[0])
                     route_y.append(coords[1])
                 elif route_x and route_x[-1] is not None:
-                    # Break path line if transitioning to another floor
                     route_x.append(None)
                     route_y.append(None)
 
@@ -1134,7 +1159,13 @@ def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
     fig.update_layout(
         title=f"Floor Plan - {get_translated_floor_name(floor_level, current_lang)}",
         xaxis=dict(showgrid=True, zeroline=False, title="X (meters)"),
-        yaxis=dict(showgrid=True, zeroline=False, title="Y (meters)", scaleanchor="x", scaleratio=1),
+        yaxis=dict(
+            showgrid=True,
+            zeroline=False,
+            title="Y (meters)",
+            scaleanchor="x",
+            scaleratio=1,
+        ),
         margin=dict(l=20, r=20, t=50, b=20),
         hovermode="closest",
         plot_bgcolor="#F8F9FA",
@@ -1158,17 +1189,20 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
         node_info = MULTI_CAD_NODES.get(room_id, (0, 0, 0))
         z_val = node_info[2]
 
-        px = [p[0] for p in polygon_coords]
-        py = [p[1] for p in polygon_coords]
-        
+        px, py = _extract_xy_coords(polygon_coords)
+
+        if not px or not py:
+            continue
+
         if px[0] != px[-1] or py[0] != py[-1]:
             px.append(px[0])
             py.append(py[0])
 
         pz = [z_val] * len(px)
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(
+            room_id, room_id
+        )
 
-        # Draw 3D Polygon Surface
         fig.add_trace(
             go.Scatter3d(
                 x=px,
@@ -1217,9 +1251,7 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
             yaxis=dict(title="Y (m)"),
             zaxis=dict(title="Floor Level", dtick=1),
             aspectmode="data",
-            camera=dict(
-                eye=dict(x=1.5, y=-1.5, z=1.2)
-            )
+            camera=dict(eye=dict(x=1.5, y=-1.5, z=1.2)),
         ),
         margin=dict(l=0, r=0, t=40, b=0),
     )
