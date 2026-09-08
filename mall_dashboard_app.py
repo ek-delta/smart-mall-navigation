@@ -1073,37 +1073,35 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
 
 def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
     """
-    Renders 2D CAD floorplan preserving original styling, shapes, colors, and layout,
-    while enabling click event capture across room regions.
+    Renders 2D CAD floorplan using exact original layout, geometry, locations, and styling,
+    with clickmode enabled for interactive coordinate picking.
     """
     fig = go.Figure()
 
-    # --- 1. RENDER ORIGINAL ROOM POLYGONS & SHAPES ---
+    # --- 1. ORIGINAL ROOM SHAPES & LOCATIONS ---
     for room_id, poly_coords in ROOM_POLYGONS.items():
-        # GUARD: Skip empty, invalid, or non-list polygon definitions
-        if not poly_coords or not isinstance(poly_coords, (list, tuple)) or len(poly_coords) < 3:
+        # Guard against empty/invalid polygon definitions
+        if not poly_coords or len(poly_coords) < 3:
             continue
 
-        # Check floor matching
         room_z = MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2]
         if abs(room_z - active_floor) > 0.5:
             continue
 
-        # Safe extraction now that poly_coords is verified to have >= 3 vertices
         x_coords = [p[0] for p in poly_coords] + [poly_coords[0][0]]
         y_coords = [p[1] for p in poly_coords] + [poly_coords[0][1]]
 
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
         display_label = translated_name.split("(")[0].strip()
 
-        # Render filled polygon keeping original visual styling
+        # Room boundary and fill (Your exact original styling)
         fig.add_trace(
             go.Scatter(
                 x=x_coords,
                 y=y_coords,
                 fill="toself",
-                fillcolor="rgba(240, 242, 246, 0.6)", # Original layout fill color
-                line=dict(color="#1E88E5", width=2),     # Original boundary style
+                fillcolor="rgba(240, 242, 246, 0.6)",
+                line=dict(color="#1E88E5", width=2),
                 hoverinfo="text+x+y",
                 text=f"<b>{translated_name}</b>",
                 customdata=[room_id] * len(x_coords),
@@ -1113,7 +1111,7 @@ def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
             )
         )
 
-        # Room label marker at center
+        # Room label at centroid
         center_x = float(np.mean([p[0] for p in poly_coords]))
         center_y = float(np.mean([p[1] for p in poly_coords]))
 
@@ -1129,7 +1127,7 @@ def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
             )
         )
 
-    # --- 2. RENDER OVERLAY NAVIGATION PATH ---
+    # --- 2. ORIGINAL NAVIGATION ROUTE OVERLAY ---
     if route_path:
         floor_coords = []
         for node in route_path:
@@ -1184,9 +1182,9 @@ def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
                 )
             )
 
-    # --- 3. LAYOUT CONFIGURATION ---
+    # --- 3. ORIGINAL LAYOUT + CLICK MODE CONFIGURATION ---
     fig.update_layout(
-        clickmode="event+select",
+        clickmode="event+select",  # Unlocks Streamlit click capture without changing visuals
         xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
         yaxis=dict(visible=False),
         margin=dict(l=10, r=10, t=10, b=10),
