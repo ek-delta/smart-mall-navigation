@@ -1675,8 +1675,14 @@ def format_location_label(room_id, lang):
 
     return f"[{floor_code}] {clean_name}"
 
+# ==============================================================================
+# 5.5 ROBUST EXACT COORDINATE ROUTING ENGINE
+# ==============================================================================
+
 def point_in_polygon(x, y, poly_coords):
     """Ray-casting algorithm to test if (x, y) lies inside a 2D polygon."""
+    if not poly_coords or len(poly_coords) < 3:
+        return False
     n = len(poly_coords)
     inside = False
     p1x, p1y = poly_coords[0]
@@ -1693,24 +1699,54 @@ def point_in_polygon(x, y, poly_coords):
     return inside
 
 def inject_virtual_node(node_id, x, y, z, graph, nodes_dict):
-    """Dynamically injects a virtual coordinate node into the graph."""
-    nodes_dict[node_id] = (x, y, z)
+    """
+    Injects a dynamic (x, y, z) node. Uses Line-Of-Sight raycasting first,
+    falling back to connecting to the N-nearest floor nodes if LOS is blocked by walls.
+    """
+    nodes_dict[node_id] = (float(x), float(y), float(z))
     graph[node_id] = {}
 
+    candidates = []
     for other_id, pos in list(nodes_dict.items()):
         if other_id == node_id:
             continue
-        if abs(pos[2] - z) < 0.1:
-            if has_line_of_sight_3d((x, y, z), pos):
-                dist = float(np.linalg.norm(np.array([x, y, z]) - np.array(pos)))
-                graph[node_id][other_id] = dist
-                if other_id not in graph:
-                    graph[other_id] = {}
-                graph[other_id][node_id] = dist
+        # Check floor matching (elevation z)
+        if abs(pos[2] - z) < 0.5:
+            dist = float(np.linalg.norm(np.array([x, y, z]) - np.array(pos)))
+            candidates.append((dist, other_id, pos))
+
+    # Sort nodes on the same floor by distance
+    candidates.sort(key=lambda item: item[0])
+
+    connected_count = 0
+    # Try Line-of-Sight first
+    for dist, other_id, pos in candidates:
+        # Check if line of sight helper exists in scope
+        los = True
+        if "has_line_of_sight_3d" in globals():
+            try:
+                los = has_line_of_sight_3d((x, y, z), pos)
+            except Exception:
+                los = True
+
+        if los:
+            graph[node_id][other_id] = dist
+            if other_id not in graph:
+                graph[other_id] = {}
+            graph[other_id][node_id] = dist
+            connected_count += 1
+
+    # FALLBACK: If wall geometry blocked all LOS lines, forcefully link to 3 nearest floor nodes
+    if connected_count == 0 and candidates:
+        for dist, other_id, pos in candidates[:3]:
+            graph[node_id][other_id] = dist
+            if other_id not in graph:
+                graph[other_id] = {}
+            graph[other_id][node_id] = dist
 
 def cleanup_virtual_nodes(graph, nodes_dict, virtual_prefix="_virtual_"):
     """Removes temporary coordinate nodes after route calculation."""
-    keys_to_remove = [k for k in nodes_dict.keys() if k.startswith(virtual_prefix)]
+    keys_to_remove = [k for k in nodes_dict.keys() if str(k).startswith(virtual_prefix)]
     for key in keys_to_remove:
         nodes_dict.pop(key, None)
         graph.pop(key, None)
@@ -1719,6 +1755,7 @@ def cleanup_virtual_nodes(graph, nodes_dict, virtual_prefix="_virtual_"):
 
 def compute_route_from_exact_coords(start_spec, dest_spec, graph, nodes_dict, accessible_only=False):
     """Computes Theta* route accepting either room_ids (str) or exact coords tuple (x, y, z)."""
+    # Create working graph copies
     temp_graph = {k: dict(v) for k, v in graph.items()}
     temp_nodes = dict(nodes_dict)
 
@@ -2155,30 +2192,32 @@ with tab_map:
         )
 
     # EXACT COORDINATE & SHAPE CLICK CAPTURE HANDLER
+    # ROBUST MAP CLICK HANDLER (Works on shape or point click)
     if (
         st.session_state.map_pick_mode
         and selected_data
+        and isinstance(selected_data, dict)
         and "selection" in selected_data
-        and selected_data["selection"]["points"]
+        and selected_data["selection"].get("points")
     ):
         point = selected_data["selection"]["points"][0]
 
+        # Extract coordinates with fallbacks
         click_x = point.get("x")
         click_y = point.get("y")
-        current_z = float(floor_select)
-
-        matched_room_id = None
+        current_z = float(floor_select) if 'floor_select' in locals() else 0.0
 
         if click_x is not None and click_y is not None:
-            # Check if clicked coordinate lands inside any registered location shape
+            # Check if clicked inside a registered location shape
+            matched_room_id = None
             for room_id, poly in ROOM_POLYGONS.items():
                 room_z = MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2]
-                if abs(room_z - current_z) < 0.1:
+                if abs(room_z - current_z) < 0.5:
                     if point_in_polygon(click_x, click_y, poly):
                         matched_room_id = room_id
                         break
 
-            clicked_coord = (click_x, click_y, current_z)
+            clicked_coord = (float(click_x), float(click_y), float(current_z))
 
             if st.session_state.map_pick_step == "START":
                 st.session_state.exact_start_coord = clicked_coord
