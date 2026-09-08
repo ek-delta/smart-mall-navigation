@@ -1701,7 +1701,6 @@ def format_location_label(room_id, lang):
 t = LOCALIZATION[st.session_state.lang]
 
 st.title(t["title"])
-st.caption(t["subtitle"])
 
 # Initialize session state for waypoints and interactive map route builder state
 if "waypoints" not in st.session_state:
