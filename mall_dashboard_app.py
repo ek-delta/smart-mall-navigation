@@ -1050,201 +1050,146 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
 import plotly.graph_objects as go
 
 
-def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
-    """Renders 2D CAD floor view matching original visual styling, preserving color
-
-    schemes, polygon styling, hallway connectivity lines, and markers, with added
-    full-polygon shape clicking.
-    """
+def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
-    # ==========================================================================
-    # 1. RENDER ROOM POLYGONS (Preserving exact visual styling & adding full click)
-    # ==========================================================================
-    for room_id, poly_info in ROOM_POLYGONS.items():
-        room_z = int(MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2])
-        if room_z != floor_index:
-            continue
+    floor_rooms = {
+        r_id: poly["coords"]
+        for r_id, poly in ROOM_POLYGONS.items()
+        if poly["z"] == active_floor_z
+    }
 
-        coords = poly_info.get("coordinates", [])
-        if not coords:
-            continue
-
-        # Close polygon shape loop
+    for room_id, coords in floor_rooms.items():
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
+        room_info = ROOM_POLYGONS[room_id]
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(
-            room_id, room_id
-        )
-        icon = get_location_icon(room_id)
-        display_label = f"{icon} {translated_name}"
-
-        # Filled polygon shape trace (Allows clicking anywhere inside room boundary)
         fig.add_trace(
             go.Scatter(
                 x=x_coords,
                 y=y_coords,
                 fill="toself",
-                fillcolor="rgba(220, 235, 252, 0.45)",
-                line=dict(color="rgba(50, 110, 210, 0.8)", width=1.8),
+                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
+                line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
-                text=f"<b>{display_label}</b>",
+                text=translated_name,
                 customdata=[room_id] * len(x_coords),
-                mode="lines",
                 showlegend=False,
-                name=translated_name,
             )
         )
 
-        # Original Room Label Text Marker (at center coordinate)
-        if room_id in MULTI_CAD_NODES:
-            cx, cy, _ = MULTI_CAD_NODES[room_id]
-            fig.add_trace(
-                go.Scatter(
-                    x=[cx],
-                    y=[cy],
-                    mode="text",
-                    text=[f"<b>{display_label}</b>"],
-                    textposition="middle center",
-                    textfont=dict(size=11, color="#1E293B"),
-                    hoverinfo="none",
-                    showlegend=False,
-                )
-            )
-
-    # ==========================================================================
-    # 2. RENDER CAD GRAPH NETWORK EDGES (Original corridor line styling)
-    # ==========================================================================
-    drawn_edges = set()
-    for u, neighbors in MULTI_CAD_GRAPH.items():
-        if u not in MULTI_CAD_NODES:
-            continue
-        ux, uy, uz = MULTI_CAD_NODES[u]
-        if int(uz) != floor_index:
-            continue
-
-        for v in neighbors:
-            if v not in MULTI_CAD_NODES:
-                continue
-            vx, vy, vz = MULTI_CAD_NODES[v]
-            if int(vz) != floor_index:
-                continue
-
-            edge_key = tuple(sorted([u, v]))
-            if edge_key in drawn_edges:
-                continue
-            drawn_edges.add(edge_key)
-
-            fig.add_trace(
-                go.Scatter(
-                    x=[ux, vx],
-                    y=[uy, vy],
-                    mode="lines",
-                    line=dict(color="rgba(180, 190, 200, 0.4)", width=1),
-                    hoverinfo="none",
-                    showlegend=False,
-                )
-            )
-
-    # ==========================================================================
-    # 3. RENDER NAVIGATION PATH OVERLAY (Original route line & marker colors)
-    # ==========================================================================
     if route_path:
-        floor_path_nodes = [
-            node
-            for node in route_path
-            if node in MULTI_CAD_NODES
-            and int(MULTI_CAD_NODES[node][2]) == floor_index
-        ]
+        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
-        if len(floor_path_nodes) > 1:
-            rx = [MULTI_CAD_NODES[node][0] for node in floor_path_nodes]
-            ry = [MULTI_CAD_NODES[node][1] for node in floor_path_nodes]
+        if len(floor_path) > 1:
+            path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
+            path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
 
-            # Route line
             fig.add_trace(
                 go.Scatter(
-                    x=rx,
-                    y=ry,
+                    x=path_x,
+                    y=path_y,
                     mode="lines+markers",
-                    line=dict(color="#EF4444", width=4),
-                    marker=dict(size=6, color="#B91C1C"),
-                    name="Navigation Path",
-                    hoverinfo="text",
-                    text=[
-                        f"Route Node: {POI_TRANSLATIONS.get(current_lang, {}).get(n, n)}"
-                        for n in floor_path_nodes
-                    ],
-                    showlegend=False,
+                    line=dict(color="#FF0000", width=4, dash="solid"),
+                    marker=dict(size=8, color="#8B0000"),
+                    name="Route Path",
+                    showlegend=False
                 )
             )
 
-            # Start Point Marker
-            if route_path[0] in floor_path_nodes:
-                sx, sy, _ = MULTI_CAD_NODES[route_path[0]]
-                fig.add_trace(
-                    go.Scatter(
-                        x=[sx],
-                        y=[sy],
-                        mode="markers+text",
-                        marker=dict(size=14, color="#22C55E", symbol="circle"),
-                        text=["<b>START</b>"],
-                        textposition="top center",
-                        textfont=dict(color="#15803D", size=12),
-                        name="Start Point",
-                        showlegend=False,
-                    )
+            for i in range(len(floor_path) - 1):
+                x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
+                x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
+
+                x_mid = x_start + 0.6 * (x_end - x_start)
+                y_mid = y_start + 0.6 * (y_end - y_start)
+
+                fig.add_annotation(
+                    x=x_mid,
+                    y=y_mid,
+                    ax=x_start,
+                    ay=y_start,
+                    xref="x",
+                    yref="y",
+                    axref="x",
+                    ayref="y",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1.5,
+                    arrowwidth=2.5,
+                    arrowcolor="#CC0000"
                 )
 
-            # Destination Point Marker
-            if route_path[-1] in floor_path_nodes:
-                dx, dy, _ = MULTI_CAD_NODES[route_path[-1]]
-                fig.add_trace(
-                    go.Scatter(
-                        x=[dx],
-                        y=[dy],
-                        mode="markers+text",
-                        marker=dict(
-                            size=14, color="#DC2626", symbol="diamond"
-                        ),
-                        text=["<b>DESTINATION</b>"],
-                        textposition="top center",
-                        textfont=dict(color="#991B1B", size=12),
-                        name="Destination Point",
-                        showlegend=False,
-                    )
-                )
+        start_node_id = route_path[0]
+        dest_node_id = route_path[-1]
 
-    # ==========================================================================
-    # 4. ORIGINAL FIGURE LAYOUT CONFIGURATION
-    # ==========================================================================
-    floor_name = get_translated_floor_name(floor_index, lang=current_lang)
+        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
+            start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
+            fig.add_trace(
+                go.Scatter(
+                    x=[start_x],
+                    y=[start_y],
+                    mode="markers+text",
+                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
+                    text=[" Start"],
+                    textposition="top right",
+                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
+                    name="Start Location",
+                    showlegend=False
+                )
+            )
+
+        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
+            dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
+            fig.add_trace(
+                go.Scatter(
+                    x=[dest_x],
+                    y=[dest_y],
+                    mode="markers+text",
+                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
+                    text=[" Destination"],
+                    textposition="top right",
+                    textfont=dict(color="#00AA00", size=12, family="Arial Black"),
+                    name="Destination",
+                    showlegend=False
+                )
+            )
+
+    for room_id, coords in floor_rooms.items():
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        cx = sum([p[0] for p in coords]) / len(coords)
+        cy = sum([p[1] for p in coords]) / len(coords)
+
+        fig.add_trace(
+            go.Scatter(
+                x=[cx],
+                y=[cy],
+                text=[translated_name],
+                mode="text",
+                textfont=dict(
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
+                ),
+                hoverinfo="text",
+                showlegend=False
+            )
+        )
+
+    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
-        title=dict(
-            text=f"🏢 2D Floor Plan - {floor_name}",
-            x=0.01,
-            y=0.98,
-            font=dict(size=16),
-        ),
-        xaxis=dict(
-            showgrid=False,
-            zeroline=False,
-            visible=False,
-            scaleanchor="y",
-            scaleratio=1,
-        ),
-        yaxis=dict(showgrid=False, zeroline=False, visible=False),
-        plot_bgcolor="#F8FAFC",
-        paper_bgcolor="#FFFFFF",
-        margin=dict(l=10, r=10, t=40, b=10),
-        hovermode="closest",
-        clickmode="event+select",
-        dragmode="pan",
+        height=650,  
+        margin=dict(l=15, r=15, t=30, b=15),
+        showlegend=False,
+        plot_bgcolor="#FFB6C1",
+        paper_bgcolor="#000000",
+        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
+        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
     )
-
     return fig
+
 
 def render_3d_isometric_view(route_path=None, current_lang="English"):
     fig = go.Figure()
