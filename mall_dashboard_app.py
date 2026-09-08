@@ -1698,65 +1698,6 @@ def format_location_label(room_id, lang):
 # 6. UI configuration
 # ==============================================================================
 
-st.markdown(
-    """
-    <style>
-    /* Remove top margin/padding to push tabs to the very top */
-    .block-container {
-        padding-top: 1.5rem !important;
-    }
-
-    /* Container for the Tab Bar */
-    div[data-baseweb="tab-list"] {
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-        background: rgba(240, 242, 246, 0.75);
-        backdrop-filter: blur(10px);
-        padding: 8px 12px;
-        border-radius: 50px;
-        border: 1px solid rgba(200, 200, 200, 0.4);
-        box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.05);
-        margin-bottom: 25px;
-        flex-wrap: wrap;
-    }
-
-    /* Individual Tab Styling */
-    button[data-baseweb="tab"] {
-        background-color: transparent !important;
-        border: none !important;
-        border-radius: 30px !important;
-        padding: 10px 24px !important;
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-        color: #4A5568 !important;
-        transition: all 0.3s ease-in-out !important;
-        margin: 0 !important;
-    }
-
-    /* Hover State */
-    button[data-baseweb="tab"]:hover {
-        background-color: rgba(255, 255, 255, 0.6) !important;
-        color: #1A202C !important;
-        transform: translateY(-1px);
-    }
-
-    /* Selected Tab State */
-    button[data-baseweb="tab"][aria-selected="true"] {
-        background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%) !important;
-        color: #FFFFFF !important;
-        box-shadow: 0px 4px 12px rgba(30, 136, 229, 0.35) !important;
-    }
-
-    /* Remove Streamlit default red indicator line underneath active tabs */
-    div[data-baseweb="tab-highlight"] {
-        display: none !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 t = LOCALIZATION[st.session_state.lang]
 
 # Dynamic localized tab titles
