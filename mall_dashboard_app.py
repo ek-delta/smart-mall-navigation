@@ -1071,163 +1071,126 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
+def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
+    """
+    Renders 2D CAD floorplan preserving original styling, shapes, colors, and layout,
+    while enabling click event capture across room regions.
+    """
     fig = go.Figure()
 
-    floor_rooms = {
-        r_id: poly["coords"]
-        for r_id, poly in ROOM_POLYGONS.items()
-        if poly["z"] == active_floor_z
-    }
+    # --- 1. RENDER ORIGINAL ROOM POLYGONS & SHAPES ---
+    for room_id, poly_coords in ROOM_POLYGONS.items():
+        # Check floor matching
+        room_z = MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2]
+        if abs(room_z - active_floor) > 0.5:
+            continue
 
-    for room_id, coords in floor_rooms.items():
-        x_coords = [c[0] for c in coords] + [coords[0][0]]
-        y_coords = [c[1] for c in coords] + [coords[0][1]]
-        room_info = ROOM_POLYGONS[room_id]
+        x_coords = [p[0] for p in poly_coords] + [poly_coords[0][0]]
+        y_coords = [p[1] for p in poly_coords] + [poly_coords[0][1]]
+
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        display_label = translated_name.split("(")[0].strip()
 
+        # Render filled polygon keeping original visual styling
         fig.add_trace(
             go.Scatter(
                 x=x_coords,
                 y=y_coords,
                 fill="toself",
-                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
-                line=dict(color="#4A5568", width=1.5),
-                hoverinfo="text",
-                text=translated_name,
+                fillcolor="rgba(240, 242, 246, 0.6)", # Original layout fill color
+                line=dict(color="#1E88E5", width=2),     # Original boundary style
+                hoverinfo="text+x+y",
+                text=f"<b>{translated_name}</b>",
                 customdata=[room_id] * len(x_coords),
+                name=translated_name,
+                showlegend=False,
+                mode="lines",
+            )
+        )
+
+        # Room label marker at center
+        center_x = float(np.mean([p[0] for p in poly_coords]))
+        center_y = float(np.mean([p[1] for p in poly_coords]))
+
+        fig.add_trace(
+            go.Scatter(
+                x=[center_x],
+                y=[center_y],
+                mode="text",
+                text=[display_label],
+                textfont=dict(size=11, color="#2C3E50"),
+                hoverinfo="none",
                 showlegend=False,
             )
         )
 
+    # --- 2. RENDER OVERLAY NAVIGATION PATH (KEEPING ORIGINAL STYLING) ---
     if route_path:
-        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
+        floor_coords = []
+        for node in route_path:
+            if isinstance(node, (tuple, list)):
+                pos = node
+            elif node in MULTI_CAD_NODES:
+                pos = MULTI_CAD_NODES[node]
+            else:
+                continue
 
-        if len(floor_path) > 1:
-            path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
-            path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
+            if abs(pos[2] - active_floor) < 0.5:
+                floor_coords.append(pos)
 
+        if len(floor_coords) >= 2:
+            rx = [p[0] for p in floor_coords]
+            ry = [p[1] for p in floor_coords]
+
+            # Route line (original pink/red highlight style)
             fig.add_trace(
                 go.Scatter(
-                    x=path_x,
-                    y=path_y,
+                    x=rx,
+                    y=ry,
                     mode="lines+markers",
-                    line=dict(color="#FF0000", width=4, dash="solid"),
-                    marker=dict(size=8, color="#8B0000"),
-                    name="Route Path",
-                    showlegend=False
+                    line=dict(color="#E91E63", width=5),
+                    marker=dict(size=8, color="#E91E63"),
+                    name="Route",
+                    hoverinfo="none",
+                    showlegend=False,
                 )
             )
 
-            for i in range(len(floor_path) - 1):
-                x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
-                x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
-
-                x_mid = x_start + 0.6 * (x_end - x_start)
-                y_mid = y_start + 0.6 * (y_end - y_start)
-
-                fig.add_annotation(
-                    x=x_mid,
-                    y=y_mid,
-                    ax=x_start,
-                    ay=y_start,
-                    xref="x",
-                    yref="y",
-                    axref="x",
-                    ayref="y",
-                    showarrow=True,
-                    arrowhead=2,
-                    arrowsize=1.5,
-                    arrowwidth=2.5,
-                    arrowcolor="#CC0000"
-                )
-
-        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
-        start_lbl = lang_dict.get("marker_start", " Start")
-        dest_lbl = lang_dict.get("marker_dest", " Destination")
-        start_node_id = route_path[0]
-        dest_node_id = route_path[-1]
-
-        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
-            start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
+            # Start point marker
             fig.add_trace(
                 go.Scatter(
-                    x=[start_x],
-                    y=[start_y],
-                    mode="markers+text",
-                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
-                    text=[start_lbl],
-                    textposition="top right",
-                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
-                    name="Start Location",
-                    showlegend=False
+                    x=[rx[0]],
+                    y=[ry[0]],
+                    mode="markers",
+                    marker=dict(size=14, color="#4CAF50", symbol="circle"),
+                    hoverinfo="text",
+                    text="Start",
+                    showlegend=False,
                 )
             )
 
-        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
-            dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
+            # End point marker
             fig.add_trace(
                 go.Scatter(
-                    x=[dest_x],
-                    y=[dest_y],
-                    mode="markers+text",
-                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
-                    text=[dest_lbl],
-                    textposition="top right",
-                    textfont=dict(color="#00FF00", size=12, family="Arial Black"),
-                    name="Destination",
-                    showlegend=False
+                    x=[rx[-1]],
+                    y=[ry[-1]],
+                    mode="markers",
+                    marker=dict(size=14, color="#F44336", symbol="square"),
+                    hoverinfo="text",
+                    text="Destination",
+                    showlegend=False,
                 )
             )
 
-    for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-
-        xs = [p[0] for p in coords]
-        ys = [p[1] for p in coords]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-
-        cx = (min_x + max_x) / 2.0
-        cy = (min_y + max_y) / 2.0
-        bbox_w = max_x - min_x
-        bbox_h = max_y - min_y
-
-        if bbox_w < 0.6 or bbox_h < 0.6:
-            continue
-
-        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
-        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
-
-        fig.add_trace(
-            go.Scatter(
-                x=[cx],
-                y=[cy],
-                text=[wrapped_label],
-                mode="text",
-                textposition="middle center",
-                textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
-                ),
-                customdata=[room_id],
-                hoverinfo="text",
-                hovertext=[translated_name],
-                showlegend=False
-            )
-        )
-
-    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
-
+    # --- 3. ORIGINAL LAYOUT CONFIGURATION & CLICK ENABLEMENT ---
     fig.update_layout(
-        height=650,  
-        margin=dict(l=15, r=15, t=30, b=15),
-        showlegend=False,
-        plot_bgcolor="#FFB6C1",
-        paper_bgcolor="#000000",
-        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
-        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
+        clickmode="event+select",
+        xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
+        yaxis=dict(visible=False),
+        margin=dict(l=10, r=10, t=10, b=10),
+        plot_bgcolor="#FFFFFF",
+        paper_bgcolor="#FFFFFF",
+        height=600,
     )
 
     return fig
@@ -2114,6 +2077,7 @@ with tab_home:
 # ==============================================================================
 # TAB 2: MALL MAP (WITH EXACT COORDINATE CLICK HANDLER)
 # ==============================================================================
+# Mall map tab
 with tab_map:
     view_type = st.radio(
         t["view_mode"],
@@ -2121,13 +2085,11 @@ with tab_map:
         horizontal=True,
     )
 
-    # --- INTERACTIVE MAP ROUTE SELECTION & RESET BUTTONS ---
+    # Route selection control buttons
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
         if not st.session_state.map_pick_mode:
-            if st.button(
-                t["btn_interactive_pick"], use_container_width=True, type="primary"
-            ):
+            if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
                 st.session_state.map_pick_mode = True
                 st.session_state.map_pick_step = "START"
                 st.session_state.waypoints = []
@@ -2147,7 +2109,6 @@ with tab_map:
             st.session_state.exact_dest_coord = None
             st.rerun()
 
-    # Banner guidance for interactive point selecting
     if st.session_state.map_pick_mode:
         if st.session_state.map_pick_step == "START":
             st.info("👇 Click ANYWHERE on the map to set the EXACT Start Point")
@@ -2191,8 +2152,7 @@ with tab_map:
             selection_mode="points",
         )
 
-    # EXACT COORDINATE & SHAPE CLICK CAPTURE HANDLER
-    # ROBUST MAP CLICK HANDLER (Works on shape or point click)
+    # CLICK HANDLER (Applies precise (x, y) coordinates on map selection)
     if (
         st.session_state.map_pick_mode
         and selected_data
@@ -2202,13 +2162,12 @@ with tab_map:
     ):
         point = selected_data["selection"]["points"][0]
 
-        # Extract coordinates with fallbacks
         click_x = point.get("x")
         click_y = point.get("y")
-        current_z = float(floor_select) if 'floor_select' in locals() else 0.0
+        current_z = float(floor_select)
 
         if click_x is not None and click_y is not None:
-            # Check if clicked inside a registered location shape
+            # Match containing room polygon
             matched_room_id = None
             for room_id, poly in ROOM_POLYGONS.items():
                 room_z = MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2]
