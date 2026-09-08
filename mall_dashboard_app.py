@@ -1148,7 +1148,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
                     text=[dest_lbl],
                     textposition="top right",
-                    textfont=dict(color="#00AA00", size=12, family="Arial Black"),
+                    textfont=dict(color="#00FF00", size=12, family="Arial Black"),
                     name="Destination",
                     showlegend=False
                 )
@@ -1250,7 +1250,7 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
                 marker=dict(size=8, color="#00FF00"),
                 text=["Destination"],
                 textposition="top center",
-                textfont=dict(color="#00AA00", size=11),
+                textfont=dict(color="#00FF00", size=11),
                 showlegend=False
             )
         )
