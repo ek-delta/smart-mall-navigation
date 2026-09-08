@@ -1706,6 +1706,11 @@ home_tab_title = {
     "Malay": "🏠 Halaman Utama",
 }.get(st.session_state.lang, "🏠 Home")
 
+
+
+st.title(t["title"])
+st.caption(t["subtitle"])
+
 tab_home, tab_map, tab_dir, tab_park = st.tabs(
     [
         home_tab_title,
@@ -1714,9 +1719,6 @@ tab_home, tab_map, tab_dir, tab_park = st.tabs(
         t["tab_parking"],
     ]
 )
-
-st.title(t["title"])
-st.caption(t["subtitle"])
 
 # Initialize session state for waypoints and interactive map route builder state
 if "waypoints" not in st.session_state:
