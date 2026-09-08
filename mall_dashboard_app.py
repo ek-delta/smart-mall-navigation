@@ -1707,7 +1707,7 @@ home_tab_title = {
     "Malay": "🏠 Utama",
 }.get(st.session_state.lang, "🏠 Home")
 
-# TOP NAVIGATION TABS
+# TOP NAVIGATION TABS (Placed at absolute top)
 tab_home, tab_map, tab_dir, tab_park = st.tabs(
     [
         home_tab_title,
@@ -1717,6 +1717,10 @@ tab_home, tab_map, tab_dir, tab_park = st.tabs(
     ]
 )
 
+# TITLE AND SUBTITLE (Moved directly below top navigation bar)
+st.title(t["title"])
+st.caption(t["subtitle"])
+
 # Initialize session state for waypoints and interactive map route builder state
 if "waypoints" not in st.session_state:
     st.session_state.waypoints = []
@@ -1725,7 +1729,7 @@ if "map_pick_mode" not in st.session_state:
 if "map_pick_step" not in st.session_state:
     st.session_state.map_pick_step = "START"
 
-# Sidebar localization control & title
+# Sidebar localization control
 with st.sidebar:
     st.header(t["config_header"])
     selected_language_key = st.selectbox(
@@ -1737,9 +1741,6 @@ with st.sidebar:
     if selected_language_key != st.session_state.lang:
         st.session_state.lang = selected_language_key
         st.rerun()
-
-st.title(t["title"])
-st.caption(t["subtitle"])
 
 
 # ==============================================================================
@@ -1839,7 +1840,7 @@ with tab_home:
 
 # Mall map tab
 with tab_map:
-    # --- NAVIGATION CONTROLS (MOVED INSIDE MALL MAP TAB) ---
+    # Route Controls expander inside the Map tab
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
 
@@ -1875,7 +1876,7 @@ with tab_map:
         st.session_state.selected_start = start_node
         st.session_state.selected_dest = dest_node
 
-        # --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
+        # Intermediate Stops (Waypoints)
         if st.session_state.waypoints:
             st.markdown(t["intermediate_stops"])
 
@@ -1918,7 +1919,6 @@ with tab_map:
         )
         accessible_flag = route_pref == t["accessible"]
 
-        # Construct complete route order list: [Start, Stop 1, Stop 2, ..., Dest]
         full_route_sequence = (
             [st.session_state.selected_start]
             + st.session_state.waypoints
@@ -1958,7 +1958,6 @@ with tab_map:
 
     path = full_path
 
-    # Compute rooftop parking allocation
     assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
         "P_L3_Driveway_Entrance",
         MULTI_CAD_GRAPH,
@@ -2076,10 +2075,8 @@ with tab_map:
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
-    
-    # Path is accessible because it is calculated in tab_map or session state
+
     if "path" not in locals():
-        # Fallback calculation if user visits Directions tab directly
         full_route_sequence = (
             [st.session_state.selected_start]
             + st.session_state.waypoints
