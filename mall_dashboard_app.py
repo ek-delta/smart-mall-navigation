@@ -1698,18 +1698,93 @@ def format_location_label(room_id, lang):
 # 6. UI configuration
 # ==============================================================================
 
+st.markdown(
+    """
+    <style>
+    /* Remove top margin/padding to push tabs to the very top */
+    .block-container {
+        padding-top: 1.5rem !important;
+    }
+
+    /* Container for the Tab Bar */
+    div[data-baseweb="tab-list"] {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        background: rgba(240, 242, 246, 0.75);
+        backdrop-filter: blur(10px);
+        padding: 8px 12px;
+        border-radius: 50px;
+        border: 1px solid rgba(200, 200, 200, 0.4);
+        box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.05);
+        margin-bottom: 25px;
+        flex-wrap: wrap;
+    }
+
+    /* Individual Tab Styling */
+    button[data-baseweb="tab"] {
+        background-color: transparent !important;
+        border: none !important;
+        border-radius: 30px !important;
+        padding: 10px 24px !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        color: #4A5568 !important;
+        transition: all 0.3s ease-in-out !important;
+        margin: 0 !important;
+    }
+
+    /* Hover State */
+    button[data-baseweb="tab"]:hover {
+        background-color: rgba(255, 255, 255, 0.6) !important;
+        color: #1A202C !important;
+        transform: translateY(-1px);
+    }
+
+    /* Selected Tab State */
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0px 4px 12px rgba(30, 136, 229, 0.35) !important;
+    }
+
+    /* Remove Streamlit default red indicator line underneath active tabs */
+    div[data-baseweb="tab-highlight"] {
+        display: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 t = LOCALIZATION[st.session_state.lang]
 
-st.title(t["title"])
+# Dynamic localized tab titles
+home_tab_title = {
+    "English": "🏠 Home",
+    "Simplified Chinese": "🏠 首页",
+    "Malay": "🏠 Utama",
+}.get(st.session_state.lang, "🏠 Home")
+
+# TOP NAVIGATION TABS (Moved directly to top of interface)
+tab_home, tab_map, tab_dir, tab_park = st.tabs(
+    [
+        home_tab_title,
+        t["tab_nav"],
+        t["tab_directions"],
+        t["tab_parking"],
+    ]
+)
 
 # Initialize session state for waypoints and interactive map route builder state
 if "waypoints" not in st.session_state:
     st.session_state.waypoints = []
 if "map_pick_mode" not in st.session_state:
-    st.session_state.map_pick_mode = False  # True when user is clicking on map to pick sequence
+    st.session_state.map_pick_mode = False
 if "map_pick_step" not in st.session_state:
-    st.session_state.map_pick_step = "START"  # Options: 'START', 'WAYPOINT', 'DEST'
+    st.session_state.map_pick_step = "START"
 
+# Sidebar localization control
 with st.sidebar:
     st.header(t["config_header"])
     selected_language_key = st.selectbox(
@@ -1721,6 +1796,9 @@ with st.sidebar:
     if selected_language_key != st.session_state.lang:
         st.session_state.lang = selected_language_key
         st.rerun()
+
+st.title(t["title"])
+st.caption(t["subtitle"])
 
 with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     room_options = list(ROOM_POLYGONS.keys())
@@ -1757,7 +1835,7 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     st.session_state.selected_start = start_node
     st.session_state.selected_dest = dest_node
 
-# --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
+    # --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
     if st.session_state.waypoints:
         st.markdown(t["intermediate_stops"])
 
@@ -1851,20 +1929,10 @@ st.session_state.assigned_parking = assigned_slot_id
 st.session_state.entry_path = entry_path
 st.session_state.exit_path = exit_path
 
-home_tab_title = {
-    "English": "🏠 Home",
-    "Simplified Chinese": "🏠 首页",
-    "Malay": "🏠 Halaman Utama",
-}.get(st.session_state.lang, "🏠 Home")
 
-tab_home, tab_map, tab_dir, tab_park = st.tabs(
-    [
-        home_tab_title,
-        t["tab_nav"],
-        t["tab_directions"],
-        t["tab_parking"],
-    ]
-)
+# ==============================================================================
+# TAB CONTENTS
+# ==============================================================================
 
 # Home page tab
 with tab_home:
@@ -1965,7 +2033,6 @@ with tab_map:
         horizontal=True,
     )
 
-    # --- INTERACTIVE MAP ROUTE SELECTION & RESET BUTTONS BELOW DISPLAY MODE ---
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
         if not st.session_state.map_pick_mode:
@@ -1985,7 +2052,6 @@ with tab_map:
             st.session_state.map_pick_mode = False
             st.rerun()
 
-    # Contextual guidance banner shown when selecting points on map
     if st.session_state.map_pick_mode:
         if st.session_state.map_pick_step == "START":
             st.info(t["pick_step_1"])
@@ -2028,9 +2094,9 @@ with tab_map:
             selection_mode="points",
         )
 
-    # MAP CLICK HANDLER SEQUENCER
     if (
-        selected_data
+        st.session_state.map_pick_mode
+        and selected_data
         and "selection" in selected_data
         and selected_data["selection"]["points"]
     ):
@@ -2050,67 +2116,19 @@ with tab_map:
                     break
 
         if clicked_id and clicked_id in ROOM_POLYGONS:
-            # Handle interactive sequential picking mode
-            if st.session_state.map_pick_mode:
-                if st.session_state.map_pick_step == "START":
-                    st.session_state.selected_start = clicked_id
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
-
-                elif st.session_state.map_pick_step == "WAYPOINT":
-                    st.session_state.waypoints.append(clicked_id)
-                    st.rerun()
-
-                elif st.session_state.map_pick_step == "DEST":
-                    st.session_state.selected_dest = clicked_id
-                    st.session_state.map_pick_mode = False  # Completed cycle!
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-            else:
-                # Standalone click prompt when not in active map-pick mode
-                st.session_state.clicked_location = clicked_id
-
-    # Normal direct action buttons if map pick mode is off
-    if not st.session_state.map_pick_mode and st.session_state.clicked_location:
-        loc_id = st.session_state.clicked_location
-        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(
-            loc_id, loc_id
-        )
-
-        st.info(t["selected_on_map"].format(location=loc_name))
-        col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
-
-        with col_btn1:
-            if st.button(
-                t["btn_set_start"], key="btn_set_start", use_container_width=True
-            ):
-                st.session_state.selected_start = loc_id
-                st.session_state.clicked_location = None
+            if st.session_state.map_pick_step == "START":
+                st.session_state.selected_start = clicked_id
+                st.session_state.map_pick_step = "WAYPOINT"
                 st.rerun()
 
-        with col_btn2:
-            if st.button(
-                "➕ Add as Stop", key="btn_add_stop", use_container_width=True
-            ):
-                st.session_state.waypoints.append(loc_id)
-                st.session_state.clicked_location = None
+            elif st.session_state.map_pick_step == "WAYPOINT":
+                st.session_state.waypoints.append(clicked_id)
                 st.rerun()
 
-        with col_btn3:
-            if st.button(
-                t["btn_set_dest"], key="btn_set_dest", use_container_width=True
-            ):
-                st.session_state.selected_dest = loc_id
-                st.session_state.clicked_location = None
-                st.rerun()
-
-        with col_btn4:
-            if st.button(
-                t["btn_cancel"],
-                key="btn_cancel_select",
-                use_container_width=True,
-            ):
-                st.session_state.clicked_location = None
+            elif st.session_state.map_pick_step == "DEST":
+                st.session_state.selected_dest = clicked_id
+                st.session_state.map_pick_mode = False
+                st.session_state.map_pick_step = "START"
                 st.rerun()
 
 # Directions tab
@@ -2155,14 +2173,10 @@ with tab_park:
             f"{t['nearest_spot_found']}: `{slot_icon} {assigned_slot}` ({t['rooftop_lot']})"
         )
 
-        # Sub-tabs for Entry and Exit legs
         tab_entry, tab_exit = st.tabs(
             ["🚗 1. Entrance to Parking Spot", "🚪 2. Parking Spot to Exit"]
         )
 
-        # ======================================================================
-        # TAB 1: ENTRANCE -> PARKING SPOT
-        # ======================================================================
         with tab_entry:
             st.markdown("### 🚗 Driving to Parking Spot")
 
@@ -2202,9 +2216,6 @@ with tab_park:
                         st.markdown(step_info["text"])
                     st.divider()
 
-        # ======================================================================
-        # TAB 2: PARKING SPOT -> EXIT
-        # ======================================================================
         with tab_exit:
             st.markdown("### 🚪 Leaving Parking Spot to Driveway Exit")
 
