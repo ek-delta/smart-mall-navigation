@@ -1758,7 +1758,7 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     st.session_state.selected_start = start_node
     st.session_state.selected_dest = dest_node
 
-# --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
+    # --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
     if st.session_state.waypoints:
         st.markdown(t["intermediate_stops"])
 
@@ -2029,9 +2029,10 @@ with tab_map:
             selection_mode="points",
         )
 
-    # MAP CLICK HANDLER SEQUENCER
+    # MAP CLICK HANDLER SEQUENCER (Only processes clicks when map_pick_mode is Active)
     if (
-        selected_data
+        st.session_state.map_pick_mode
+        and selected_data
         and "selection" in selected_data
         and selected_data["selection"]["points"]
     ):
@@ -2051,67 +2052,19 @@ with tab_map:
                     break
 
         if clicked_id and clicked_id in ROOM_POLYGONS:
-            # Handle interactive sequential picking mode
-            if st.session_state.map_pick_mode:
-                if st.session_state.map_pick_step == "START":
-                    st.session_state.selected_start = clicked_id
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
-
-                elif st.session_state.map_pick_step == "WAYPOINT":
-                    st.session_state.waypoints.append(clicked_id)
-                    st.rerun()
-
-                elif st.session_state.map_pick_step == "DEST":
-                    st.session_state.selected_dest = clicked_id
-                    st.session_state.map_pick_mode = False  # Completed cycle!
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-            else:
-                # Standalone click prompt when not in active map-pick mode
-                st.session_state.clicked_location = clicked_id
-
-    # Normal direct action buttons if map pick mode is off
-    if not st.session_state.map_pick_mode and st.session_state.clicked_location:
-        loc_id = st.session_state.clicked_location
-        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(
-            loc_id, loc_id
-        )
-
-        st.info(t["selected_on_map"].format(location=loc_name))
-        col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
-
-        with col_btn1:
-            if st.button(
-                t["btn_set_start"], key="btn_set_start", use_container_width=True
-            ):
-                st.session_state.selected_start = loc_id
-                st.session_state.clicked_location = None
+            if st.session_state.map_pick_step == "START":
+                st.session_state.selected_start = clicked_id
+                st.session_state.map_pick_step = "WAYPOINT"
                 st.rerun()
 
-        with col_btn2:
-            if st.button(
-                "➕ Add as Stop", key="btn_add_stop", use_container_width=True
-            ):
-                st.session_state.waypoints.append(loc_id)
-                st.session_state.clicked_location = None
+            elif st.session_state.map_pick_step == "WAYPOINT":
+                st.session_state.waypoints.append(clicked_id)
                 st.rerun()
 
-        with col_btn3:
-            if st.button(
-                t["btn_set_dest"], key="btn_set_dest", use_container_width=True
-            ):
-                st.session_state.selected_dest = loc_id
-                st.session_state.clicked_location = None
-                st.rerun()
-
-        with col_btn4:
-            if st.button(
-                t["btn_cancel"],
-                key="btn_cancel_select",
-                use_container_width=True,
-            ):
-                st.session_state.clicked_location = None
+            elif st.session_state.map_pick_step == "DEST":
+                st.session_state.selected_dest = clicked_id
+                st.session_state.map_pick_mode = False  # Completed cycle!
+                st.session_state.map_pick_step = "START"
                 st.rerun()
 
 # Directions tab
