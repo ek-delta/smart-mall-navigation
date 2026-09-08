@@ -1700,17 +1700,14 @@ def format_location_label(room_id, lang):
 
 t = LOCALIZATION[st.session_state.lang]
 
+# Dynamic localized tab titles
 home_tab_title = {
     "English": "🏠 Home",
     "Simplified Chinese": "🏠 首页",
-    "Malay": "🏠 Halaman Utama",
+    "Malay": "🏠 Utama",
 }.get(st.session_state.lang, "🏠 Home")
 
-
-
-st.title(t["title"])
-st.caption(t["subtitle"])
-
+# TOP NAVIGATION TABS
 tab_home, tab_map, tab_dir, tab_park = st.tabs(
     [
         home_tab_title,
@@ -1724,10 +1721,11 @@ tab_home, tab_map, tab_dir, tab_park = st.tabs(
 if "waypoints" not in st.session_state:
     st.session_state.waypoints = []
 if "map_pick_mode" not in st.session_state:
-    st.session_state.map_pick_mode = False  # True when user is clicking on map to pick sequence
+    st.session_state.map_pick_mode = False
 if "map_pick_step" not in st.session_state:
-    st.session_state.map_pick_step = "START"  # Options: 'START', 'WAYPOINT', 'DEST'
+    st.session_state.map_pick_step = "START"
 
+# Sidebar localization control & title
 with st.sidebar:
     st.header(t["config_header"])
     selected_language_key = st.selectbox(
@@ -1740,134 +1738,13 @@ with st.sidebar:
         st.session_state.lang = selected_language_key
         st.rerun()
 
-with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
-    room_options = list(ROOM_POLYGONS.keys())
-
-    col_start, col_dest = st.columns(2)
-
-    with col_start:
-        start_node = st.selectbox(
-            t["start_loc"],
-            options=room_options,
-            format_func=lambda room_id: format_location_label(
-                room_id, st.session_state.lang
-            ),
-            index=(
-                room_options.index(st.session_state.selected_start)
-                if st.session_state.selected_start in room_options
-                else 0
-            ),
-        )
-    with col_dest:
-        dest_node = st.selectbox(
-            t["dest_loc"],
-            options=room_options,
-            format_func=lambda room_id: format_location_label(
-                room_id, st.session_state.lang
-            ),
-            index=(
-                room_options.index(st.session_state.selected_dest)
-                if st.session_state.selected_dest in room_options
-                else len(room_options) - 1
-            ),
-        )
-
-    st.session_state.selected_start = start_node
-    st.session_state.selected_dest = dest_node
-
-    # --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
-    if st.session_state.waypoints:
-        st.markdown(t["intermediate_stops"])
-
-        for idx, wp in enumerate(st.session_state.waypoints):
-            wp_col1, wp_col2 = st.columns([0.85, 0.15])
-            with wp_col1:
-                selected_wp = st.selectbox(
-                    t["stop_lbl"].format(idx=idx + 1),
-                    options=room_options,
-                    format_func=lambda r_id: format_location_label(
-                        r_id, st.session_state.lang
-                    ),
-                    index=(
-                        room_options.index(wp)
-                        if wp in room_options
-                        else (idx + 1) % len(room_options)
-                    ),
-                    key=f"waypoint_select_{idx}",
-                )
-                st.session_state.waypoints[idx] = selected_wp
-
-            with wp_col2:
-                st.write("")
-                st.write("")
-                if st.button("❌", key=f"remove_wp_{idx}"):
-                    st.session_state.waypoints.pop(idx)
-                    st.rerun()
-
-    if st.button(t["btn_add_stop_manual"], key="add_waypoint"):
-        default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
-        st.session_state.waypoints.append(default_wp)
-        st.rerun()
-
-    st.markdown("---")
-
-    route_pref = st.radio(
-        t["route_type"],
-        options=[t["shortest"], t["accessible"]],
-        horizontal=True,
-    )
-    accessible_flag = route_pref == t["accessible"]
-
-    # Construct complete route order list: [Start, Stop 1, Stop 2, ..., Dest]
-    full_route_sequence = (
-        [st.session_state.selected_start]
-        + st.session_state.waypoints
-        + [st.session_state.selected_dest]
-    )
-
-    route_display_str = " ➔ ".join(
-        [
-            f"`{format_location_label(loc, st.session_state.lang)}`"
-            for loc in full_route_sequence
-        ]
-    )
-    st.info(f"{t['current_route_lbl']}: {route_display_str}")
+st.title(t["title"])
+st.caption(t["subtitle"])
 
 
-# Multi-segment path calculation using Theta*
-full_path = []
-for i in range(len(full_route_sequence) - 1):
-    segment_start = full_route_sequence[i]
-    segment_end = full_route_sequence[i + 1]
-
-    segment_path = theta_star_3d(
-        segment_start,
-        segment_end,
-        MULTI_CAD_GRAPH,
-        MULTI_CAD_NODES,
-        accessible_only=accessible_flag,
-    )
-
-    if segment_path:
-        if full_path:
-            full_path.extend(segment_path[1:])
-        else:
-            full_path.extend(segment_path)
-    else:
-        full_path = []
-        break
-
-path = full_path
-
-assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
-    "P_L3_Driveway_Entrance",
-    MULTI_CAD_GRAPH,
-    MULTI_CAD_NODES,
-    accessible_only=accessible_flag,
-)
-st.session_state.assigned_parking = assigned_slot_id
-st.session_state.entry_path = entry_path
-st.session_state.exit_path = exit_path
+# ==============================================================================
+# TAB CONTENTS
+# ==============================================================================
 
 # Home page tab
 with tab_home:
@@ -1962,13 +1839,142 @@ with tab_home:
 
 # Mall map tab
 with tab_map:
+    # --- NAVIGATION CONTROLS (MOVED INSIDE MALL MAP TAB) ---
+    with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
+        room_options = list(ROOM_POLYGONS.keys())
+
+        col_start, col_dest = st.columns(2)
+
+        with col_start:
+            start_node = st.selectbox(
+                t["start_loc"],
+                options=room_options,
+                format_func=lambda room_id: format_location_label(
+                    room_id, st.session_state.lang
+                ),
+                index=(
+                    room_options.index(st.session_state.selected_start)
+                    if st.session_state.selected_start in room_options
+                    else 0
+                ),
+            )
+        with col_dest:
+            dest_node = st.selectbox(
+                t["dest_loc"],
+                options=room_options,
+                format_func=lambda room_id: format_location_label(
+                    room_id, st.session_state.lang
+                ),
+                index=(
+                    room_options.index(st.session_state.selected_dest)
+                    if st.session_state.selected_dest in room_options
+                    else len(room_options) - 1
+                ),
+            )
+
+        st.session_state.selected_start = start_node
+        st.session_state.selected_dest = dest_node
+
+        # --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
+        if st.session_state.waypoints:
+            st.markdown(t["intermediate_stops"])
+
+            for idx, wp in enumerate(st.session_state.waypoints):
+                wp_col1, wp_col2 = st.columns([0.85, 0.15])
+                with wp_col1:
+                    selected_wp = st.selectbox(
+                        t["stop_lbl"].format(idx=idx + 1),
+                        options=room_options,
+                        format_func=lambda r_id: format_location_label(
+                            r_id, st.session_state.lang
+                        ),
+                        index=(
+                            room_options.index(wp)
+                            if wp in room_options
+                            else (idx + 1) % len(room_options)
+                        ),
+                        key=f"waypoint_select_{idx}",
+                    )
+                    st.session_state.waypoints[idx] = selected_wp
+
+                with wp_col2:
+                    st.write("")
+                    st.write("")
+                    if st.button("❌", key=f"remove_wp_{idx}"):
+                        st.session_state.waypoints.pop(idx)
+                        st.rerun()
+
+        if st.button(t["btn_add_stop_manual"], key="add_waypoint"):
+            default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
+            st.session_state.waypoints.append(default_wp)
+            st.rerun()
+
+        st.markdown("---")
+
+        route_pref = st.radio(
+            t["route_type"],
+            options=[t["shortest"], t["accessible"]],
+            horizontal=True,
+        )
+        accessible_flag = route_pref == t["accessible"]
+
+        # Construct complete route order list: [Start, Stop 1, Stop 2, ..., Dest]
+        full_route_sequence = (
+            [st.session_state.selected_start]
+            + st.session_state.waypoints
+            + [st.session_state.selected_dest]
+        )
+
+        route_display_str = " ➔ ".join(
+            [
+                f"`{format_location_label(loc, st.session_state.lang)}`"
+                for loc in full_route_sequence
+            ]
+        )
+        st.info(f"{t['current_route_lbl']}: {route_display_str}")
+
+    # Multi-segment path calculation using Theta*
+    full_path = []
+    for i in range(len(full_route_sequence) - 1):
+        segment_start = full_route_sequence[i]
+        segment_end = full_route_sequence[i + 1]
+
+        segment_path = theta_star_3d(
+            segment_start,
+            segment_end,
+            MULTI_CAD_GRAPH,
+            MULTI_CAD_NODES,
+            accessible_only=accessible_flag,
+        )
+
+        if segment_path:
+            if full_path:
+                full_path.extend(segment_path[1:])
+            else:
+                full_path.extend(segment_path)
+        else:
+            full_path = []
+            break
+
+    path = full_path
+
+    # Compute rooftop parking allocation
+    assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
+        "P_L3_Driveway_Entrance",
+        MULTI_CAD_GRAPH,
+        MULTI_CAD_NODES,
+        accessible_only=accessible_flag,
+    )
+    st.session_state.assigned_parking = assigned_slot_id
+    st.session_state.entry_path = entry_path
+    st.session_state.exit_path = exit_path
+
     view_type = st.radio(
         t["view_mode"],
         options=[t["view_2d"], t["view_3d"]],
         horizontal=True,
     )
 
-    # --- INTERACTIVE MAP ROUTE SELECTION & RESET BUTTONS BELOW DISPLAY MODE ---
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
         if not st.session_state.map_pick_mode:
@@ -1988,7 +1994,6 @@ with tab_map:
             st.session_state.map_pick_mode = False
             st.rerun()
 
-    # Contextual guidance banner shown when selecting points on map
     if st.session_state.map_pick_mode:
         if st.session_state.map_pick_step == "START":
             st.info(t["pick_step_1"])
@@ -2031,7 +2036,6 @@ with tab_map:
             selection_mode="points",
         )
 
-    # MAP CLICK HANDLER SEQUENCER (Only processes clicks when map_pick_mode is Active)
     if (
         st.session_state.map_pick_mode
         and selected_data
@@ -2065,13 +2069,33 @@ with tab_map:
 
             elif st.session_state.map_pick_step == "DEST":
                 st.session_state.selected_dest = clicked_id
-                st.session_state.map_pick_mode = False  # Completed cycle!
+                st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
 
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
+    
+    # Path is accessible because it is calculated in tab_map or session state
+    if "path" not in locals():
+        # Fallback calculation if user visits Directions tab directly
+        full_route_sequence = (
+            [st.session_state.selected_start]
+            + st.session_state.waypoints
+            + [st.session_state.selected_dest]
+        )
+        path = []
+        for i in range(len(full_route_sequence) - 1):
+            s_path = theta_star_3d(
+                full_route_sequence[i],
+                full_route_sequence[i + 1],
+                MULTI_CAD_GRAPH,
+                MULTI_CAD_NODES,
+            )
+            if s_path:
+                path.extend(s_path[1:] if path else s_path)
+
     if path:
         summary = compute_route_summary(path)
         m_col1, m_col2, m_col3 = st.columns(3)
@@ -2111,14 +2135,10 @@ with tab_park:
             f"{t['nearest_spot_found']}: `{slot_icon} {assigned_slot}` ({t['rooftop_lot']})"
         )
 
-        # Sub-tabs for Entry and Exit legs
         tab_entry, tab_exit = st.tabs(
             ["🚗 1. Entrance to Parking Spot", "🚪 2. Parking Spot to Exit"]
         )
 
-        # ======================================================================
-        # TAB 1: ENTRANCE -> PARKING SPOT
-        # ======================================================================
         with tab_entry:
             st.markdown("### 🚗 Driving to Parking Spot")
 
@@ -2158,9 +2178,6 @@ with tab_park:
                         st.markdown(step_info["text"])
                     st.divider()
 
-        # ======================================================================
-        # TAB 2: PARKING SPOT -> EXIT
-        # ======================================================================
         with tab_exit:
             st.markdown("### 🚪 Leaving Parking Spot to Driveway Exit")
 
