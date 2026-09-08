@@ -3,7 +3,6 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
-import numpy as np
 
 # ==============================================================================
 # 1. Translation table
@@ -826,6 +825,26 @@ def get_floor_bounds(floor_z):
     padding = 15
     return (min(all_x) - padding, max(all_x) + padding, min(all_y) - padding, max(all_y) + padding)
 
+def point_in_polygon(x, y, polygon):
+    """Ray-casting algorithm to test if (x, y) lies inside a 2D polygon list of (x, y) tuples."""
+    n = len(polygon)
+    inside = False
+    p1x, p1y = polygon[0]
+    for i in range(n + 1):
+        p2x, p2y = polygon[i % n]
+        if y > min(p1y, p2y):
+            if y <= max(p1y, p2y):
+                if x <= max(p1x, p2x):
+                    if p1y != p2y:
+                        xinters = (y - p1y) * (p2x - p1x) / (
+                            p2y - p1y
+                        ) + p1x
+                    if p1x == p2x or x <= xinters:
+                        inside = not inside
+        p1x, p1y = p2x, p2y
+    return inside
+
+
 def find_room_by_coordinate(x, y, z_floor):
     """Finds which ROOM_POLYGONS room ID contains the given (x, y) coordinate on floor z_floor."""
     for room_id, poly_info in ROOM_POLYGONS.items():
@@ -1071,135 +1090,163 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def render_2d_cad_view(active_floor, route_path=None, current_lang="English"):
-    """
-    Renders 2D CAD floorplan keeping 100% of the original map layout, locations, 
-    and visual style, with safety checks to prevent indexing errors on polygon data.
-    """
+def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
-    # --- 1. ORIGINAL ROOM SHAPES & LOCATIONS ---
-    for room_id, poly_coords in ROOM_POLYGONS.items():
-        # Unwrap nested list structures if poly_coords is wrapped like [[(x,y), ...]]
-        if isinstance(poly_coords, (list, tuple)) and len(poly_coords) == 1 and isinstance(poly_coords[0], (list, tuple)):
-            poly_coords = poly_coords[0]
+    floor_rooms = {
+        r_id: poly["coords"]
+        for r_id, poly in ROOM_POLYGONS.items()
+        if poly["z"] == active_floor_z
+    }
 
-        # Guard: Ensure poly_coords has valid coordinate points before indexing
-        if not poly_coords or not isinstance(poly_coords, (list, tuple)) or len(poly_coords) < 3:
-            continue
-
-        # Ensure elements inside poly_coords are actual coordinate pairs (x, y)
-        if not isinstance(poly_coords[0], (list, tuple)) or len(poly_coords[0]) < 2:
-            continue
-
-        room_z = MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2]
-        if abs(room_z - active_floor) > 0.5:
-            continue
-
-        # Extract X and Y coordinates safely
-        x_coords = [p[0] for p in poly_coords] + [poly_coords[0][0]]
-        y_coords = [p[1] for p in poly_coords] + [poly_coords[0][1]]
-
+    for room_id, coords in floor_rooms.items():
+        x_coords = [c[0] for c in coords] + [coords[0][0]]
+        y_coords = [c[1] for c in coords] + [coords[0][1]]
+        room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        display_label = translated_name.split("(")[0].strip()
 
-        # Room boundary and fill (Original styling intact)
         fig.add_trace(
             go.Scatter(
                 x=x_coords,
                 y=y_coords,
                 fill="toself",
-                fillcolor="rgba(240, 242, 246, 0.6)",
-                line=dict(color="#1E88E5", width=2),
-                hoverinfo="text+x+y",
-                text=f"<b>{translated_name}</b>",
+                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
+                line=dict(color="#4A5568", width=1.5),
+                hoverinfo="text",
+                text=translated_name,
                 customdata=[room_id] * len(x_coords),
-                name=translated_name,
                 showlegend=False,
-                mode="lines",
             )
         )
 
-        # Room label at centroid
-        center_x = float(np.mean([p[0] for p in poly_coords]))
-        center_y = float(np.mean([p[1] for p in poly_coords]))
+    if route_path:
+        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
+
+        if len(floor_path) > 1:
+            path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
+            path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=path_x,
+                    y=path_y,
+                    mode="lines+markers",
+                    line=dict(color="#FF0000", width=4, dash="solid"),
+                    marker=dict(size=8, color="#8B0000"),
+                    name="Route Path",
+                    showlegend=False
+                )
+            )
+
+            for i in range(len(floor_path) - 1):
+                x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
+                x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
+
+                x_mid = x_start + 0.6 * (x_end - x_start)
+                y_mid = y_start + 0.6 * (y_end - y_start)
+
+                fig.add_annotation(
+                    x=x_mid,
+                    y=y_mid,
+                    ax=x_start,
+                    ay=y_start,
+                    xref="x",
+                    yref="y",
+                    axref="x",
+                    ayref="y",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1.5,
+                    arrowwidth=2.5,
+                    arrowcolor="#CC0000"
+                )
+
+        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
+        start_lbl = lang_dict.get("marker_start", " Start")
+        dest_lbl = lang_dict.get("marker_dest", " Destination")
+        start_node_id = route_path[0]
+        dest_node_id = route_path[-1]
+
+        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
+            start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
+            fig.add_trace(
+                go.Scatter(
+                    x=[start_x],
+                    y=[start_y],
+                    mode="markers+text",
+                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
+                    text=[start_lbl],
+                    textposition="top right",
+                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
+                    name="Start Location",
+                    showlegend=False
+                )
+            )
+
+        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
+            dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
+            fig.add_trace(
+                go.Scatter(
+                    x=[dest_x],
+                    y=[dest_y],
+                    mode="markers+text",
+                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
+                    text=[dest_lbl],
+                    textposition="top right",
+                    textfont=dict(color="#00FF00", size=12, family="Arial Black"),
+                    name="Destination",
+                    showlegend=False
+                )
+            )
+
+    for room_id, coords in floor_rooms.items():
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+
+        xs = [p[0] for p in coords]
+        ys = [p[1] for p in coords]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
+        bbox_w = max_x - min_x
+        bbox_h = max_y - min_y
+
+        if bbox_w < 0.6 or bbox_h < 0.6:
+            continue
+
+        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
+        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
 
         fig.add_trace(
             go.Scatter(
-                x=[center_x],
-                y=[center_y],
+                x=[cx],
+                y=[cy],
+                text=[wrapped_label],
                 mode="text",
-                text=[display_label],
-                textfont=dict(size=11, color="#2C3E50"),
-                hoverinfo="none",
-                showlegend=False,
+                textposition="middle center",
+                textfont=dict(
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
+                ),
+                customdata=[room_id],
+                hoverinfo="text",
+                hovertext=[translated_name],
+                showlegend=False
             )
         )
 
-    # --- 2. ORIGINAL NAVIGATION ROUTE OVERLAY ---
-    if route_path:
-        floor_coords = []
-        for node in route_path:
-            if isinstance(node, (tuple, list)):
-                pos = node
-            elif node in MULTI_CAD_NODES:
-                pos = MULTI_CAD_NODES[node]
-            else:
-                continue
+    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
-            if abs(pos[2] - active_floor) < 0.5:
-                floor_coords.append(pos)
-
-        if len(floor_coords) >= 2:
-            rx = [p[0] for p in floor_coords]
-            ry = [p[1] for p in floor_coords]
-
-            fig.add_trace(
-                go.Scatter(
-                    x=rx,
-                    y=ry,
-                    mode="lines+markers",
-                    line=dict(color="#E91E63", width=5),
-                    marker=dict(size=8, color="#E91E63"),
-                    name="Route",
-                    hoverinfo="none",
-                    showlegend=False,
-                )
-            )
-
-            fig.add_trace(
-                go.Scatter(
-                    x=[rx[0]],
-                    y=[ry[0]],
-                    mode="markers",
-                    marker=dict(size=14, color="#4CAF50", symbol="circle"),
-                    hoverinfo="text",
-                    text="Start",
-                    showlegend=False,
-                )
-            )
-
-            fig.add_trace(
-                go.Scatter(
-                    x=[rx[-1]],
-                    y=[ry[-1]],
-                    mode="markers",
-                    marker=dict(size=14, color="#F44336", symbol="square"),
-                    hoverinfo="text",
-                    text="Destination",
-                    showlegend=False,
-                )
-            )
-
-    # --- 3. ORIGINAL LAYOUT CONFIGURATION ---
     fig.update_layout(
-        clickmode="event+select",
-        xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
-        yaxis=dict(visible=False),
-        margin=dict(l=10, r=10, t=10, b=10),
-        plot_bgcolor="#FFFFFF",
-        paper_bgcolor="#FFFFFF",
-        height=600,
+        height=650,  
+        margin=dict(l=15, r=15, t=30, b=15),
+        showlegend=False,
+        plot_bgcolor="#FFB6C1",
+        paper_bgcolor="#000000",
+        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
+        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
     )
 
     return fig
@@ -1648,129 +1695,7 @@ def format_location_label(room_id, lang):
     return f"[{floor_code}] {clean_name}"
 
 # ==============================================================================
-# 5.5 ROBUST EXACT COORDINATE ROUTING ENGINE
-# ==============================================================================
-
-def point_in_polygon(x, y, poly_coords):
-    """Ray-casting algorithm to test if (x, y) lies inside a 2D polygon."""
-    if not poly_coords or len(poly_coords) < 3:
-        return False
-    n = len(poly_coords)
-    inside = False
-    p1x, p1y = poly_coords[0]
-    for i in range(1, n + 1):
-        p2x, p2y = poly_coords[i % n]
-        if y > min(p1y, p2y):
-            if y <= max(p1y, p2y):
-                if x <= max(p1x, p2x):
-                    if p1y != p2y:
-                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                    if p1x == p2x or x <= xinters:
-                        inside = not inside
-        p1x, p1y = p2x, p2y
-    return inside
-
-def inject_virtual_node(node_id, x, y, z, graph, nodes_dict):
-    """
-    Injects a dynamic (x, y, z) node. Uses Line-Of-Sight raycasting first,
-    falling back to connecting to the N-nearest floor nodes if LOS is blocked by walls.
-    """
-    nodes_dict[node_id] = (float(x), float(y), float(z))
-    graph[node_id] = {}
-
-    candidates = []
-    for other_id, pos in list(nodes_dict.items()):
-        if other_id == node_id:
-            continue
-        # Check floor matching (elevation z)
-        if abs(pos[2] - z) < 0.5:
-            dist = float(np.linalg.norm(np.array([x, y, z]) - np.array(pos)))
-            candidates.append((dist, other_id, pos))
-
-    # Sort nodes on the same floor by distance
-    candidates.sort(key=lambda item: item[0])
-
-    connected_count = 0
-    # Try Line-of-Sight first
-    for dist, other_id, pos in candidates:
-        # Check if line of sight helper exists in scope
-        los = True
-        if "has_line_of_sight_3d" in globals():
-            try:
-                los = has_line_of_sight_3d((x, y, z), pos)
-            except Exception:
-                los = True
-
-        if los:
-            graph[node_id][other_id] = dist
-            if other_id not in graph:
-                graph[other_id] = {}
-            graph[other_id][node_id] = dist
-            connected_count += 1
-
-    # FALLBACK: If wall geometry blocked all LOS lines, forcefully link to 3 nearest floor nodes
-    if connected_count == 0 and candidates:
-        for dist, other_id, pos in candidates[:3]:
-            graph[node_id][other_id] = dist
-            if other_id not in graph:
-                graph[other_id] = {}
-            graph[other_id][node_id] = dist
-
-def cleanup_virtual_nodes(graph, nodes_dict, virtual_prefix="_virtual_"):
-    """Removes temporary coordinate nodes after route calculation."""
-    keys_to_remove = [k for k in nodes_dict.keys() if str(k).startswith(virtual_prefix)]
-    for key in keys_to_remove:
-        nodes_dict.pop(key, None)
-        graph.pop(key, None)
-        for v in graph.values():
-            v.pop(key, None)
-
-def compute_route_from_exact_coords(start_spec, dest_spec, graph, nodes_dict, accessible_only=False):
-    """Computes Theta* route accepting either room_ids (str) or exact coords tuple (x, y, z)."""
-    # Create working graph copies
-    temp_graph = {k: dict(v) for k, v in graph.items()}
-    temp_nodes = dict(nodes_dict)
-
-    start_id = start_spec
-    dest_id = dest_spec
-
-    if isinstance(start_spec, (tuple, list)):
-        start_id = "_virtual_start"
-        inject_virtual_node(start_id, start_spec[0], start_spec[1], start_spec[2], temp_graph, temp_nodes)
-
-    if isinstance(dest_spec, (tuple, list)):
-        dest_id = "_virtual_dest"
-        inject_virtual_node(dest_id, dest_spec[0], dest_spec[1], dest_spec[2], temp_graph, temp_nodes)
-
-    raw_path = theta_star_3d(
-        start_id,
-        dest_id,
-        temp_graph,
-        temp_nodes,
-        accessible_only=accessible_only
-    )
-
-    coord_path = []
-    if raw_path:
-        for node in raw_path:
-            coord_path.append(temp_nodes[node])
-
-    cleanup_virtual_nodes(temp_graph, temp_nodes)
-    return raw_path, coord_path
-
-def calculate_exact_path_distance(coord_path):
-    """Calculates Euclidean distance across continuous (x, y, z) coordinate points."""
-    if not coord_path or len(coord_path) < 2:
-        return 0.0
-    total_dist = 0.0
-    for i in range(len(coord_path) - 1):
-        p1 = np.array(coord_path[i])
-        p2 = np.array(coord_path[i + 1])
-        total_dist += np.linalg.norm(p2 - p1)
-    return round(float(total_dist), 2)
-
-# ==============================================================================
-# 6. UI CONFIGURATION & LAYOUT (STREAMLIT)
+# 6. UI configuration
 # ==============================================================================
 
 t = LOCALIZATION[st.session_state.lang]
@@ -1778,18 +1703,13 @@ t = LOCALIZATION[st.session_state.lang]
 st.title(t["title"])
 st.caption(t["subtitle"])
 
-# Initialize session state for waypoints, map pick states, and exact clicked coordinates
+# Initialize session state for waypoints and interactive map route builder state
 if "waypoints" not in st.session_state:
     st.session_state.waypoints = []
 if "map_pick_mode" not in st.session_state:
-    st.session_state.map_pick_mode = False
+    st.session_state.map_pick_mode = False  # True when user is clicking on map to pick sequence
 if "map_pick_step" not in st.session_state:
-    st.session_state.map_pick_step = "START"
-
-if "exact_start_coord" not in st.session_state:
-    st.session_state.exact_start_coord = None  # Tuple: (x, y, z)
-if "exact_dest_coord" not in st.session_state:
-    st.session_state.exact_dest_coord = None   # Tuple: (x, y, z)
+    st.session_state.map_pick_step = "START"  # Options: 'START', 'WAYPOINT', 'DEST'
 
 with st.sidebar:
     st.header(t["config_header"])
@@ -1821,10 +1741,6 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
                 else 0
             ),
         )
-        if start_node != st.session_state.selected_start:
-            st.session_state.selected_start = start_node
-            st.session_state.exact_start_coord = None  # Reset exact coordinate on dropdown select
-
     with col_dest:
         dest_node = st.selectbox(
             t["dest_loc"],
@@ -1838,53 +1754,31 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
                 else len(room_options) - 1
             ),
         )
-        if dest_node != st.session_state.selected_dest:
-            st.session_state.selected_dest = dest_node
-            st.session_state.exact_dest_coord = None  # Reset exact coordinate on dropdown select
 
-    # Displays precise clicked coordinates if selected directly from the map
-    if st.session_state.exact_start_coord:
-        st.caption(
-            f"📍 **Exact Start Point:** X: `{st.session_state.exact_start_coord[0]:.2f}` | "
-            f"Y: `{st.session_state.exact_start_coord[1]:.2f}` | "
-            f"Z: `{st.session_state.exact_start_coord[2]:.0f}`"
-        )
-    if st.session_state.exact_dest_coord:
-        st.caption(
-            f"🎯 **Exact Dest Point:** X: `{st.session_state.exact_dest_coord[0]:.2f}` | "
-            f"Y: `{st.session_state.exact_dest_coord[1]:.2f}` | "
-            f"Z: `{st.session_state.exact_dest_coord[2]:.0f}`"
-        )
+    st.session_state.selected_start = start_node
+    st.session_state.selected_dest = dest_node
 
-    # --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
+# --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
     if st.session_state.waypoints:
         st.markdown(t["intermediate_stops"])
 
         for idx, wp in enumerate(st.session_state.waypoints):
             wp_col1, wp_col2 = st.columns([0.85, 0.15])
             with wp_col1:
-                if isinstance(wp, (tuple, list)):
-                    st.text_input(
-                        t["stop_lbl"].format(idx=idx + 1),
-                        value=f"Custom Coords (X:{wp[0]:.1f}, Y:{wp[1]:.1f})",
-                        disabled=True,
-                        key=f"waypoint_coord_display_{idx}",
-                    )
-                else:
-                    selected_wp = st.selectbox(
-                        t["stop_lbl"].format(idx=idx + 1),
-                        options=room_options,
-                        format_func=lambda r_id: format_location_label(
-                            r_id, st.session_state.lang
-                        ),
-                        index=(
-                            room_options.index(wp)
-                            if wp in room_options
-                            else (idx + 1) % len(room_options)
-                        ),
-                        key=f"waypoint_select_{idx}",
-                    )
-                    st.session_state.waypoints[idx] = selected_wp
+                selected_wp = st.selectbox(
+                    t["stop_lbl"].format(idx=idx + 1),
+                    options=room_options,
+                    format_func=lambda r_id: format_location_label(
+                        r_id, st.session_state.lang
+                    ),
+                    index=(
+                        room_options.index(wp)
+                        if wp in room_options
+                        else (idx + 1) % len(room_options)
+                    ),
+                    key=f"waypoint_select_{idx}",
+                )
+                st.session_state.waypoints[idx] = selected_wp
 
             with wp_col2:
                 st.write("")
@@ -1907,42 +1801,29 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     )
     accessible_flag = route_pref == t["accessible"]
 
-    # Construct complete route sequence prioritizing exact coordinates over room IDs
-    start_spec = (
-        st.session_state.exact_start_coord
-        if st.session_state.exact_start_coord is not None
-        else st.session_state.selected_start
-    )
-    dest_spec = (
-        st.session_state.exact_dest_coord
-        if st.session_state.exact_dest_coord is not None
-        else st.session_state.selected_dest
+    # Construct complete route order list: [Start, Stop 1, Stop 2, ..., Dest]
+    full_route_sequence = (
+        [st.session_state.selected_start]
+        + st.session_state.waypoints
+        + [st.session_state.selected_dest]
     )
 
-    full_route_sequence = [start_spec] + st.session_state.waypoints + [dest_spec]
-
-    route_label_parts = []
-    for loc in full_route_sequence:
-        if isinstance(loc, (tuple, list)):
-            route_label_parts.append(f"`Point ({loc[0]:.1f}, {loc[1]:.1f})`")
-        else:
-            route_label_parts.append(
-                f"`{format_location_label(loc, st.session_state.lang)}`"
-            )
-
-    route_display_str = " ➔ ".join(route_label_parts)
+    route_display_str = " ➔ ".join(
+        [
+            f"`{format_location_label(loc, st.session_state.lang)}`"
+            for loc in full_route_sequence
+        ]
+    )
     st.info(f"{t['current_route_lbl']}: {route_display_str}")
 
 
-# Dynamic Multi-Segment Exact Coordinate Theta* Route Solver
-full_node_path = []
-full_coord_path = []
-
+# Multi-segment path calculation using Theta*
+full_path = []
 for i in range(len(full_route_sequence) - 1):
     segment_start = full_route_sequence[i]
     segment_end = full_route_sequence[i + 1]
 
-    segment_node_path, segment_coord_path = compute_route_from_exact_coords(
+    segment_path = theta_star_3d(
         segment_start,
         segment_end,
         MULTI_CAD_GRAPH,
@@ -1950,21 +1831,17 @@ for i in range(len(full_route_sequence) - 1):
         accessible_only=accessible_flag,
     )
 
-    if segment_coord_path:
-        if full_coord_path:
-            full_coord_path.extend(segment_coord_path[1:])
-            full_node_path.extend(segment_node_path[1:])
+    if segment_path:
+        if full_path:
+            full_path.extend(segment_path[1:])
         else:
-            full_coord_path.extend(segment_coord_path)
-            full_node_path.extend(segment_node_path)
+            full_path.extend(segment_path)
     else:
-        full_node_path = []
-        full_coord_path = []
+        full_path = []
         break
 
-path = full_node_path
+path = full_path
 
-# Execute Parking Route Calculation
 assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
     "P_L3_Driveway_Entrance",
     MULTI_CAD_GRAPH,
@@ -1990,9 +1867,7 @@ tab_home, tab_map, tab_dir, tab_park = st.tabs(
     ]
 )
 
-# ==============================================================================
-# TAB 1: HOME PAGE
-# ==============================================================================
+# Home page tab
 with tab_home:
     st.markdown(
         f"""
@@ -2083,9 +1958,6 @@ with tab_home:
     st.divider()
 
 
-# ==============================================================================
-# TAB 2: MALL MAP (WITH EXACT COORDINATE CLICK HANDLER)
-# ==============================================================================
 # Mall map tab
 with tab_map:
     view_type = st.radio(
@@ -2094,7 +1966,7 @@ with tab_map:
         horizontal=True,
     )
 
-    # Route selection control buttons
+    # --- INTERACTIVE MAP ROUTE SELECTION & RESET BUTTONS BELOW DISPLAY MODE ---
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
         if not st.session_state.map_pick_mode:
@@ -2102,8 +1974,6 @@ with tab_map:
                 st.session_state.map_pick_mode = True
                 st.session_state.map_pick_step = "START"
                 st.session_state.waypoints = []
-                st.session_state.exact_start_coord = None
-                st.session_state.exact_dest_coord = None
                 st.rerun()
         else:
             if st.button(t["btn_cancel_interactive"], use_container_width=True):
@@ -2114,23 +1984,21 @@ with tab_map:
         if st.button(t["btn_reset_all"], use_container_width=True):
             st.session_state.waypoints = []
             st.session_state.map_pick_mode = False
-            st.session_state.exact_start_coord = None
-            st.session_state.exact_dest_coord = None
             st.rerun()
 
+    # Contextual guidance banner shown when selecting points on map
     if st.session_state.map_pick_mode:
         if st.session_state.map_pick_step == "START":
-            st.info("👇 Click ANYWHERE on the map to set the EXACT Start Point")
+            st.info(t["pick_step_1"])
         elif st.session_state.map_pick_step == "WAYPOINT":
-            st.warning("👇 Click ANYWHERE to add Stop Points, or click Done")
+            st.warning(t["pick_step_2"])
             if st.button(t["btn_done_adding_stops"], type="secondary"):
                 st.session_state.map_pick_step = "DEST"
                 st.rerun()
         elif st.session_state.map_pick_step == "DEST":
-            st.success("👇 Click ANYWHERE on the map to set the EXACT Destination")
+            st.success(t["pick_step_3"])
 
     selected_data = None
-    floor_select = 0
 
     if view_type == t["view_2d"]:
         floor_select = st.selectbox(
@@ -2161,62 +2029,98 @@ with tab_map:
             selection_mode="points",
         )
 
-    # CLICK HANDLER (Applies precise (x, y) coordinates on map selection)
+    # MAP CLICK HANDLER SEQUENCER
     if (
-        st.session_state.map_pick_mode
-        and selected_data
-        and isinstance(selected_data, dict)
+        selected_data
         and "selection" in selected_data
-        and selected_data["selection"].get("points")
+        and selected_data["selection"]["points"]
     ):
         point = selected_data["selection"]["points"][0]
+        clicked_id = None
 
-        click_x = point.get("x")
-        click_y = point.get("y")
-        current_z = float(floor_select)
+        if "customdata" in point and point["customdata"]:
+            clicked_id = point["customdata"]
+        elif "text" in point:
+            raw_text = point["text"]
+            for room_key in ROOM_POLYGONS.keys():
+                t_name = POI_TRANSLATIONS.get(
+                    st.session_state.lang, {}
+                ).get(room_key, room_key)
+                if t_name == raw_text or room_key == raw_text:
+                    clicked_id = room_key
+                    break
 
-        if click_x is not None and click_y is not None:
-            # Match containing room polygon
-            matched_room_id = None
-            for room_id, poly in ROOM_POLYGONS.items():
-                room_z = MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2]
-                if abs(room_z - current_z) < 0.5:
-                    if point_in_polygon(click_x, click_y, poly):
-                        matched_room_id = room_id
-                        break
+        if clicked_id and clicked_id in ROOM_POLYGONS:
+            # Handle interactive sequential picking mode
+            if st.session_state.map_pick_mode:
+                if st.session_state.map_pick_step == "START":
+                    st.session_state.selected_start = clicked_id
+                    st.session_state.map_pick_step = "WAYPOINT"
+                    st.rerun()
 
-            clicked_coord = (float(click_x), float(click_y), float(current_z))
+                elif st.session_state.map_pick_step == "WAYPOINT":
+                    st.session_state.waypoints.append(clicked_id)
+                    st.rerun()
 
-            if st.session_state.map_pick_step == "START":
-                st.session_state.exact_start_coord = clicked_coord
-                if matched_room_id:
-                    st.session_state.selected_start = matched_room_id
-                st.session_state.map_pick_step = "WAYPOINT"
+                elif st.session_state.map_pick_step == "DEST":
+                    st.session_state.selected_dest = clicked_id
+                    st.session_state.map_pick_mode = False  # Completed cycle!
+                    st.session_state.map_pick_step = "START"
+                    st.rerun()
+            else:
+                # Standalone click prompt when not in active map-pick mode
+                st.session_state.clicked_location = clicked_id
+
+    # Normal direct action buttons if map pick mode is off
+    if not st.session_state.map_pick_mode and st.session_state.clicked_location:
+        loc_id = st.session_state.clicked_location
+        loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(
+            loc_id, loc_id
+        )
+
+        st.info(t["selected_on_map"].format(location=loc_name))
+        col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+
+        with col_btn1:
+            if st.button(
+                t["btn_set_start"], key="btn_set_start", use_container_width=True
+            ):
+                st.session_state.selected_start = loc_id
+                st.session_state.clicked_location = None
                 st.rerun()
 
-            elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(clicked_coord)
+        with col_btn2:
+            if st.button(
+                "➕ Add as Stop", key="btn_add_stop", use_container_width=True
+            ):
+                st.session_state.waypoints.append(loc_id)
+                st.session_state.clicked_location = None
                 st.rerun()
 
-            elif st.session_state.map_pick_step == "DEST":
-                st.session_state.exact_dest_coord = clicked_coord
-                if matched_room_id:
-                    st.session_state.selected_dest = matched_room_id
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
+        with col_btn3:
+            if st.button(
+                t["btn_set_dest"], key="btn_set_dest", use_container_width=True
+            ):
+                st.session_state.selected_dest = loc_id
+                st.session_state.clicked_location = None
                 st.rerun()
 
-# ==============================================================================
-# TAB 3: DIRECTIONS & EXACT DISTANCE
-# ==============================================================================
+        with col_btn4:
+            if st.button(
+                t["btn_cancel"],
+                key="btn_cancel_select",
+                use_container_width=True,
+            ):
+                st.session_state.clicked_location = None
+                st.rerun()
+
+# Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
-    if full_coord_path:
-        exact_distance = calculate_exact_path_distance(full_coord_path)
-        summary = compute_route_summary(path) if path else {"floors_crossed": 0, "steps": 0}
-
+    if path:
+        summary = compute_route_summary(path)
         m_col1, m_col2, m_col3 = st.columns(3)
-        m_col1.metric("Exact Distance", f"{exact_distance} m")
+        m_col1.metric(t["total_dist"], f"{summary['total_distance']} m")
         m_col2.metric(t["floors_crossed"], summary["floors_crossed"])
         m_col3.metric(t["total_steps"], summary["steps"])
 
@@ -2238,9 +2142,7 @@ with tab_dir:
     else:
         st.warning(t["no_route"])
 
-# ==============================================================================
-# TAB 4: PARKING GUIDANCE
-# ==============================================================================
+# Parking tab
 with tab_park:
     st.subheader(t["parking_sec"])
 
@@ -2254,10 +2156,14 @@ with tab_park:
             f"{t['nearest_spot_found']}: `{slot_icon} {assigned_slot}` ({t['rooftop_lot']})"
         )
 
+        # Sub-tabs for Entry and Exit legs
         tab_entry, tab_exit = st.tabs(
             ["🚗 1. Entrance to Parking Spot", "🚪 2. Parking Spot to Exit"]
         )
 
+        # ======================================================================
+        # TAB 1: ENTRANCE -> PARKING SPOT
+        # ======================================================================
         with tab_entry:
             st.markdown("### 🚗 Driving to Parking Spot")
 
@@ -2297,6 +2203,9 @@ with tab_park:
                         st.markdown(step_info["text"])
                     st.divider()
 
+        # ======================================================================
+        # TAB 2: PARKING SPOT -> EXIT
+        # ======================================================================
         with tab_exit:
             st.markdown("### 🚪 Leaving Parking Spot to Driveway Exit")
 
@@ -2346,8 +2255,9 @@ with tab_park:
         st.plotly_chart(fig_parking, use_container_width=True)
 
 # ==============================================================================
-# 7. FOOTER & APPLICATION ENTRYPOINT
+# 7. Footer
 # ==============================================================================
+
 
 def render_system_footer():
     st.markdown("---")
