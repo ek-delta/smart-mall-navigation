@@ -1047,8 +1047,6 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     return font_size, max_chars_per_line
 
 
-import plotly.graph_objects as go
-
 
 def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
     """
