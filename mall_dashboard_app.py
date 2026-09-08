@@ -1090,152 +1090,66 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
-    """
-    Renders a CAD-style 2D floorplan view for a specific floor with interactive 
-    polygon shapes, room labels, icons, and route overlays.
-    """
+def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
-    # Filter nodes, edges, and room polygons for the current active floor
-    floor_nodes = {
-        nid: coords
-        for nid, coords in MULTI_CAD_NODES.items()
-        if int(coords[2]) == floor_level
+    floor_rooms = {
+        r_id: poly["coords"]
+        for r_id, poly in ROOM_POLYGONS.items()
+        if poly["z"] == active_floor_z
     }
 
-    # 1. Draw CAD Room Polygons (Filled clickable shapes)
-    for room_id, polygon_data in ROOM_POLYGONS.items():
-        if room_id in MULTI_CAD_NODES:
-            z_val = int(MULTI_CAD_NODES[room_id][2])
-            if z_val == floor_level:
-                # Extract coordinates
-                if isinstance(polygon_data, dict) and "coords" in polygon_data:
-                    coords = polygon_data["coords"]
-                    fill_color = polygon_data.get("color", "rgba(200, 220, 240, 0.5)")
-                else:
-                    coords = polygon_data
-                    fill_color = "rgba(200, 220, 240, 0.5)"
+    for room_id, coords in floor_rooms.items():
+        x_coords = [c[0] for c in coords] + [coords[0][0]]
+        y_coords = [c[1] for c in coords] + [coords[0][1]]
+        room_info = ROOM_POLYGONS[room_id]
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
-                x_coords = [p[0] for p in coords] + [coords[0][0]]
-                y_coords = [p[1] for p in coords] + [coords[0][1]]
-
-                translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(
-                    room_id, room_id
-                )
-
-                # Add filled room polygon as an interactive trace
-                fig.add_trace(
-                    go.Scatter(
-                        x=x_coords,
-                        y=y_coords,
-                        fill="toself",
-                        fillcolor=fill_color,
-                        line=dict(color="#2C3E50", width=2),
-                        name=translated_name,
-                        text=translated_name,
-                        customdata=[room_id] * len(x_coords),
-                        hoverinfo="text",
-                        showlegend=False,
-                        mode="lines",
-                    )
-                )
-
-                # Add centered room label text
-                cx = sum([p[0] for p in coords]) / len(coords)
-                cy = sum([p[1] for p in coords]) / len(coords)
-                
-                clean_label = translated_name.split("(")[0].strip()
-                fig.add_trace(
-                    go.Scatter(
-                        x=[cx],
-                        y=[cy],
-                        mode="text",
-                        text=[clean_label],
-                        textposition="middle center",
-                        textfont=dict(size=10, color="#1A252C"),
-                        customdata=[room_id],
-                        hoverinfo="skip",
-                        showlegend=False,
-                    )
-                )
-
-    # 2. Draw Floor CAD Graph Network Connections
-    for node_id, neighbors in MULTI_CAD_GRAPH.items():
-        if node_id in floor_nodes:
-            x0, y0, _ = floor_nodes[node_id]
-            for neighbor, weight in neighbors.items():
-                if neighbor in floor_nodes:
-                    x1, y1, _ = floor_nodes[neighbor]
-                    fig.add_trace(
-                        go.Scatter(
-                            x=[x0, x1],
-                            y=[y0, y1],
-                            mode="lines",
-                            line=dict(color="rgba(180, 180, 180, 0.4)", width=1, dash="dot"),
-                            hoverinfo="skip",
-                            showlegend=False,
-                        )
-                    )
-
-    # 3. Draw Interactive Graph Nodes / POI Markers
-    node_x = [coords[0] for coords in floor_nodes.values()]
-    node_y = [coords[1] for coords in floor_nodes.values()]
-    node_ids = list(floor_nodes.keys())
-    node_labels = [
-        POI_TRANSLATIONS.get(current_lang, {}).get(nid, nid) for nid in node_ids
-    ]
-
-    fig.add_trace(
-        go.Scatter(
-            x=node_x,
-            y=node_y,
-            mode="markers",
-            marker=dict(size=8, color="#3498DB", symbol="circle"),
-            text=node_labels,
-            customdata=node_ids,
-            hoverinfo="text",
-            showlegend=False,
+        fig.add_trace(
+            go.Scatter(
+                x=x_coords,
+                y=y_coords,
+                fill="toself",
+                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
+                line=dict(color="#4A5568", width=1.5),
+                hoverinfo="text",
+                text=translated_name,
+                customdata=[room_id] * len(x_coords),
+                showlegend=False,
+            )
         )
-    )
 
-    # 4. Overlay Calculated Route Path & Direction Vectors (If active)
     if route_path:
-        floor_route = [
-            nid for nid in route_path 
-            if nid in MULTI_CAD_NODES and int(MULTI_CAD_NODES[nid][2]) == floor_level
-        ]
+        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
-        if len(floor_route) >= 2:
-            rx = [MULTI_CAD_NODES[nid][0] for nid in floor_route]
-            ry = [MULTI_CAD_NODES[nid][1] for nid in floor_route]
+        if len(floor_path) > 1:
+            path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
+            path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
 
-            # Route line trace
             fig.add_trace(
                 go.Scatter(
-                    x=rx,
-                    y=ry,
+                    x=path_x,
+                    y=path_y,
                     mode="lines+markers",
-                    line=dict(color="#E74C3C", width=5),
-                    marker=dict(size=10, color="#C0392B"),
-                    name="Route",
-                    hoverinfo="skip",
-                    showlegend=False,
+                    line=dict(color="#FF0000", width=4, dash="solid"),
+                    marker=dict(size=8, color="#8B0000"),
+                    name="Route Path",
+                    showlegend=False
                 )
             )
 
-            # Draw directional arrows on path segments
-            for i in range(len(rx) - 1):
-                x_mid = (rx[i] + rx[i + 1]) / 2
-                y_mid = (ry[i] + ry[i + 1]) / 2
-                dx = rx[i + 1] - rx[i]
-                dy = ry[i + 1] - ry[i]
+            for i in range(len(floor_path) - 1):
+                x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
+                x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
+
+                x_mid = x_start + 0.6 * (x_end - x_start)
+                y_mid = y_start + 0.6 * (y_end - y_start)
 
                 fig.add_annotation(
                     x=x_mid,
                     y=y_mid,
-                    ax=x_mid - dx * 0.1,
-                    ay=y_mid - dy * 0.1,
+                    ax=x_start,
+                    ay=y_start,
                     xref="x",
                     yref="y",
                     axref="x",
@@ -1243,24 +1157,100 @@ def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
                     showarrow=True,
                     arrowhead=2,
                     arrowsize=1.5,
-                    arrowwidth=2,
-                    arrowcolor="#E74C3C",
+                    arrowwidth=2.5,
+                    arrowcolor="#CC0000"
                 )
 
-    # Layout styling & CAD axis configuration
-    translated_floor_title = get_translated_floor_name(floor_level, lang=current_lang)
+        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
+        start_lbl = lang_dict.get("marker_start", " Start")
+        dest_lbl = lang_dict.get("marker_dest", " Destination")
+        start_node_id = route_path[0]
+        dest_node_id = route_path[-1]
+
+        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
+            start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
+            fig.add_trace(
+                go.Scatter(
+                    x=[start_x],
+                    y=[start_y],
+                    mode="markers+text",
+                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
+                    text=[start_lbl],
+                    textposition="top right",
+                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
+                    name="Start Location",
+                    showlegend=False
+                )
+            )
+
+        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
+            dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
+            fig.add_trace(
+                go.Scatter(
+                    x=[dest_x],
+                    y=[dest_y],
+                    mode="markers+text",
+                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
+                    text=[dest_lbl],
+                    textposition="top right",
+                    textfont=dict(color="#00FF00", size=12, family="Arial Black"),
+                    name="Destination",
+                    showlegend=False
+                )
+            )
+
+    for room_id, coords in floor_rooms.items():
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+
+        xs = [p[0] for p in coords]
+        ys = [p[1] for p in coords]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
+        bbox_w = max_x - min_x
+        bbox_h = max_y - min_y
+
+        if bbox_w < 0.6 or bbox_h < 0.6:
+            continue
+
+        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
+        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
+
+        fig.add_trace(
+            go.Scatter(
+                x=[cx],
+                y=[cy],
+                text=[wrapped_label],
+                mode="text",
+                textposition="middle center",
+                textfont=dict(
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
+                ),
+                customdata=[room_id],
+                hoverinfo="text",
+                hovertext=[translated_name],
+                showlegend=False
+            )
+        )
+
+    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
+
     fig.update_layout(
-        title=f"📐 2D Floor Plan — {translated_floor_title}",
-        xaxis=dict(showgrid=True, zeroline=False, scaleanchor="y", scaleratio=1),
-        yaxis=dict(showgrid=True, zeroline=False),
-        margin=dict(l=20, r=20, t=50, b=20),
-        plot_bgcolor="#F8F9F9",
-        hovermode="closest",
-        clickmode="event+select",
+        height=650,  
+        margin=dict(l=15, r=15, t=30, b=15),
+        showlegend=False,
+        plot_bgcolor="#FFB6C1",
+        paper_bgcolor="#000000",
+        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
+        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
     )
 
     return fig
-    
+
 def render_3d_isometric_view(route_path=None, current_lang="English"):
     fig = go.Figure()
 
@@ -1969,7 +1959,6 @@ with tab_home:
 
 
 # Mall map tab
-# Mall map tab
 with tab_map:
     view_type = st.radio(
         t["view_mode"],
@@ -2040,9 +2029,7 @@ with tab_map:
             selection_mode="points",
         )
 
-    # ==============================================================================
-    # SPATIAL MAP CLICK HANDLER (Area & Polygon Click Support)
-    # ==============================================================================
+    # MAP CLICK HANDLER SEQUENCER
     if (
         selected_data
         and "selection" in selected_data
@@ -2051,7 +2038,6 @@ with tab_map:
         point = selected_data["selection"]["points"][0]
         clicked_id = None
 
-        # Step 1: Extract room_id directly from point customdata/text if user clicked a node marker
         if "customdata" in point and point["customdata"]:
             clicked_id = point["customdata"]
         elif "text" in point:
@@ -2064,28 +2050,8 @@ with tab_map:
                     clicked_id = room_key
                     break
 
-        # Step 2: SPATIAL POLYGON FALLBACK (If user clicked inside a room polygon shape area)
-        if not clicked_id and "x" in point and "y" in point:
-            click_x, click_y = point["x"], point["y"]
-            active_z = floor_select if view_type == t["view_2d"] else 0
-
-            # Ray-Casting check: Check if (x,y) lies inside any room polygon on current floor
-            identified_room = find_room_by_coordinate(
-                click_x, click_y, active_z, ROOM_POLYGONS
-            )
-
-            if identified_room:
-                clicked_id = identified_room
-            else:
-                # Fallback: Snap coordinate to the nearest graph node within 5 meters
-                nearest_node, dist = get_nearest_graph_node(
-                    click_x, click_y, active_z, MULTI_CAD_NODES
-                )
-                if dist <= 5.0:
-                    clicked_id = nearest_node
-
-        # Step 3: PROCESS IDENTIFIED LOCATION & RECALCULATE ROUTE
         if clicked_id and clicked_id in ROOM_POLYGONS:
+            # Handle interactive sequential picking mode
             if st.session_state.map_pick_mode:
                 if st.session_state.map_pick_step == "START":
                     st.session_state.selected_start = clicked_id
@@ -2102,7 +2068,7 @@ with tab_map:
                     st.session_state.map_pick_step = "START"
                     st.rerun()
             else:
-                # Standalone selection mode
+                # Standalone click prompt when not in active map-pick mode
                 st.session_state.clicked_location = clicked_id
 
     # Normal direct action buttons if map pick mode is off
