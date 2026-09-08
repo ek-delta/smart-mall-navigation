@@ -1006,188 +1006,405 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
         mode="lines"
     )
 
+
 def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
+
     words = text.split()
+
     if not words:
+
         return ""
+
     
+
     lines = []
+
     current_line = []
+
     current_len = 0
 
+
+
     for word in words:
+
         if current_len + len(word) <= max_chars_per_line or not current_line:
+
             current_line.append(word)
+
             current_len += len(word) + 1
+
         else:
+
             lines.append(" ".join(current_line))
+
             current_line = [word]
+
             current_len = len(word) + 1
 
+
+
     if current_line:
+
         lines.append(" ".join(current_line))
+
+
 
     return "<br>".join(lines)
 
 
+
+
+
 def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tuple[int, int]:
+
     min_dim = min(bbox_w, bbox_h)
 
+
+
     if min_dim < 2.0:
+
         font_size = 7
+
     elif min_dim < 4.0:
+
         font_size = 8
+
     elif min_dim < 7.0:
+
         font_size = 10
+
     else:
+
         font_size = 12
 
+
+
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
+
+
 
     return font_size, max_chars_per_line
 
 
-import plotly.graph_objects as go
+
 
 
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
+
     fig = go.Figure()
 
+
+
     floor_rooms = {
+
         r_id: poly["coords"]
+
         for r_id, poly in ROOM_POLYGONS.items()
+
         if poly["z"] == active_floor_z
+
     }
 
+
+
     for room_id, coords in floor_rooms.items():
+
         x_coords = [c[0] for c in coords] + [coords[0][0]]
+
         y_coords = [c[1] for c in coords] + [coords[0][1]]
+
         room_info = ROOM_POLYGONS[room_id]
+
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
+
+
         fig.add_trace(
+
             go.Scatter(
+
                 x=x_coords,
+
                 y=y_coords,
+
                 fill="toself",
+
                 fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
+
                 line=dict(color="#4A5568", width=1.5),
+
                 hoverinfo="text",
+
                 text=translated_name,
+
                 customdata=[room_id] * len(x_coords),
+
                 showlegend=False,
+
             )
+
         )
+
+
 
     if route_path:
+
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
+
+
         if len(floor_path) > 1:
+
             path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
+
             path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
 
+
+
             fig.add_trace(
+
                 go.Scatter(
+
                     x=path_x,
+
                     y=path_y,
+
                     mode="lines+markers",
+
                     line=dict(color="#FF0000", width=4, dash="solid"),
+
                     marker=dict(size=8, color="#8B0000"),
+
                     name="Route Path",
+
                     showlegend=False
+
                 )
+
             )
+
+
 
             for i in range(len(floor_path) - 1):
+
                 x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
+
                 x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
 
+
+
                 x_mid = x_start + 0.6 * (x_end - x_start)
+
                 y_mid = y_start + 0.6 * (y_end - y_start)
 
+
+
                 fig.add_annotation(
+
                     x=x_mid,
+
                     y=y_mid,
+
                     ax=x_start,
+
                     ay=y_start,
+
                     xref="x",
+
                     yref="y",
+
                     axref="x",
+
                     ayref="y",
+
                     showarrow=True,
+
                     arrowhead=2,
+
                     arrowsize=1.5,
+
                     arrowwidth=2.5,
+
                     arrowcolor="#CC0000"
+
                 )
+
+
+
+        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
+
+        start_lbl = lang_dict.get("marker_start", " Start")
+
+        dest_lbl = lang_dict.get("marker_dest", " Destination")
 
         start_node_id = route_path[0]
+
         dest_node_id = route_path[-1]
 
+
+
         if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
+
             start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
+
             fig.add_trace(
+
                 go.Scatter(
+
                     x=[start_x],
+
                     y=[start_y],
+
                     mode="markers+text",
+
                     marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
-                    text=[" Start"],
+
+                    text=[start_lbl],
+
                     textposition="top right",
+
                     textfont=dict(color="#FF0000", size=12, family="Arial Black"),
+
                     name="Start Location",
+
                     showlegend=False
+
                 )
+
             )
+
+
 
         if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
+
             dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
+
             fig.add_trace(
+
                 go.Scatter(
+
                     x=[dest_x],
+
                     y=[dest_y],
+
                     mode="markers+text",
+
                     marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
-                    text=[" Destination"],
+
+                    text=[dest_lbl],
+
                     textposition="top right",
+
                     textfont=dict(color="#00AA00", size=12, family="Arial Black"),
+
                     name="Destination",
+
                     showlegend=False
+
                 )
+
             )
+
+
 
     for room_id, coords in floor_rooms.items():
+
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        cx = sum([p[0] for p in coords]) / len(coords)
-        cy = sum([p[1] for p in coords]) / len(coords)
+
+        
+
+        xs = [p[0] for p in coords]
+
+        ys = [p[1] for p in coords]
+
+        min_x, max_x = min(xs), max(xs)
+
+        min_y, max_y = min(ys), max(ys)
+
+        
+
+        cx = (min_x + max_x) / 2.0
+
+        cy = (min_y + max_y) / 2.0
+
+        bbox_w = max_x - min_x
+
+        bbox_h = max_y - min_y
+
+
+
+        if bbox_w < 0.6 or bbox_h < 0.6:
+
+            continue
+
+
+
+        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
+
+        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
+
+
 
         fig.add_trace(
+
             go.Scatter(
+
                 x=[cx],
+
                 y=[cy],
-                text=[translated_name],
+
+                text=[wrapped_label],
+
                 mode="text",
+
+                textposition="middle center",
+
                 textfont=dict(
+
                     color="#000000",
+
                     size=12,
+
                     family="Arial Black, sans-serif"
+
                 ),
+
+                customdata=[room_id],
+
                 hoverinfo="text",
+
+                hovertext=[translated_name],
+
                 showlegend=False
+
             )
+
         )
+
+
 
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
+
+
     fig.update_layout(
+
         height=650,  
+
         margin=dict(l=15, r=15, t=30, b=15),
+
         showlegend=False,
+
         plot_bgcolor="#FFB6C1",
+
         paper_bgcolor="#000000",
+
         xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
+
         yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
+
     )
+
     return fig
 
 
