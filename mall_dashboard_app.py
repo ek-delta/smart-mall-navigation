@@ -1638,14 +1638,56 @@ def format_location_label(room_id, lang):
 # 6. UI configuration
 # ==============================================================================
 
+import math
 t = LOCALIZATION[st.session_state.lang]
 
 st.title(t["title"])
 st.caption(t["subtitle"])
 
-# Initialize session state for waypoints (intermediate stops) if not present
+# Initialize session state for waypoints and custom coordinate selections
 if "waypoints" not in st.session_state:
     st.session_state.waypoints = []
+if "custom_start_coords" not in st.session_state:
+    st.session_state.custom_start_coords = None
+if "custom_dest_coords" not in st.session_state:
+    st.session_state.custom_dest_coords = None
+if "custom_waypoint_coords" not in st.session_state:
+    st.session_state.custom_waypoint_coords = {}
+
+# Helper function to find or project nearest node in MULTI_CAD_NODES from dynamic coordinates
+def get_or_create_node_for_coord(coord_xyz, room_id, graph, nodes):
+    """
+    Connects a clicked dynamic coordinate (x, y, z) inside a room polygon to the graph.
+    If room_id exists in nodes, it links the clicked point to that room's main entrance/center node.
+    """
+    if not coord_xyz:
+        return room_id
+    
+    # Generate unique virtual node ID for dynamic click location
+    temp_node_id = f"custom_click_{room_id}_{coord_xyz[0]:.1f}_{coord_xyz[1]:.1f}"
+    
+    if temp_node_id not in nodes:
+        nodes[temp_node_id] = coord_xyz
+        graph[temp_node_id] = {}
+        
+        # Link to closest standard node or the room's main node
+        target_node = room_id if room_id in nodes else None
+        if not target_node:
+            # Find closest node on the same floor level z
+            floor_z = coord_xyz[2]
+            candidates = [n for n, c in nodes.items() if abs(c[2] - floor_z) < 0.5 and n != temp_node_id]
+            if candidates:
+                target_node = min(
+                    candidates, 
+                    key=lambda n: math.dist(coord_xyz[:2], nodes[n][:2])
+                )
+        
+        if target_node and target_node in nodes:
+            dist = math.dist(coord_xyz, nodes[target_node])
+            graph[temp_node_id][target_node] = dist
+            graph[target_node][temp_node_id] = dist
+
+    return temp_node_id
 
 with st.sidebar:
     st.header(t["config_header"])
@@ -1718,15 +1760,16 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
             st.session_state.waypoints[idx] = selected_wp
 
         with wp_col2:
-            st.write("")  # Alignment spacing
+            st.write("")
             st.write("")
             if st.button("❌", key=f"remove_wp_{idx}"):
                 st.session_state.waypoints.pop(idx)
+                if idx in st.session_state.custom_waypoint_coords:
+                    del st.session_state.custom_waypoint_coords[idx]
                 st.rerun()
 
     # Button to add new intermediate stop
     if st.button("➕ Add Intermediate Stop", key="add_waypoint"):
-        # Default to the first available room option not already selected as start/dest
         default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
         st.session_state.waypoints.append(default_wp)
         st.rerun()
@@ -1740,7 +1783,7 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     )
     accessible_flag = route_pref == t["accessible"]
 
-    # Construct complete route order list: [Start, Stop 1, Stop 2, ..., Dest]
+    # Construct complete route sequence
     full_route_sequence = (
         [st.session_state.selected_start]
         + st.session_state.waypoints
@@ -1756,11 +1799,41 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     st.info(f"{t['current_route_lbl']}: {route_display_str}")
 
 
-# Multi-segment path calculation using Theta*
+# Map dynamic coordinates to routing graph nodes
+routing_nodes_sequence = []
+
+# Process Start
+start_routing_node = get_or_create_node_for_coord(
+    st.session_state.custom_start_coords,
+    st.session_state.selected_start,
+    MULTI_CAD_GRAPH,
+    MULTI_CAD_NODES
+)
+routing_nodes_sequence.append(start_routing_node)
+
+# Process Waypoints
+for idx, wp_id in enumerate(st.session_state.waypoints):
+    wp_coords = st.session_state.custom_waypoint_coords.get(idx, None)
+    wp_routing_node = get_or_create_node_for_coord(
+        wp_coords, wp_id, MULTI_CAD_GRAPH, MULTI_CAD_NODES
+    )
+    routing_nodes_sequence.append(wp_routing_node)
+
+# Process Destination
+dest_routing_node = get_or_create_node_for_coord(
+    st.session_state.custom_dest_coords,
+    st.session_state.selected_dest,
+    MULTI_CAD_GRAPH,
+    MULTI_CAD_NODES
+)
+routing_nodes_sequence.append(dest_routing_node)
+
+
+# Multi-segment path calculation using Theta* on dynamic nodes
 full_path = []
-for i in range(len(full_route_sequence) - 1):
-    segment_start = full_route_sequence[i]
-    segment_end = full_route_sequence[i + 1]
+for i in range(len(routing_nodes_sequence) - 1):
+    segment_start = routing_nodes_sequence[i]
+    segment_end = routing_nodes_sequence[i + 1]
 
     segment_path = theta_star_3d(
         segment_start,
@@ -1771,13 +1844,12 @@ for i in range(len(full_route_sequence) - 1):
     )
 
     if segment_path:
-        # Avoid duplicating overlapping endpoints between segments
         if full_path:
             full_path.extend(segment_path[1:])
         else:
             full_path.extend(segment_path)
     else:
-        full_path = []  # Path blocked or invalid
+        full_path = []
         break
 
 path = full_path
@@ -1937,6 +2009,7 @@ with tab_map:
             selection_mode="points",
         )
 
+    # Process clicks inside any polygon shape
     if (
         selected_data
         and "selection" in selected_data
@@ -1944,7 +2017,11 @@ with tab_map:
     ):
         point = selected_data["selection"]["points"][0]
         clicked_id = None
+        clicked_x = point.get("x", None)
+        clicked_y = point.get("y", None)
+        clicked_z = point.get("z", 0)
 
+        # 1. Identify Room ID from point click
         if "customdata" in point and point["customdata"]:
             clicked_id = point["customdata"]
         elif "text" in point:
@@ -1957,8 +2034,11 @@ with tab_map:
                     clicked_id = room_key
                     break
 
+        # Store clicked location ID and specific (x, y, z) coordinate
         if clicked_id and clicked_id in ROOM_POLYGONS:
             st.session_state.clicked_location = clicked_id
+            if clicked_x is not None and clicked_y is not None:
+                st.session_state.clicked_coords = (clicked_x, clicked_y, clicked_z)
 
     if st.session_state.clicked_location:
         loc_id = st.session_state.clicked_location
@@ -1966,7 +2046,12 @@ with tab_map:
             loc_id, loc_id
         )
 
-        st.info(t["selected_on_map"].format(location=loc_name))
+        coords_info = ""
+        if "clicked_coords" in st.session_state and st.session_state.clicked_coords:
+            cx, cy, _ = st.session_state.clicked_coords
+            coords_info = f" at ({cx:.1f}, {cy:.1f})"
+
+        st.info(f"{t['selected_on_map'].format(location=loc_name)}{coords_info}")
         col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
 
         with col_btn1:
@@ -1974,6 +2059,7 @@ with tab_map:
                 t["btn_set_start"], key="btn_set_start", use_container_width=True
             ):
                 st.session_state.selected_start = loc_id
+                st.session_state.custom_start_coords = st.session_state.get("clicked_coords", None)
                 st.session_state.clicked_location = None
                 st.rerun()
 
@@ -1982,6 +2068,9 @@ with tab_map:
                 "➕ Add as Stop", key="btn_add_stop", use_container_width=True
             ):
                 st.session_state.waypoints.append(loc_id)
+                new_idx = len(st.session_state.waypoints) - 1
+                if "clicked_coords" in st.session_state:
+                    st.session_state.custom_waypoint_coords[new_idx] = st.session_state.clicked_coords
                 st.session_state.clicked_location = None
                 st.rerun()
 
@@ -1990,6 +2079,7 @@ with tab_map:
                 t["btn_set_dest"], key="btn_set_dest", use_container_width=True
             ):
                 st.session_state.selected_dest = loc_id
+                st.session_state.custom_dest_coords = st.session_state.get("clicked_coords", None)
                 st.session_state.clicked_location = None
                 st.rerun()
 
@@ -2044,7 +2134,6 @@ with tab_park:
             f"{t['nearest_spot_found']}: `{slot_icon} {assigned_slot}` ({t['rooftop_lot']})"
         )
 
-        # Sub-tabs for Entry and Exit legs
         tab_entry, tab_exit = st.tabs(
             ["🚗 1. Entrance to Parking Spot", "🚪 2. Parking Spot to Exit"]
         )
@@ -2055,7 +2144,6 @@ with tab_park:
         with tab_entry:
             st.markdown("### 🚗 Driving to Parking Spot")
 
-            # Render map with the entry route
             fig_entry = render_rooftop_parking_map(
                 assigned_slot=assigned_slot,
                 route_path=entry_path,
@@ -2098,7 +2186,6 @@ with tab_park:
         with tab_exit:
             st.markdown("### 🚪 Leaving Parking Spot to Driveway Exit")
 
-            # Render map with the exit route
             fig_exit = render_rooftop_parking_map(
                 assigned_slot=assigned_slot,
                 route_path=exit_path,
