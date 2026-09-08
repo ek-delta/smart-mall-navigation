@@ -1681,40 +1681,6 @@ with st.sidebar:
 with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     room_options = list(ROOM_POLYGONS.keys())
 
-    # --- INTERACTIVE MAP-CLICK SEQUENCE MODE CONTROLLER ---
-    col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
-    with col_btn_pick:
-        if not st.session_state.map_pick_mode:
-            if st.button("🗺️ Interactive Route Selection on Map", use_container_width=True, type="primary"):
-                st.session_state.map_pick_mode = True
-                st.session_state.map_pick_step = "START"
-                st.session_state.waypoints = []
-                st.rerun()
-        else:
-            if st.button("⏹️ Cancel Interactive Map Selection", use_container_width=True):
-                st.session_state.map_pick_mode = False
-                st.rerun()
-
-    with col_btn_clear:
-        if st.button("🗑️ Reset All", use_container_width=True):
-            st.session_state.waypoints = []
-            st.session_state.map_pick_mode = False
-            st.rerun()
-
-    # Informational banner during map click mode
-    if st.session_state.map_pick_mode:
-        if st.session_state.map_pick_step == "START":
-            st.info("👇 **Step 1:** Click any room/POI on the map below to set as **START LOCATION**.")
-        elif st.session_state.map_pick_step == "WAYPOINT":
-            st.warning("👇 **Step 2:** Click any room on the map to add **INTERMEDIATE STOPS** (or click button below when ready for Destination).")
-            if st.button("➡️ Done Adding Stops (Next: Pick Destination)", type="secondary"):
-                st.session_state.map_pick_step = "DEST"
-                st.rerun()
-        elif st.session_state.map_pick_step == "DEST":
-            st.success("👇 **Step 3:** Click any room on the map to set as **DESTINATION**.")
-
-    st.markdown("---")
-
     col_start, col_dest = st.columns(2)
 
     with col_start:
@@ -1955,6 +1921,38 @@ with tab_map:
         horizontal=True,
     )
 
+    # --- INTERACTIVE MAP ROUTE SELECTION & RESET BUTTONS BELOW DISPLAY MODE ---
+    col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
+    with col_btn_pick:
+        if not st.session_state.map_pick_mode:
+            if st.button("🗺️ Interactive Route Selection on Map", use_container_width=True, type="primary"):
+                st.session_state.map_pick_mode = True
+                st.session_state.map_pick_step = "START"
+                st.session_state.waypoints = []
+                st.rerun()
+        else:
+            if st.button("⏹️ Cancel Interactive Map Selection", use_container_width=True):
+                st.session_state.map_pick_mode = False
+                st.rerun()
+
+    with col_btn_clear:
+        if st.button("🗑️ Reset All", use_container_width=True):
+            st.session_state.waypoints = []
+            st.session_state.map_pick_mode = False
+            st.rerun()
+
+    # Contextual guidance banner shown when selecting points on map
+    if st.session_state.map_pick_mode:
+        if st.session_state.map_pick_step == "START":
+            st.info("👇 **Step 1:** Click any room/POI on the map below to set as **START LOCATION**.")
+        elif st.session_state.map_pick_step == "WAYPOINT":
+            st.warning("👇 **Step 2:** Click any room on the map to add **INTERMEDIATE STOPS** (or click button below when ready for Destination).")
+            if st.button("➡️ Done Adding Stops (Next: Pick Destination)", type="secondary"):
+                st.session_state.map_pick_step = "DEST"
+                st.rerun()
+        elif st.session_state.map_pick_step == "DEST":
+            st.success("👇 **Step 3:** Click any room on the map to set as **DESTINATION**.")
+
     selected_data = None
 
     if view_type == t["view_2d"]:
@@ -1986,7 +1984,7 @@ with tab_map:
             selection_mode="points",
         )
 
-    # MAP CLICK CLICK HANDLER SEQUENCER
+    # MAP CLICK HANDLER SEQUENCER
     if (
         selected_data
         and "selection" in selected_data
