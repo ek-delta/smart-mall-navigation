@@ -1890,11 +1890,271 @@ with tab_home:
 
 
 # Mall map tab
-# Initialize session state for custom click points
-if "clicked_custom_point" not in st.session_state:
-    st.session_state.clicked_custom_point = None  # Dict: {"x": x, "y": y, "z": z, "room_id": room_id}
+# ==============================================================================
+# 6. UI configuration
+# ==============================================================================
 
-# --- MALL MAP TAB ---
+t = LOCALIZATION[st.session_state.lang]
+
+st.title(t["title"])
+st.caption(t["subtitle"])
+
+# Initialize session state for waypoints (intermediate stops) if not present
+if "waypoints" not in st.session_state:
+    st.session_state.waypoints = []
+
+with st.sidebar:
+    st.header(t["config_header"])
+    selected_language_key = st.selectbox(
+        t["select_lang"],
+        options=list(LOCALIZATION.keys()),
+        format_func=lambda key: LANG_OPTION_LABELS[st.session_state.lang][key],
+        index=list(LOCALIZATION.keys()).index(st.session_state.lang),
+    )
+    if selected_language_key != st.session_state.lang:
+        st.session_state.lang = selected_language_key
+        st.rerun()
+
+with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
+    room_options = list(ROOM_POLYGONS.keys())
+
+    col_start, col_dest = st.columns(2)
+
+    with col_start:
+        start_node = st.selectbox(
+            t["start_loc"],
+            options=room_options,
+            format_func=lambda room_id: format_location_label(
+                room_id, st.session_state.lang
+            ),
+            index=(
+                room_options.index(st.session_state.selected_start)
+                if st.session_state.selected_start in room_options
+                else 0
+            ),
+        )
+    with col_dest:
+        dest_node = st.selectbox(
+            t["dest_loc"],
+            options=room_options,
+            format_func=lambda room_id: format_location_label(
+                room_id, st.session_state.lang
+            ),
+            index=(
+                room_options.index(st.session_state.selected_dest)
+                if st.session_state.selected_dest in room_options
+                else len(room_options) - 1
+            ),
+        )
+
+    st.session_state.selected_start = start_node
+    st.session_state.selected_dest = dest_node
+
+    # --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
+    st.markdown("---")
+    st.markdown("📍 **Intermediate Stops (Optional)**")
+
+    # Display existing intermediate stops
+    for idx, wp in enumerate(st.session_state.waypoints):
+        wp_col1, wp_col2 = st.columns([0.85, 0.15])
+        with wp_col1:
+            selected_wp = st.selectbox(
+                f"Stop {idx + 1}",
+                options=room_options,
+                format_func=lambda r_id: format_location_label(
+                    r_id, st.session_state.lang
+                ),
+                index=(
+                    room_options.index(wp)
+                    if wp in room_options
+                    else (idx + 1) % len(room_options)
+                ),
+                key=f"waypoint_select_{idx}",
+            )
+            st.session_state.waypoints[idx] = selected_wp
+
+        with wp_col2:
+            st.write("")  # Alignment spacing
+            st.write("")
+            if st.button("❌", key=f"remove_wp_{idx}"):
+                st.session_state.waypoints.pop(idx)
+                st.rerun()
+
+    # Button to add new intermediate stop
+    if st.button("➕ Add Intermediate Stop", key="add_waypoint"):
+        # Default to the first available room option not already selected as start/dest
+        default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
+        st.session_state.waypoints.append(default_wp)
+        st.rerun()
+
+    st.markdown("---")
+
+    route_pref = st.radio(
+        t["route_type"],
+        options=[t["shortest"], t["accessible"]],
+        horizontal=True,
+    )
+    accessible_flag = route_pref == t["accessible"]
+
+    # Construct complete route order list: [Start, Stop 1, Stop 2, ..., Dest]
+    full_route_sequence = (
+        [st.session_state.selected_start]
+        + st.session_state.waypoints
+        + [st.session_state.selected_dest]
+    )
+
+    route_display_str = " ➔ ".join(
+        [
+            f"`{format_location_label(loc, st.session_state.lang)}`"
+            for loc in full_route_sequence
+        ]
+    )
+    st.info(f"{t['current_route_lbl']}: {route_display_str}")
+
+
+# Multi-segment path calculation using Theta*
+full_path = []
+for i in range(len(full_route_sequence) - 1):
+    segment_start = full_route_sequence[i]
+    segment_end = full_route_sequence[i + 1]
+
+    segment_path = theta_star_3d(
+        segment_start,
+        segment_end,
+        MULTI_CAD_GRAPH,
+        MULTI_CAD_NODES,
+        accessible_only=accessible_flag,
+    )
+
+    if segment_path:
+        # Avoid duplicating overlapping endpoints between segments
+        if full_path:
+            full_path.extend(segment_path[1:])
+        else:
+            full_path.extend(segment_path)
+    else:
+        full_path = []  # Path blocked or invalid
+        break
+
+path = full_path
+
+assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
+    "P_L3_Driveway_Entrance",
+    MULTI_CAD_GRAPH,
+    MULTI_CAD_NODES,
+    accessible_only=accessible_flag,
+)
+st.session_state.assigned_parking = assigned_slot_id
+st.session_state.entry_path = entry_path
+st.session_state.exit_path = exit_path
+
+home_tab_title = {
+    "English": "🏠 Home",
+    "Simplified Chinese": "🏠 首页",
+    "Malay": "🏠 Halaman Utama",
+}.get(st.session_state.lang, "🏠 Home")
+
+tab_home, tab_map, tab_dir, tab_park = st.tabs(
+    [
+        home_tab_title,
+        t["tab_nav"],
+        t["tab_directions"],
+        t["tab_parking"],
+    ]
+)
+
+# Home page tab
+with tab_home:
+    st.markdown(
+        f"""
+    ### {t['home_title']}
+    {t['home_desc']}
+    """
+    )
+
+    st.divider()
+
+    col_f1, col_f2, col_f3 = st.columns(3)
+
+    with col_f1:
+        st.subheader(t["feat_map_title"])
+        st.write(t["feat_map_desc"])
+
+    with col_f2:
+        st.subheader(t["feat_turn_title"])
+        st.write(t["feat_turn_desc"])
+
+    with col_f3:
+        st.subheader(t["feat_park_title"])
+        st.write(t["feat_park_desc"])
+
+    st.divider()
+
+    c1, c2, c3, c4 = st.columns(4)
+    total_locations = len(ROOM_POLYGONS)
+    total_floors = len(FLOOR_TRANSLATIONS["English"])
+    total_slots = len(PARKING_SLOTS) if "PARKING_SLOTS" in globals() else 0
+    available_slots = (
+        sum(1 for s in PARKING_SLOTS.values() if not s["occupied"])
+        if "PARKING_SLOTS" in globals()
+        else 0
+    )
+
+    c1.metric(t["poi_metric"], total_locations)
+    c2.metric(t["floors_metric"], total_floors)
+    c3.metric(t["spots_metric"], total_slots)
+    c4.metric(t["available_metric"], available_slots)
+
+    st.divider()
+
+    category_header = {
+        "English": "🏷️ Store Directory by Category",
+        "Simplified Chinese": "🏷️ 分类店铺指南",
+        "Malay": "🏷️ Direktori Kedai Mengikut Kategori",
+    }.get(st.session_state.lang, "🏷️ Store Directory by Category")
+
+    st.subheader(category_header)
+
+    if "STORE_CATEGORIES" in globals() and STORE_CATEGORIES:
+        categorized_stores = {}
+        for room_id, cat_key in STORE_CATEGORIES.items():
+            categorized_stores.setdefault(cat_key, []).append(room_id)
+
+        for cat_key, room_ids in categorized_stores.items():
+            translated_cat = CATEGORY_TRANSLATIONS.get(
+                st.session_state.lang, {}
+            ).get(cat_key, cat_key)
+
+            with st.expander(
+                f"📁 **{translated_cat}** ({len(room_ids)})", expanded=True
+            ):
+                store_cols = st.columns(2)
+                for idx, room_id in enumerate(room_ids):
+                    col = store_cols[idx % 2]
+
+                    icon = get_location_icon(room_id)
+                    z_val = (
+                        int(MULTI_CAD_NODES[room_id][2])
+                        if room_id in MULTI_CAD_NODES
+                        else 0
+                    )
+                    floor_code = (
+                        "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
+                    )
+
+                    raw_name = POI_TRANSLATIONS.get(
+                        st.session_state.lang, {}
+                    ).get(room_id, room_id)
+                    clean_name = raw_name.split("(")[0].strip()
+
+                    col.markdown(f"- **{clean_name}** `[{floor_code}]`")
+    else:
+        st.info("No store categories defined.")
+
+    st.divider()
+
+
+# Mall map tab
 with tab_map:
     view_type = st.radio(
         t["view_mode"],
@@ -1933,58 +2193,36 @@ with tab_map:
             selection_mode="points",
         )
 
-    # Handle clicks anywhere inside shape or map points
     if (
         selected_data
         and "selection" in selected_data
         and selected_data["selection"]["points"]
     ):
         point = selected_data["selection"]["points"][0]
-        clicked_x = point.get("x")
-        clicked_y = point.get("y")
-        current_z = (
-            floor_select if view_type == t["view_2d"] else point.get("z", 0)
-        )
-
         clicked_id = None
 
-        # 1. Direct customdata match (Room polygon shape click)
         if "customdata" in point and point["customdata"]:
             clicked_id = point["customdata"]
-        # 2. Ray-cast check: Verify if (x, y) lies anywhere inside a room polygon
-        elif clicked_x is not None and clicked_y is not None:
-            clicked_id = find_room_by_coordinate(
-                clicked_x, clicked_y, current_z
-            )
+        elif "text" in point:
+            raw_text = point["text"]
+            for room_key in ROOM_POLYGONS.keys():
+                t_name = POI_TRANSLATIONS.get(
+                    st.session_state.lang, {}
+                ).get(room_key, room_key)
+                if t_name == raw_text or room_key == raw_text:
+                    clicked_id = room_key
+                    break
 
         if clicked_id and clicked_id in ROOM_POLYGONS:
             st.session_state.clicked_location = clicked_id
-            st.session_state.clicked_custom_point = {
-                "x": clicked_x,
-                "y": clicked_y,
-                "z": current_z,
-                "room_id": clicked_id,
-            }
 
-    # Action bar when user clicks inside a room polygon
     if st.session_state.clicked_location:
         loc_id = st.session_state.clicked_location
         loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(
             loc_id, loc_id
         )
 
-        # Show precise coordinate inside shape if available
-        custom_pt = st.session_state.clicked_custom_point
-        coord_str = (
-            f" (x: {custom_pt['x']:.1f}, y: {custom_pt['y']:.1f})"
-            if custom_pt and custom_pt.get("x") is not None
-            else ""
-        )
-
-        st.info(
-            f"🎯 {t['selected_on_map'].format(location=loc_name)}{coord_str}"
-        )
-
+        st.info(t["selected_on_map"].format(location=loc_name))
         col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
 
         with col_btn1:
@@ -1993,7 +2231,6 @@ with tab_map:
             ):
                 st.session_state.selected_start = loc_id
                 st.session_state.clicked_location = None
-                st.session_state.clicked_custom_point = None
                 st.rerun()
 
         with col_btn2:
@@ -2002,7 +2239,6 @@ with tab_map:
             ):
                 st.session_state.waypoints.append(loc_id)
                 st.session_state.clicked_location = None
-                st.session_state.clicked_custom_point = None
                 st.rerun()
 
         with col_btn3:
@@ -2011,7 +2247,6 @@ with tab_map:
             ):
                 st.session_state.selected_dest = loc_id
                 st.session_state.clicked_location = None
-                st.session_state.clicked_custom_point = None
                 st.rerun()
 
         with col_btn4:
@@ -2021,8 +2256,173 @@ with tab_map:
                 use_container_width=True,
             ):
                 st.session_state.clicked_location = None
-                st.session_state.clicked_custom_point = None
                 st.rerun()
+
+# Directions tab
+with tab_dir:
+    st.subheader(t["route_summary"])
+    if path:
+        summary = compute_route_summary(path)
+        m_col1, m_col2, m_col3 = st.columns(3)
+        m_col1.metric(t["total_dist"], f"{summary['total_distance']} m")
+        m_col2.metric(t["floors_crossed"], summary["floors_crossed"])
+        m_col3.metric(t["total_steps"], summary["steps"])
+
+        st.markdown("---")
+        st.subheader(t["turn_by_turn"])
+
+        detailed_steps = generate_detailed_directions(
+            path, MULTI_CAD_NODES, lang=st.session_state.lang
+        )
+
+        for step_info in detailed_steps:
+            col_icon, col_text = st.columns([0.1, 0.9])
+            with col_icon:
+                st.markdown(f"### {step_info['icon']}")
+            with col_text:
+                st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
+                st.markdown(step_info["text"])
+            st.divider()
+    else:
+        st.warning(t["no_route"])
+
+# Parking tab
+with tab_park:
+    st.subheader(t["parking_sec"])
+
+    assigned_slot = st.session_state.get("assigned_parking", None)
+    entry_path = st.session_state.get("entry_path", [])
+    exit_path = st.session_state.get("exit_path", [])
+
+    if assigned_slot:
+        slot_icon = get_location_icon(assigned_slot)
+        st.success(
+            f"{t['nearest_spot_found']}: `{slot_icon} {assigned_slot}` ({t['rooftop_lot']})"
+        )
+
+        # Sub-tabs for Entry and Exit legs
+        tab_entry, tab_exit = st.tabs(
+            ["🚗 1. Entrance to Parking Spot", "🚪 2. Parking Spot to Exit"]
+        )
+
+        # ======================================================================
+        # TAB 1: ENTRANCE -> PARKING SPOT
+        # ======================================================================
+        with tab_entry:
+            st.markdown("### 🚗 Driving to Parking Spot")
+
+            # Render map with the entry route
+            fig_entry = render_rooftop_parking_map(
+                assigned_slot=assigned_slot,
+                route_path=entry_path,
+                current_lang=st.session_state.lang,
+            )
+            st.plotly_chart(fig_entry, use_container_width=True)
+
+            if entry_path:
+                entry_summary = compute_route_summary(entry_path)
+                st.markdown("---")
+                st.subheader(t["parking_route_summary"])
+
+                p_col1, p_col2, p_col3 = st.columns(3)
+                p_col1.metric(
+                    t["dist_to_spot"], f"{entry_summary['total_distance']} m"
+                )
+                p_col2.metric(
+                    t["floors_to_ascend"], entry_summary["floors_crossed"]
+                )
+                p_col3.metric(t["total_steps"], entry_summary["steps"])
+
+                st.markdown("---")
+                st.subheader(t["parking_turn_by_turn"])
+                entry_steps = generate_detailed_directions(
+                    entry_path, MULTI_CAD_NODES, lang=st.session_state.lang
+                )
+
+                for step_info in entry_steps:
+                    col_icon, col_text = st.columns([0.1, 0.9])
+                    with col_icon:
+                        st.markdown(f"### {step_info['icon']}")
+                    with col_text:
+                        st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
+                        st.markdown(step_info["text"])
+                    st.divider()
+
+        # ======================================================================
+        # TAB 2: PARKING SPOT -> EXIT
+        # ======================================================================
+        with tab_exit:
+            st.markdown("### 🚪 Leaving Parking Spot to Driveway Exit")
+
+            # Render map with the exit route
+            fig_exit = render_rooftop_parking_map(
+                assigned_slot=assigned_slot,
+                route_path=exit_path,
+                current_lang=st.session_state.lang,
+            )
+            st.plotly_chart(fig_exit, use_container_width=True)
+
+            if exit_path:
+                exit_summary = compute_route_summary(exit_path)
+                st.markdown("---")
+                st.subheader(t["parking_route_summary"])
+
+                e_col1, e_col2, e_col3 = st.columns(3)
+                e_col1.metric(
+                    t["dist_to_spot"], f"{exit_summary['total_distance']} m"
+                )
+                e_col2.metric(
+                    t["floors_to_ascend"], exit_summary["floors_crossed"]
+                )
+                e_col3.metric(t["total_steps"], exit_summary["steps"])
+
+                st.markdown("---")
+                st.subheader(t["parking_turn_by_turn"])
+                exit_steps = generate_detailed_directions(
+                    exit_path, MULTI_CAD_NODES, lang=st.session_state.lang
+                )
+
+                for step_info in exit_steps:
+                    col_icon, col_text = st.columns([0.1, 0.9])
+                    with col_icon:
+                        st.markdown(f"### {step_info['icon']}")
+                    with col_text:
+                        st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
+                        st.markdown(step_info["text"])
+                    st.divider()
+
+    else:
+        st.error("⚠️ No available parking spots found on the Rooftop layer.")
+        fig_parking = render_rooftop_parking_map(
+            assigned_slot=None,
+            route_path=[],
+            current_lang=st.session_state.lang,
+        )
+        st.plotly_chart(fig_parking, use_container_width=True)
+
+# ==============================================================================
+# 7. Footer
+# ==============================================================================
+
+
+def render_system_footer():
+    st.markdown("---")
+    foot_col1, foot_col2, foot_col3 = st.columns(3)
+
+    with foot_col1:
+        st.caption("🏢 **System Architecture:** 3D Theta* Pathfinding Engine")
+    with foot_col2:
+        st.caption(
+            "📐 **Vector Processing:** FloorPlanCAD Parser (DXF/SVG Topology)"
+        )
+    with foot_col3:
+        st.caption("🌐 **Localization:** Active Multilingual Engine")
+
+
+if __name__ == "__main__":
+    if "initialized" not in st.session_state:
+        st.session_state.initialized = True
+    render_system_footer()
 
 # Directions tab
 with tab_dir:
