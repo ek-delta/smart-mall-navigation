@@ -1717,10 +1717,6 @@ tab_home, tab_map, tab_dir, tab_park = st.tabs(
     ]
 )
 
-# TITLE AND SUBTITLE (Moved directly below top navigation bar)
-st.title(t["title"])
-st.caption(t["subtitle"])
-
 # Initialize session state for waypoints and interactive map route builder state
 if "waypoints" not in st.session_state:
     st.session_state.waypoints = []
@@ -1749,6 +1745,8 @@ with st.sidebar:
 
 # Home page tab
 with tab_home:
+    st.title(t["title"])
+    st.caption(t["subtitle"])
     st.markdown(
         f"""
     ### {t['home_title']}
