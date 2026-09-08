@@ -1658,8 +1658,13 @@ t = LOCALIZATION[st.session_state.lang]
 st.title(t["title"])
 st.caption(t["subtitle"])
 
+# Initialize session state for waypoints and interactive map route builder state
 if "waypoints" not in st.session_state:
     st.session_state.waypoints = []
+if "map_pick_mode" not in st.session_state:
+    st.session_state.map_pick_mode = False  # True when user is clicking on map to pick sequence
+if "map_pick_step" not in st.session_state:
+    st.session_state.map_pick_step = "START"  # Options: 'START', 'WAYPOINT', 'DEST'
 
 with st.sidebar:
     st.header(t["config_header"])
@@ -1675,6 +1680,40 @@ with st.sidebar:
 
 with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     room_options = list(ROOM_POLYGONS.keys())
+
+    # --- INTERACTIVE MAP-CLICK SEQUENCE MODE CONTROLLER ---
+    col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
+    with col_btn_pick:
+        if not st.session_state.map_pick_mode:
+            if st.button("🗺️ Interactive Route Selection on Map", use_container_width=True, type="primary"):
+                st.session_state.map_pick_mode = True
+                st.session_state.map_pick_step = "START"
+                st.session_state.waypoints = []
+                st.rerun()
+        else:
+            if st.button("⏹️ Cancel Interactive Map Selection", use_container_width=True):
+                st.session_state.map_pick_mode = False
+                st.rerun()
+
+    with col_btn_clear:
+        if st.button("🗑️ Reset All", use_container_width=True):
+            st.session_state.waypoints = []
+            st.session_state.map_pick_mode = False
+            st.rerun()
+
+    # Informational banner during map click mode
+    if st.session_state.map_pick_mode:
+        if st.session_state.map_pick_step == "START":
+            st.info("👇 **Step 1:** Click any room/POI on the map below to set as **START LOCATION**.")
+        elif st.session_state.map_pick_step == "WAYPOINT":
+            st.warning("👇 **Step 2:** Click any room on the map to add **INTERMEDIATE STOPS** (or click button below when ready for Destination).")
+            if st.button("➡️ Done Adding Stops (Next: Pick Destination)", type="secondary"):
+                st.session_state.map_pick_step = "DEST"
+                st.rerun()
+        elif st.session_state.map_pick_step == "DEST":
+            st.success("👇 **Step 3:** Click any room on the map to set as **DESTINATION**.")
+
+    st.markdown("---")
 
     col_start, col_dest = st.columns(2)
 
@@ -1709,38 +1748,35 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     st.session_state.selected_dest = dest_node
 
     # --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
-    st.markdown("---")
-    st.markdown("📍 **Intermediate Stops (Optional)**")
+    if st.session_state.waypoints:
+        st.markdown("📍 **Intermediate Stops**")
 
-    # Display existing intermediate stops
-    for idx, wp in enumerate(st.session_state.waypoints):
-        wp_col1, wp_col2 = st.columns([0.85, 0.15])
-        with wp_col1:
-            selected_wp = st.selectbox(
-                f"Stop {idx + 1}",
-                options=room_options,
-                format_func=lambda r_id: format_location_label(
-                    r_id, st.session_state.lang
-                ),
-                index=(
-                    room_options.index(wp)
-                    if wp in room_options
-                    else (idx + 1) % len(room_options)
-                ),
-                key=f"waypoint_select_{idx}",
-            )
-            st.session_state.waypoints[idx] = selected_wp
+        for idx, wp in enumerate(st.session_state.waypoints):
+            wp_col1, wp_col2 = st.columns([0.85, 0.15])
+            with wp_col1:
+                selected_wp = st.selectbox(
+                    f"Stop {idx + 1}",
+                    options=room_options,
+                    format_func=lambda r_id: format_location_label(
+                        r_id, st.session_state.lang
+                    ),
+                    index=(
+                        room_options.index(wp)
+                        if wp in room_options
+                        else (idx + 1) % len(room_options)
+                    ),
+                    key=f"waypoint_select_{idx}",
+                )
+                st.session_state.waypoints[idx] = selected_wp
 
-        with wp_col2:
-            st.write("")  # Alignment spacing
-            st.write("")
-            if st.button("❌", key=f"remove_wp_{idx}"):
-                st.session_state.waypoints.pop(idx)
-                st.rerun()
+            with wp_col2:
+                st.write("")
+                st.write("")
+                if st.button("❌", key=f"remove_wp_{idx}"):
+                    st.session_state.waypoints.pop(idx)
+                    st.rerun()
 
-    # Button to add new intermediate stop
-    if st.button("➕ Add Intermediate Stop", key="add_waypoint"):
-        # Default to the first available room option not already selected as start/dest
+    if st.button("➕ Add Intermediate Stop Manually", key="add_waypoint"):
         default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
         st.session_state.waypoints.append(default_wp)
         st.rerun()
@@ -1785,13 +1821,12 @@ for i in range(len(full_route_sequence) - 1):
     )
 
     if segment_path:
-        # Avoid duplicating overlapping endpoints between segments
         if full_path:
             full_path.extend(segment_path[1:])
         else:
             full_path.extend(segment_path)
     else:
-        full_path = []  # Path blocked or invalid
+        full_path = []
         break
 
 path = full_path
@@ -1951,6 +1986,7 @@ with tab_map:
             selection_mode="points",
         )
 
+    # MAP CLICK CLICK HANDLER SEQUENCER
     if (
         selected_data
         and "selection" in selected_data
@@ -1972,9 +2008,28 @@ with tab_map:
                     break
 
         if clicked_id and clicked_id in ROOM_POLYGONS:
-            st.session_state.clicked_location = clicked_id
+            # Handle interactive sequential picking mode
+            if st.session_state.map_pick_mode:
+                if st.session_state.map_pick_step == "START":
+                    st.session_state.selected_start = clicked_id
+                    st.session_state.map_pick_step = "WAYPOINT"
+                    st.rerun()
 
-    if st.session_state.clicked_location:
+                elif st.session_state.map_pick_step == "WAYPOINT":
+                    st.session_state.waypoints.append(clicked_id)
+                    st.rerun()
+
+                elif st.session_state.map_pick_step == "DEST":
+                    st.session_state.selected_dest = clicked_id
+                    st.session_state.map_pick_mode = False  # Completed cycle!
+                    st.session_state.map_pick_step = "START"
+                    st.rerun()
+            else:
+                # Standalone click prompt when not in active map-pick mode
+                st.session_state.clicked_location = clicked_id
+
+    # Normal direct action buttons if map pick mode is off
+    if not st.session_state.map_pick_mode and st.session_state.clicked_location:
         loc_id = st.session_state.clicked_location
         loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(
             loc_id, loc_id
@@ -2069,7 +2124,6 @@ with tab_park:
         with tab_entry:
             st.markdown("### 🚗 Driving to Parking Spot")
 
-            # Render map with the entry route
             fig_entry = render_rooftop_parking_map(
                 assigned_slot=assigned_slot,
                 route_path=entry_path,
@@ -2112,7 +2166,6 @@ with tab_park:
         with tab_exit:
             st.markdown("### 🚪 Leaving Parking Spot to Driveway Exit")
 
-            # Render map with the exit route
             fig_exit = render_rooftop_parking_map(
                 assigned_slot=assigned_slot,
                 route_path=exit_path,
@@ -2162,6 +2215,7 @@ with tab_park:
 # 7. Footer
 # ==============================================================================
 
+
 def render_system_footer():
     st.markdown("---")
     foot_col1, foot_col2, foot_col3 = st.columns(3)
@@ -2174,6 +2228,7 @@ def render_system_footer():
         )
     with foot_col3:
         st.caption("🌐 **Localization:** Active Multilingual Engine")
+
 
 if __name__ == "__main__":
     if "initialized" not in st.session_state:
