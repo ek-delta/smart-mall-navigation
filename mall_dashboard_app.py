@@ -1051,15 +1051,15 @@ import plotly.graph_objects as go
 
 
 def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
-    """Renders a complete 2D CAD floor plan view with interactive room polygon shapes,
+    """Renders 2D CAD floor view matching original visual styling, preserving color
 
-    corridor networks, room labels, and optional active path overlay. Allows clicking
-    anywhere inside room polygon boundaries.
+    schemes, polygon styling, hallway connectivity lines, and markers, with added
+    full-polygon shape clicking.
     """
     fig = go.Figure()
 
     # ==========================================================================
-    # 1. RENDER ROOM POLYGONS (Interactive Filled Shapes)
+    # 1. RENDER ROOM POLYGONS (Preserving exact visual styling & adding full click)
     # ==========================================================================
     for room_id, poly_info in ROOM_POLYGONS.items():
         room_z = int(MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2])
@@ -1070,7 +1070,7 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
         if not coords:
             continue
 
-        # Close polygon loop
+        # Close polygon shape loop
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
 
@@ -1080,7 +1080,7 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
         icon = get_location_icon(room_id)
         display_label = f"{icon} {translated_name}"
 
-        # Render room as interactive filled polygon clickable anywhere inside
+        # Filled polygon shape trace (Allows clicking anywhere inside room boundary)
         fig.add_trace(
             go.Scatter(
                 x=x_coords,
@@ -1089,7 +1089,7 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
                 fillcolor="rgba(220, 235, 252, 0.45)",
                 line=dict(color="rgba(50, 110, 210, 0.8)", width=1.8),
                 hoverinfo="text",
-                text=f"<b>{display_label}</b><br>ID: {room_id}",
+                text=f"<b>{display_label}</b>",
                 customdata=[room_id] * len(x_coords),
                 mode="lines",
                 showlegend=False,
@@ -1097,7 +1097,7 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
             )
         )
 
-        # Center label marker for the room
+        # Original Room Label Text Marker (at center coordinate)
         if room_id in MULTI_CAD_NODES:
             cx, cy, _ = MULTI_CAD_NODES[room_id]
             fig.add_trace(
@@ -1114,7 +1114,7 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
             )
 
     # ==========================================================================
-    # 2. RENDER CORRIDORS & PATHWAY TOPOLOGY GRID
+    # 2. RENDER CAD GRAPH NETWORK EDGES (Original corridor line styling)
     # ==========================================================================
     drawn_edges = set()
     for u, neighbors in MULTI_CAD_GRAPH.items():
@@ -1136,7 +1136,6 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
                 continue
             drawn_edges.add(edge_key)
 
-            # Corridor walkway lines
             fig.add_trace(
                 go.Scatter(
                     x=[ux, vx],
@@ -1149,10 +1148,9 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
             )
 
     # ==========================================================================
-    # 3. RENDER NAVIGATION ROUTE OVERLAY (IF ACTIVE)
+    # 3. RENDER NAVIGATION PATH OVERLAY (Original route line & marker colors)
     # ==========================================================================
     if route_path:
-        # Filter path segments present on the active floor
         floor_path_nodes = [
             node
             for node in route_path
@@ -1164,7 +1162,7 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
             rx = [MULTI_CAD_NODES[node][0] for node in floor_path_nodes]
             ry = [MULTI_CAD_NODES[node][1] for node in floor_path_nodes]
 
-            # Route line track
+            # Route line
             fig.add_trace(
                 go.Scatter(
                     x=rx,
@@ -1182,7 +1180,7 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
                 )
             )
 
-            # Start point highlight on current floor
+            # Start Point Marker
             if route_path[0] in floor_path_nodes:
                 sx, sy, _ = MULTI_CAD_NODES[route_path[0]]
                 fig.add_trace(
@@ -1199,7 +1197,7 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
                     )
                 )
 
-            # Destination highlight on current floor
+            # Destination Point Marker
             if route_path[-1] in floor_path_nodes:
                 dx, dy, _ = MULTI_CAD_NODES[route_path[-1]]
                 fig.add_trace(
@@ -1219,7 +1217,7 @@ def render_2d_cad_view(floor_index, route_path=None, current_lang="English"):
                 )
 
     # ==========================================================================
-    # 4. FIGURE LAYOUT & VIEWPORT CONFIGURATION
+    # 4. ORIGINAL FIGURE LAYOUT CONFIGURATION
     # ==========================================================================
     floor_name = get_translated_floor_name(floor_index, lang=current_lang)
 
