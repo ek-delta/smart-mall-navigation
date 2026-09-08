@@ -1249,6 +1249,13 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
     )
 
+    selected_data = st.plotly_chart(
+    fig_2d,
+    use_container_width=True,
+    on_select="rerun",
+    selection_mode="points",
+)
+
     return fig
 
 def render_3d_isometric_view(route_path=None, current_lang="English"):
@@ -2029,47 +2036,64 @@ with tab_map:
             selection_mode="points",
         )
 
-    # MAP CLICK HANDLER SEQUENCER
-    if (
-        selected_data
-        and "selection" in selected_data
-        and selected_data["selection"]["points"]
-    ):
-        point = selected_data["selection"]["points"][0]
-        clicked_id = None
+    # ==============================================================================
+# SPATIAL MAP CLICK HANDLER (Area & Polygon Click Support)
+# ==============================================================================
+if selected_data and "selection" in selected_data and selected_data["selection"]["points"]:
+    point = selected_data["selection"]["points"][0]
+    clicked_id = None
+    
+    # 1. Try extracting room_id directly from point customdata/text
+    if "customdata" in point and point["customdata"]:
+        clicked_id = point["customdata"]
+    elif "text" in point:
+        raw_text = point["text"]
+        for room_key in ROOM_POLYGONS.keys():
+            t_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_key, room_key)
+            if t_name == raw_text or room_key == raw_text:
+                clicked_id = room_key
+                break
 
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(
-                    st.session_state.lang, {}
-                ).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
+    # 2. SPATIAL POLYGON FALLBACK: If user clicked empty space inside a room boundary
+    if not clicked_id and "x" in point and "y" in point:
+        click_x, click_y = point["x"], point["y"]
+        active_z = floor_select  # Uses current active floor in 2D view
+        
+        # Check point-in-polygon across defined rooms on the current floor
+        identified_room = find_room_by_coordinate(
+            click_x, click_y, active_z, ROOM_POLYGONS
+        )
+        
+        if identified_room:
+            clicked_id = identified_room
+        else:
+            # Fallback: Snap click to nearest graph node within 5 meters threshold
+            nearest_node, dist = get_nearest_graph_node(
+                click_x, click_y, active_z, MULTI_CAD_NODES
+            )
+            if dist <= 5.0:  # Distance threshold in meters
+                clicked_id = nearest_node
 
-        if clicked_id and clicked_id in ROOM_POLYGONS:
-            # Handle interactive sequential picking mode
-            if st.session_state.map_pick_mode:
-                if st.session_state.map_pick_step == "START":
-                    st.session_state.selected_start = clicked_id
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
+    # 3. PROCESS IDENTIFIED LOCATION FOR ROUTE CALCULATION
+    if clicked_id and clicked_id in ROOM_POLYGONS:
+        if st.session_state.map_pick_mode:
+            if st.session_state.map_pick_step == "START":
+                st.session_state.selected_start = clicked_id
+                st.session_state.map_pick_step = "WAYPOINT"
+                st.rerun()
 
-                elif st.session_state.map_pick_step == "WAYPOINT":
-                    st.session_state.waypoints.append(clicked_id)
-                    st.rerun()
+            elif st.session_state.map_pick_step == "WAYPOINT":
+                st.session_state.waypoints.append(clicked_id)
+                st.rerun()
 
-                elif st.session_state.map_pick_step == "DEST":
-                    st.session_state.selected_dest = clicked_id
-                    st.session_state.map_pick_mode = False  # Completed cycle!
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-            else:
-                # Standalone click prompt when not in active map-pick mode
-                st.session_state.clicked_location = clicked_id
+            elif st.session_state.map_pick_step == "DEST":
+                st.session_state.selected_dest = clicked_id
+                st.session_state.map_pick_mode = False
+                st.session_state.map_pick_step = "START"
+                st.rerun()
+        else:
+            st.session_state.clicked_location = clicked_id
+            st.rerun()
 
     # Normal direct action buttons if map pick mode is off
     if not st.session_state.map_pick_mode and st.session_state.clicked_location:
