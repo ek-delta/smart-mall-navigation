@@ -826,56 +826,6 @@ def get_floor_bounds(floor_z):
     padding = 15
     return (min(all_x) - padding, max(all_x) + padding, min(all_y) - padding, max(all_y) + padding)
 
-def point_in_polygon(x, y, poly_coords):
-    """
-    Ray-casting algorithm to test if (x, y) lies inside a 2D polygon.
-    poly_coords: list of (x, y) tuples
-    """
-    n = len(poly_coords)
-    inside = False
-    p1x, p1y = poly_coords[0]
-    for i in range(1, n + 1):
-        p2x, p2y = poly_coords[i % n]
-        if y > min(p1y, p2y):
-            if y <= max(p1y, p2y):
-                if x <= max(p1x, p2x):
-                    if p1y != p2y:
-                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                    if p1x == p2x or x <= xinters:
-                        inside = not inside
-        p1x, p1y = p2x, p2y
-    return inside
-
-def inject_virtual_node(node_id, x, y, z, graph, nodes_dict):
-    """
-    Dynamically injects a virtual coordinate node into the graph, connecting it
-    to existing nodes on the same floor via Line-of-Sight raycasting.
-    """
-    nodes_dict[node_id] = (x, y, z)
-    graph[node_id] = {}
-
-    # Connect virtual node to other nodes on the same floor with clear Line-of-Sight
-    for other_id, pos in list(nodes_dict.items()):
-        if other_id == node_id:
-            continue
-        # Only connect to nodes on the same floor elevation
-        if abs(pos[2] - z) < 0.1:
-            if has_line_of_sight_3d((x, y, z), pos):
-                dist = np.linalg.norm(np.array([x, y, z]) - np.array(pos))
-                graph[node_id][other_id] = dist
-                if other_id not in graph:
-                    graph[other_id] = {}
-                graph[other_id][node_id] = dist
-
-def cleanup_virtual_nodes(graph, nodes_dict, virtual_prefix="_virtual_"):
-    """Removes temporary coordinate nodes after route calculation."""
-    keys_to_remove = [k for k in nodes_dict.keys() if k.startswith(virtual_prefix)]
-    for key in keys_to_remove:
-        nodes_dict.pop(key, None)
-        graph.pop(key, None)
-        for v in graph.values():
-            v.pop(key, None)
-
 def find_room_by_coordinate(x, y, z_floor):
     """Finds which ROOM_POLYGONS room ID contains the given (x, y) coordinate on floor z_floor."""
     for room_id, poly_info in ROOM_POLYGONS.items():
@@ -1000,51 +950,6 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
     return None
-
-def compute_route_from_exact_coords(
-    start_spec,
-    dest_spec,
-    graph,
-    nodes_dict,
-    accessible_only=False
-):
-    """
-    Computes Theta* route accepting either room_ids (str) or exact coords (tuple (x, y, z)).
-    """
-    # Make deep copies/working maps to avoid corrupting permanent graph
-    temp_graph = {k: dict(v) for k, v in graph.items()}
-    temp_nodes = dict(nodes_dict)
-
-    start_id = start_spec
-    dest_id = dest_spec
-
-    # Inject Start Virtual Node if exact coordinates provided
-    if isinstance(start_spec, (tuple, list)):
-        start_id = "_virtual_start"
-        inject_virtual_node(start_id, start_spec[0], start_spec[1], start_spec[2], temp_graph, temp_nodes)
-
-    # Inject Dest Virtual Node if exact coordinates provided
-    if isinstance(dest_spec, (tuple, list)):
-        dest_id = "_virtual_dest"
-        inject_virtual_node(dest_id, dest_spec[0], dest_spec[1], dest_spec[2], temp_graph, temp_nodes)
-
-    # Compute Theta* Path across augmented topology graph
-    raw_path = theta_star_3d(
-        start_id,
-        dest_id,
-        temp_graph,
-        temp_nodes,
-        accessible_only=accessible_only
-    )
-
-    # Convert node sequence back to (x, y, z) coordinate array for rendering/distance calculation
-    coord_path = []
-    if raw_path:
-        for node in raw_path:
-            coord_path.append(temp_nodes[node])
-
-    cleanup_virtual_nodes(temp_graph, temp_nodes)
-    return raw_path, coord_path
     
 # ==============================================================================
 # 4. Map generation with Plotly
@@ -1769,6 +1674,91 @@ def format_location_label(room_id, lang):
         return f"[{floor_code}] {clean_name} ({cat_name})"
 
     return f"[{floor_code}] {clean_name}"
+
+def point_in_polygon(x, y, poly_coords):
+    """Ray-casting algorithm to test if (x, y) lies inside a 2D polygon."""
+    n = len(poly_coords)
+    inside = False
+    p1x, p1y = poly_coords[0]
+    for i in range(1, n + 1):
+        p2x, p2y = poly_coords[i % n]
+        if y > min(p1y, p2y):
+            if y <= max(p1y, p2y):
+                if x <= max(p1x, p2x):
+                    if p1y != p2y:
+                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                    if p1x == p2x or x <= xinters:
+                        inside = not inside
+        p1x, p1y = p2x, p2y
+    return inside
+
+def inject_virtual_node(node_id, x, y, z, graph, nodes_dict):
+    """Dynamically injects a virtual coordinate node into the graph."""
+    nodes_dict[node_id] = (x, y, z)
+    graph[node_id] = {}
+
+    for other_id, pos in list(nodes_dict.items()):
+        if other_id == node_id:
+            continue
+        if abs(pos[2] - z) < 0.1:
+            if has_line_of_sight_3d((x, y, z), pos):
+                dist = float(np.linalg.norm(np.array([x, y, z]) - np.array(pos)))
+                graph[node_id][other_id] = dist
+                if other_id not in graph:
+                    graph[other_id] = {}
+                graph[other_id][node_id] = dist
+
+def cleanup_virtual_nodes(graph, nodes_dict, virtual_prefix="_virtual_"):
+    """Removes temporary coordinate nodes after route calculation."""
+    keys_to_remove = [k for k in nodes_dict.keys() if k.startswith(virtual_prefix)]
+    for key in keys_to_remove:
+        nodes_dict.pop(key, None)
+        graph.pop(key, None)
+        for v in graph.values():
+            v.pop(key, None)
+
+def compute_route_from_exact_coords(start_spec, dest_spec, graph, nodes_dict, accessible_only=False):
+    """Computes Theta* route accepting either room_ids (str) or exact coords tuple (x, y, z)."""
+    temp_graph = {k: dict(v) for k, v in graph.items()}
+    temp_nodes = dict(nodes_dict)
+
+    start_id = start_spec
+    dest_id = dest_spec
+
+    if isinstance(start_spec, (tuple, list)):
+        start_id = "_virtual_start"
+        inject_virtual_node(start_id, start_spec[0], start_spec[1], start_spec[2], temp_graph, temp_nodes)
+
+    if isinstance(dest_spec, (tuple, list)):
+        dest_id = "_virtual_dest"
+        inject_virtual_node(dest_id, dest_spec[0], dest_spec[1], dest_spec[2], temp_graph, temp_nodes)
+
+    raw_path = theta_star_3d(
+        start_id,
+        dest_id,
+        temp_graph,
+        temp_nodes,
+        accessible_only=accessible_only
+    )
+
+    coord_path = []
+    if raw_path:
+        for node in raw_path:
+            coord_path.append(temp_nodes[node])
+
+    cleanup_virtual_nodes(temp_graph, temp_nodes)
+    return raw_path, coord_path
+
+def calculate_exact_path_distance(coord_path):
+    """Calculates Euclidean distance across continuous (x, y, z) coordinate points."""
+    if not coord_path or len(coord_path) < 2:
+        return 0.0
+    total_dist = 0.0
+    for i in range(len(coord_path) - 1):
+        p1 = np.array(coord_path[i])
+        p2 = np.array(coord_path[i + 1])
+        total_dist += np.linalg.norm(p2 - p1)
+    return round(float(total_dist), 2)
 
 # ==============================================================================
 # 6. UI CONFIGURATION & LAYOUT (STREAMLIT)
