@@ -1847,6 +1847,13 @@ path_coords, path_nodes = theta_star_arbitrary_coords(
 path_distance = compute_exact_path_distance(path_coords)
 
 # Render Map Display and Handle Clicks Anywhere on the Floor / Polygons
+home_tab_title = {
+    "English": "🏠 Home",
+    "Simplified Chinese": "🏠 首页",
+    "Malay": "🏠 Halaman Utama",
+}.get(st.session_state.lang, "🏠 Home")
+
+# Now create the tabs safely
 tab_home, tab_map, tab_dir, tab_park = st.tabs(
     [home_tab_title, t["tab_nav"], t["tab_directions"], t["tab_parking"]]
 )
