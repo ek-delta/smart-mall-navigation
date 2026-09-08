@@ -780,6 +780,53 @@ def get_floor_bounds(floor_z):
     padding = 15
     return (min(all_x) - padding, max(all_x) + padding, min(all_y) - padding, max(all_y) + padding)
 
+def point_in_polygon(x, y, polygon):
+    """Ray-casting algorithm to test if (x, y) lies inside a 2D polygon list of (x, y) tuples."""
+    n = len(polygon)
+    inside = False
+    p1x, p1y = polygon[0]
+    for i in range(n + 1):
+        p2x, p2y = polygon[i % n]
+        if y > min(p1y, p2y):
+            if y <= max(p1y, p2y):
+                if x <= max(p1x, p2x):
+                    if p1y != p2y:
+                        xinters = (y - p1y) * (p2x - p1x) / (
+                            p2y - p1y
+                        ) + p1x
+                    if p1x == p2x or x <= xinters:
+                        inside = not inside
+        p1x, p1y = p2x, p2y
+    return inside
+
+
+def find_room_by_coordinate(x, y, z_floor):
+    """Finds which ROOM_POLYGONS room ID contains the given (x, y) coordinate on floor z_floor."""
+    for room_id, poly_info in ROOM_POLYGONS.items():
+        room_z = int(MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2])
+        if room_z != z_floor:
+            continue
+
+        coords = poly_info.get("coordinates", [])
+        if coords and point_in_polygon(x, y, coords):
+            return room_id
+    return None
+
+
+def get_nearest_graph_node(x, y, z_floor, graph_nodes):
+    """Finds the closest node in MULTI_CAD_NODES on the same floor to connect arbitrary click coordinates to the pathfinder graph."""
+    closest_node = None
+    min_dist = float("inf")
+
+    for node_id, (nx, ny, nz) in graph_nodes.items():
+        if int(nz) == int(z_floor):
+            dist = math.hypot(x - nx, y - ny)
+            if dist < min_dist:
+                min_dist = dist
+                closest_node = node_id
+
+    return closest_node, min_dist
+
 # ==============================================================================
 # 3. Theta* pathfinding algorithm
 # ==============================================================================
@@ -1028,6 +1075,36 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 showlegend=False,
             )
         )
+
+    # Add interactive filled shapes for rooms on the 2D CAD layer
+for room_id, poly_info in ROOM_POLYGONS.items():
+    room_z = int(MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2])
+    if room_z != floor_index:
+        continue
+
+    coords = poly_info.get("coordinates", [])
+    if not coords:
+        continue
+
+    x_coords = [c[0] for c in coords] + [coords[0][0]]
+    y_coords = [c[1] for c in coords] + [coords[0][1]]
+
+    translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+
+    fig.add_trace(
+        go.Scatter(
+            x=x_coords,
+            y=y_coords,
+            fill="toself",
+            fillcolor="rgba(100, 149, 237, 0.2)",
+            line=dict(color="rgba(100, 149, 237, 0.8)", width=1.5),
+            hoverinfo="text",
+            text=f"<b>{translated_name}</b>",
+            customdata=[room_id] * len(x_coords),
+            mode="lines",
+            showlegend=False,
+        )
+    )
 
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
@@ -1612,7 +1689,6 @@ t = LOCALIZATION[st.session_state.lang]
 st.title(t["title"])
 st.caption(t["subtitle"])
 
-# Initialize session state for waypoints (intermediate stops) if not present
 if "waypoints" not in st.session_state:
     st.session_state.waypoints = []
 
@@ -1663,11 +1739,9 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     st.session_state.selected_start = start_node
     st.session_state.selected_dest = dest_node
 
-    # --- INTERMEDIATE STOPS (WAYPOINTS) SECTION ---
     st.markdown("---")
     st.markdown("📍 **Intermediate Stops (Optional)**")
 
-    # Display existing intermediate stops
     for idx, wp in enumerate(st.session_state.waypoints):
         wp_col1, wp_col2 = st.columns([0.85, 0.15])
         with wp_col1:
@@ -1687,15 +1761,13 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
             st.session_state.waypoints[idx] = selected_wp
 
         with wp_col2:
-            st.write("")  # Alignment spacing
+            st.write("")  
             st.write("")
             if st.button("❌", key=f"remove_wp_{idx}"):
                 st.session_state.waypoints.pop(idx)
                 st.rerun()
 
-    # Button to add new intermediate stop
     if st.button("➕ Add Intermediate Stop", key="add_waypoint"):
-        # Default to the first available room option not already selected as start/dest
         default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
         st.session_state.waypoints.append(default_wp)
         st.rerun()
@@ -1709,7 +1781,6 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     )
     accessible_flag = route_pref == t["accessible"]
 
-    # Construct complete route order list: [Start, Stop 1, Stop 2, ..., Dest]
     full_route_sequence = (
         [st.session_state.selected_start]
         + st.session_state.waypoints
@@ -1724,8 +1795,6 @@ with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
     )
     st.info(f"{t['current_route_lbl']}: {route_display_str}")
 
-
-# Multi-segment path calculation using Theta*
 full_path = []
 for i in range(len(full_route_sequence) - 1):
     segment_start = full_route_sequence[i]
@@ -1740,13 +1809,12 @@ for i in range(len(full_route_sequence) - 1):
     )
 
     if segment_path:
-        # Avoid duplicating overlapping endpoints between segments
         if full_path:
             full_path.extend(segment_path[1:])
         else:
             full_path.extend(segment_path)
     else:
-        full_path = []  # Path blocked or invalid
+        full_path = [] 
         break
 
 path = full_path
@@ -1868,6 +1936,11 @@ with tab_home:
 
 
 # Mall map tab
+# Initialize session state for custom click points
+if "clicked_custom_point" not in st.session_state:
+    st.session_state.clicked_custom_point = None  # Dict: {"x": x, "y": y, "z": z, "room_id": room_id}
+
+# --- MALL MAP TAB ---
 with tab_map:
     view_type = st.radio(
         t["view_mode"],
@@ -1906,36 +1979,58 @@ with tab_map:
             selection_mode="points",
         )
 
+    # Handle clicks anywhere inside shape or map points
     if (
         selected_data
         and "selection" in selected_data
         and selected_data["selection"]["points"]
     ):
         point = selected_data["selection"]["points"][0]
+        clicked_x = point.get("x")
+        clicked_y = point.get("y")
+        current_z = (
+            floor_select if view_type == t["view_2d"] else point.get("z", 0)
+        )
+
         clicked_id = None
 
+        # 1. Direct customdata match (Room polygon shape click)
         if "customdata" in point and point["customdata"]:
             clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(
-                    st.session_state.lang, {}
-                ).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
+        # 2. Ray-cast check: Verify if (x, y) lies anywhere inside a room polygon
+        elif clicked_x is not None and clicked_y is not None:
+            clicked_id = find_room_by_coordinate(
+                clicked_x, clicked_y, current_z
+            )
 
         if clicked_id and clicked_id in ROOM_POLYGONS:
             st.session_state.clicked_location = clicked_id
+            st.session_state.clicked_custom_point = {
+                "x": clicked_x,
+                "y": clicked_y,
+                "z": current_z,
+                "room_id": clicked_id,
+            }
 
+    # Action bar when user clicks inside a room polygon
     if st.session_state.clicked_location:
         loc_id = st.session_state.clicked_location
         loc_name = POI_TRANSLATIONS.get(st.session_state.lang, {}).get(
             loc_id, loc_id
         )
 
-        st.info(t["selected_on_map"].format(location=loc_name))
+        # Show precise coordinate inside shape if available
+        custom_pt = st.session_state.clicked_custom_point
+        coord_str = (
+            f" (x: {custom_pt['x']:.1f}, y: {custom_pt['y']:.1f})"
+            if custom_pt and custom_pt.get("x") is not None
+            else ""
+        )
+
+        st.info(
+            f"🎯 {t['selected_on_map'].format(location=loc_name)}{coord_str}"
+        )
+
         col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
 
         with col_btn1:
@@ -1944,6 +2039,7 @@ with tab_map:
             ):
                 st.session_state.selected_start = loc_id
                 st.session_state.clicked_location = None
+                st.session_state.clicked_custom_point = None
                 st.rerun()
 
         with col_btn2:
@@ -1952,6 +2048,7 @@ with tab_map:
             ):
                 st.session_state.waypoints.append(loc_id)
                 st.session_state.clicked_location = None
+                st.session_state.clicked_custom_point = None
                 st.rerun()
 
         with col_btn3:
@@ -1960,6 +2057,7 @@ with tab_map:
             ):
                 st.session_state.selected_dest = loc_id
                 st.session_state.clicked_location = None
+                st.session_state.clicked_custom_point = None
                 st.rerun()
 
         with col_btn4:
@@ -1969,6 +2067,7 @@ with tab_map:
                 use_container_width=True,
             ):
                 st.session_state.clicked_location = None
+                st.session_state.clicked_custom_point = None
                 st.rerun()
 
 # Directions tab
