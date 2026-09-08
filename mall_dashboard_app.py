@@ -1056,25 +1056,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
-    for room_id, coords in floor_rooms.items():
-        x_coords = [c[0] for c in coords] + [coords[0][0]]
-        y_coords = [c[1] for c in coords] + [coords[0][1]]
-        room_info = ROOM_POLYGONS[room_id]
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-
-        fig.add_trace(
-            go.Scatter(
-                x=x_coords,
-                y=y_coords,
-                fill="toself",
-                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
-                line=dict(color="#4A5568", width=1.5),
-                hoverinfo="text",
-                text=translated_name,
-                customdata=[room_id] * len(x_coords),
-                showlegend=False,
-            )
-        )
+ 
 
     # Add interactive filled shapes for rooms on the 2D CAD layer
 for room_id, poly_info in ROOM_POLYGONS.items():
