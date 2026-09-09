@@ -1123,6 +1123,21 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
 
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
+    X_MIN, X_MAX = 0, 100  # Replace 500 with your maximum CAD X limit
+    Y_MIN, Y_MAX = 0, 60
+
+    fig.add_trace(
+        go.Scatter(
+            x=[X_MIN, X_MAX, X_MAX, X_MIN, X_MIN],
+            y=[Y_MIN, Y_MIN, Y_MAX, Y_MAX, Y_MIN],
+            fill="toself",
+            fillcolor="rgba(0,0,0,0.001)",  # Near-invisible hit box
+            line=dict(color="rgba(0,0,0,0)"),
+            hoverinfo="x+y",
+            name="Map Canvas",
+            showlegend=False,
+        )
+    )
 
     floor_rooms = {
         r_id: poly["coords"]
@@ -2088,14 +2103,18 @@ if (
     and selected_data["selection"]["points"]
 ):
     point = selected_data["selection"]["points"][0]
-    clicked_id = point.get("customdata", None)
 
-    # Extract raw geometric coordinates from the Plotly click event
+    # Extract exact click coordinates from the event payload
     click_x = point.get("x")
     click_y = point.get("y")
-    current_z = floor_select if view_type == t["view_2d"] else 0
+    current_z = (
+        floor_select if view_type == t["view_2d"] else 0
+    )  # Active floor elevation
 
-    # If clicked outside a defined POI room polygon, register as raw coordinate
+    # Check if a named store/POI was clicked directly
+    clicked_id = point.get("customdata", None)
+
+    # If clicked on empty space (transparent background layer), convert to custom coordinate string
     if not clicked_id and click_x is not None and click_y is not None:
         clicked_id = f"COORD_({click_x:.1f},{click_y:.1f})"
 
@@ -2103,7 +2122,11 @@ if (
         if st.session_state.map_pick_step == "START":
             st.session_state.selected_start = clicked_id
             if clicked_id.startswith("COORD_"):
-                st.session_state["custom_coords_0"] = (click_x, click_y, current_z)
+                st.session_state["custom_coords_0"] = (
+                    click_x,
+                    click_y,
+                    current_z,
+                )
             st.session_state.map_pick_step = "WAYPOINT"
             st.rerun()
 
@@ -2111,18 +2134,26 @@ if (
             st.session_state.waypoints.append(clicked_id)
             if clicked_id.startswith("COORD_"):
                 wp_idx = len(st.session_state.waypoints)
-                st.session_state[f"custom_coords_{wp_idx}"] = (click_x, click_y, current_z)
+                st.session_state[f"custom_coords_{wp_idx}"] = (
+                    click_x,
+                    click_y,
+                    current_z,
+                )
             st.rerun()
 
         elif st.session_state.map_pick_step == "DEST":
             st.session_state.selected_dest = clicked_id
             if clicked_id.startswith("COORD_"):
                 dest_idx = len(st.session_state.waypoints) + 1
-                st.session_state[f"custom_coords_{dest_idx}"] = (click_x, click_y, current_z)
+                st.session_state[f"custom_coords_{dest_idx}"] = (
+                    click_x,
+                    click_y,
+                    current_z,
+                )
             st.session_state.map_pick_mode = False
             st.session_state.map_pick_step = "START"
             st.rerun()
-
+            
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
