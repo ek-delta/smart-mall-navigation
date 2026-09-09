@@ -1737,7 +1737,7 @@ def render_orange_card(title, desc):
     card_html = f"""
     <div style="
         background-color: #FF9800;
-        border: 2px solid #FF6700;
+        border: 2px solid #FF9800;
         border-radius: 12px;
         padding: 18px 16px;
         margin-bottom: 10px;
