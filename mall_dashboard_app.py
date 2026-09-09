@@ -2020,68 +2020,68 @@ view_type = st.radio(
     horizontal=True,
 )
 
-    col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
-    with col_btn_pick:
-        if not st.session_state.map_pick_mode:
-            if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
-                st.session_state.map_pick_mode = True
-                st.session_state.map_pick_step = "START"
-                st.session_state.waypoints = []
-                st.rerun()
-        else:
-            if st.button(t["btn_cancel_interactive"], use_container_width=True):
-                st.session_state.map_pick_mode = False
-                st.rerun()
-
-    with col_btn_clear:
-        if st.button(t["btn_reset_all"], use_container_width=True):
+col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
+with col_btn_pick:
+    if not st.session_state.map_pick_mode:
+        if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
+            st.session_state.map_pick_mode = True
+            st.session_state.map_pick_step = "START"
             st.session_state.waypoints = []
+            st.rerun()
+    else:
+        if st.button(t["btn_cancel_interactive"], use_container_width=True):
             st.session_state.map_pick_mode = False
             st.rerun()
 
-    if st.session_state.map_pick_mode:
-        if st.session_state.map_pick_step == "START":
-            st.info(t["pick_step_1"])
-        elif st.session_state.map_pick_step == "WAYPOINT":
-            st.warning(t["pick_step_2"])
-            if st.button(t["btn_done_adding_stops"], type="secondary"):
-                st.session_state.map_pick_step = "DEST"
-                st.rerun()
+with col_btn_clear:
+    if st.button(t["btn_reset_all"], use_container_width=True):
+        st.session_state.waypoints = []
+        st.session_state.map_pick_mode = False
+        st.rerun()
+
+if st.session_state.map_pick_mode:
+    if st.session_state.map_pick_step == "START":
+        st.info(t["pick_step_1"])
+    elif st.session_state.map_pick_step == "WAYPOINT":
+        st.warning(t["pick_step_2"])
+        if st.button(t["btn_done_adding_stops"], type="secondary"):
+            st.session_state.map_pick_step = "DEST"
+            st.rerun()
         elif st.session_state.map_pick_step == "DEST":
-            st.success(t["pick_step_3"])
+        st.success(t["pick_step_3"])
 
-    selected_data = None
+selected_data = None
 
-    if view_type == t["view_2d"]:
-        floor_select = st.selectbox(
-            t["active_floor"],
-            options=[0, 1, 2, 3],
-            format_func=lambda x: get_translated_floor_name(
-                x, lang=st.session_state.lang
-            ),
-        )
-        fig_2d = render_2d_cad_view(
-            floor_select, route_path=path, current_lang=st.session_state.lang
-        )
+if view_type == t["view_2d"]:
+    floor_select = st.selectbox(
+        t["active_floor"],
+        options=[0, 1, 2, 3],
+        format_func=lambda x: get_translated_floor_name(
+            x, lang=st.session_state.lang
+        ),
+    )
+    fig_2d = render_2d_cad_view(
+        floor_select, route_path=path, current_lang=st.session_state.lang
+    )
 
-        selected_data = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
-    else:
-        fig_3d = render_3d_isometric_view(
-            route_path=path, current_lang=st.session_state.lang
-        )
-        selected_data = st.plotly_chart(
-            fig_3d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
+    selected_data = st.plotly_chart(
+        fig_2d,
+        use_container_width=True,
+        on_select="rerun",
+        selection_mode="points",
+    )
+else:
+    fig_3d = render_3d_isometric_view(
+        route_path=path, current_lang=st.session_state.lang
+    )
+    selected_data = st.plotly_chart(
+        fig_3d,
+        use_container_width=True,
+        on_select="rerun",
+        selection_mode="points",
+    )
 
-    if (
+if (
     st.session_state.map_pick_mode
     and selected_data
     and "selection" in selected_data
