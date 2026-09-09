@@ -969,6 +969,37 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
     return None
+
+def inject_custom_coordinate(
+    x, y, z, graph, nodes, node_prefix="TEMP_CLICK"
+):
+    """Dynamically projects an arbitrary clicked (x, y, z) coordinate into
+
+    the graph structure by linking it to the 3 nearest walkable nodes.
+    """
+    temp_node_id = f"{node_prefix}_{x:.2f}_{y:.2f}_{z}"
+
+    # Work on copies to leave the global MULTI_CAD structures intact
+    temp_nodes = nodes.copy()
+    temp_graph = {node: list(neighbors) for node, neighbors in graph.items()}
+
+    temp_nodes[temp_node_id] = (x, y, z)
+    temp_graph[temp_node_id] = []
+
+    # Find closest walkable graph nodes on the active floor level (z)
+    candidates = []
+    for nid, (nx, ny, nz) in nodes.items():
+        if nz == z:
+            dist = float(np.hypot(nx - x, ny - y))
+            candidates.append((dist, nid))
+
+    # Connect temporary node to the 3 closest nodes
+    candidates.sort(key=lambda item: item[0])
+    for dist, nid in candidates[:3]:
+        temp_graph[temp_node_id].append(nid)
+        temp_graph[nid].append(temp_node_id)
+
+    return temp_node_id, temp_graph, temp_nodes
     
 # ==============================================================================
 # 4. Map generation with Plotly
@@ -1933,29 +1964,45 @@ with tab_map:
         st.info(f"{t['current_route_lbl']}: {route_display_str}")
 
     # Multi-segment path calculation using Theta*
-    full_path = []
-    for i in range(len(full_route_sequence) - 1):
-        segment_start = full_route_sequence[i]
-        segment_end = full_route_sequence[i + 1]
+    # Create dynamic working copies of graph and node lookup
+working_graph = MULTI_CAD_GRAPH.copy()
+working_nodes = MULTI_CAD_NODES.copy()
 
-        segment_path = theta_star_3d(
-            segment_start,
-            segment_end,
-            MULTI_CAD_GRAPH,
-            MULTI_CAD_NODES,
-            accessible_only=accessible_flag,
+# Process full route sequence, injecting custom clicked coordinates if present
+resolved_route_sequence = []
+for idx, loc_id in enumerate(full_route_sequence):
+    if loc_id.startswith("COORD_") and f"custom_coords_{idx}" in st.session_state:
+        cx, cy, cz = st.session_state[f"custom_coords_{idx}"]
+        virt_id, working_graph, working_nodes = inject_custom_coordinate(
+            cx, cy, cz, working_graph, working_nodes, f"CLICK_{idx}"
         )
+        resolved_route_sequence.append(virt_id)
+    else:
+        resolved_route_sequence.append(loc_id)
 
-        if segment_path:
-            if full_path:
-                full_path.extend(segment_path[1:])
-            else:
-                full_path.extend(segment_path)
+# Multi-segment path calculation using Theta* on working_graph
+full_path = []
+for i in range(len(resolved_route_sequence) - 1):
+    segment_start = resolved_route_sequence[i]
+    segment_end = resolved_route_sequence[i + 1]
+
+    segment_path = theta_star_3d(
+        segment_start,
+        segment_end,
+        working_graph,
+        working_nodes,
+        accessible_only=accessible_flag,
+    )
+
+    if segment_path:
+        if full_path:
+            full_path.extend(segment_path[1:])
         else:
-            full_path = []
-            break
-
-    path = full_path
+            full_path.extend(segment_path)
+    else:
+        full_path = []
+        break
+path = full_path
 
     assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
         "P_L3_Driveway_Entrance",
@@ -2035,41 +2082,46 @@ with tab_map:
         )
 
     if (
-        st.session_state.map_pick_mode
-        and selected_data
-        and "selection" in selected_data
-        and selected_data["selection"]["points"]
-    ):
-        point = selected_data["selection"]["points"][0]
-        clicked_id = None
+    st.session_state.map_pick_mode
+    and selected_data
+    and "selection" in selected_data
+    and selected_data["selection"]["points"]
+):
+    point = selected_data["selection"]["points"][0]
+    clicked_id = point.get("customdata", None)
 
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(
-                    st.session_state.lang, {}
-                ).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
+    # Extract raw geometric coordinates from the Plotly click event
+    click_x = point.get("x")
+    click_y = point.get("y")
+    current_z = floor_select if view_type == t["view_2d"] else 0
 
-        if clicked_id and clicked_id in ROOM_POLYGONS:
-            if st.session_state.map_pick_step == "START":
-                st.session_state.selected_start = clicked_id
-                st.session_state.map_pick_step = "WAYPOINT"
-                st.rerun()
+    # If clicked outside a defined POI room polygon, register as raw coordinate
+    if not clicked_id and click_x is not None and click_y is not None:
+        clicked_id = f"COORD_({click_x:.1f},{click_y:.1f})"
 
-            elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(clicked_id)
-                st.rerun()
+    if clicked_id:
+        if st.session_state.map_pick_step == "START":
+            st.session_state.selected_start = clicked_id
+            if clicked_id.startswith("COORD_"):
+                st.session_state["custom_coords_0"] = (click_x, click_y, current_z)
+            st.session_state.map_pick_step = "WAYPOINT"
+            st.rerun()
 
-            elif st.session_state.map_pick_step == "DEST":
-                st.session_state.selected_dest = clicked_id
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
+        elif st.session_state.map_pick_step == "WAYPOINT":
+            st.session_state.waypoints.append(clicked_id)
+            if clicked_id.startswith("COORD_"):
+                wp_idx = len(st.session_state.waypoints)
+                st.session_state[f"custom_coords_{wp_idx}"] = (click_x, click_y, current_z)
+            st.rerun()
+
+        elif st.session_state.map_pick_step == "DEST":
+            st.session_state.selected_dest = clicked_id
+            if clicked_id.startswith("COORD_"):
+                dest_idx = len(st.session_state.waypoints) + 1
+                st.session_state[f"custom_coords_{dest_idx}"] = (click_x, click_y, current_z)
+            st.session_state.map_pick_mode = False
+            st.session_state.map_pick_step = "START"
+            st.rerun()
 
 # Directions tab
 with tab_dir:
