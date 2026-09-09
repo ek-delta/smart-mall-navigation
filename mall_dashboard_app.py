@@ -1707,37 +1707,60 @@ def format_location_label(room_id, lang):
 # 6. UI configuration
 # ==============================================================================
 
-# Custom CSS to style top header bar and tab navigation red
 st.markdown(
     """
     <style>
-    /* 1. Style the main top header bar */
+    /* 1. Force top header and padding to blend seamlessly */
     header[data-testid="stHeader"] {
-        background-color: #D32F2F !important; /* Deep Red */
+        background-color: #B71C1C !important;
+        height: 3.5rem !important;
+        z-index: 99999 !important;
     }
 
-    /* 2. Style the top navigation tab bar background */
-    div[data-baseweb="tab-list"] {
-        background-color: #B71C1C !important; /* Darker Red */
-        padding: 6px 12px;
-        border-radius: 8px;
+    /* 2. Remove default top padding from main container so tabs pull directly into top bar */
+    .main .block-container {
+        padding-top: 1rem !important;
     }
 
-    /* 3. Style default state for tab navigation buttons */
-    button[data-baseweb="tab"] {
+    /* 3. Style and elevate the Tab list wrapper */
+    div[data-baseweb="tab-list"], [data-testid="stTabs"] > div:first-child {
+        background-color: #B71C1C !important;
+        padding: 6px 16px !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15) !important;
+        gap: 8px !important;
+    }
+
+    /* 4. Target tab button elements directly */
+    button[role="tab"], div[data-baseweb="tab"] {
+        background-color: rgba(255, 255, 255, 0.15) !important;
         color: #FFFFFF !important;
-        font-weight: 600;
+        border-radius: 6px !important;
+        border: none !important;
+        padding: 8px 16px !important;
+        font-weight: 600 !important;
     }
 
-    /* 4. Style the active tab highlight indicator and text */
-    button[data-baseweb="tab"][aria-selected="true"] {
-        color: #FFCDD2 !important; /* Light accent text */
-        border-bottom-color: #FFFFFF !important; /* White active line */
+    /* 5. Active Tab styling (White pill with red text) */
+    button[role="tab"][aria-selected="true"], div[data-baseweb="tab"][aria-selected="true"] {
+        background-color: #FFFFFF !important;
+        color: #B71C1C !important;
+        font-weight: 700 !important;
     }
 
-    /* 5. Style tab hover states */
-    button[data-baseweb="tab"]:hover {
-        color: #FFEBEE !important;
+    /* 6. Active Tab text inner element override */
+    button[role="tab"][aria-selected="true"] p, button[role="tab"][aria-selected="true"] span {
+        color: #B71C1C !important;
+    }
+
+    /* 7. Default Tab text inner element override */
+    button[role="tab"] p, button[role="tab"] span {
+        color: #FFFFFF !important;
+    }
+
+    /* 8. Hide Streamlit's native blue sliding underline indicator */
+    div[data-baseweb="tab-borderBar"], div[data-baseweb="tab-highlight"] {
+        display: none !important;
     }
     </style>
     """,
