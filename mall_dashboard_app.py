@@ -1742,7 +1742,7 @@ st.markdown(
 
     /* 1. Target the main sidebar background */
     section[data-testid="stSidebar"] {
-        background-color: #FF8C00 !important; /* Orange */
+        background-color: #FF6700 !important; /* Orange */
     }
 
     /* 2. Target child elements within the sidebar for proper contrast */
@@ -1754,7 +1754,7 @@ st.markdown(
 
     /* 3. Style selectbox/dropdown background inside sidebar */
     section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
-        background-color: #FFFFFF !important;
+        background-color: #000000 !important;
         border-color: #C2185B !important;
     }
     </style>
