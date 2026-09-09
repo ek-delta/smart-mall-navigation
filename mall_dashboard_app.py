@@ -1720,14 +1720,7 @@ st.markdown(
         background-color: #FF6700 !important; /* Orange */
     }
 
-    /* 2. Force Settings header, labels, and text inside sidebar to black */
-    section[data-testid="stSidebar"] h1,
-    section[data-testid="stSidebar"] h2,
-    section[data-testid="stSidebar"] h3,
-    section[data-testid="stSidebar"] label,
-    section[data-testid="stSidebar"] .stMarkdown p {
-        color: #000000 !important;
-    }
+    
     </style>
     """,
     unsafe_allow_html=True,
@@ -1741,7 +1734,6 @@ def render_orange_card(title, desc):
         border-radius: 12px;
         padding: 18px 16px;
         margin-bottom: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         color: #000000;
         height: 100%;
     ">
