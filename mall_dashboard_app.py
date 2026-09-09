@@ -1707,35 +1707,37 @@ def format_location_label(room_id, lang):
 # 6. UI configuration
 # ==============================================================================
 
-# Custom CSS: Unified Red Top Navigation Bar
+# Custom CSS to style top header bar and tab navigation red
 st.markdown(
     """
     <style>
-    /* Target the main container holding the tab buttons */
-    .stTabs [data-baseweb="tab-list"] {
-        background-color: #FF69B4 !important; /* Hot Pink Bar */
-        padding: 8px 12px !important;
-        border-radius: 8px !important;
+    /* 1. Style the main top header bar */
+    header[data-testid="stHeader"] {
+        background-color: #D32F2F !important; /* Deep Red */
     }
 
-    /* Target individual tab text/buttons */
-    .stTabs [data-baseweb="tab"] {
-        color: #FFFFFF !important;
-        font-weight: bold !important;
-        border-radius: 6px !important;
-        padding: 6px 16px !important;
+    /* 2. Style the top navigation tab bar background */
+    div[data-baseweb="tab-list"] {
+        background-color: #B71C1C !important; /* Darker Red */
+        padding: 6px 12px;
+        border-radius: 8px;
     }
 
-    /* Target the active selected tab */
-    .stTabs [data-baseweb="tab"][aria-selected="true"] {
-        background-color: #C71585 !important; /* Darker Pink for Active Tab */
+    /* 3. Style default state for tab navigation buttons */
+    button[data-baseweb="tab"] {
         color: #FFFFFF !important;
+        font-weight: 600;
     }
 
-    /* Hover effect for inactive tabs */
-    .stTabs [data-baseweb="tab"]:hover {
-        background-color: #FF1493 !important;
-        color: #FFFFFF !important;
+    /* 4. Style the active tab highlight indicator and text */
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #FFCDD2 !important; /* Light accent text */
+        border-bottom-color: #FFFFFF !important; /* White active line */
+    }
+
+    /* 5. Style tab hover states */
+    button[data-baseweb="tab"]:hover {
+        color: #FFEBEE !important;
     }
     </style>
     """,
