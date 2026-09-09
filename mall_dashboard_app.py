@@ -497,7 +497,7 @@ def get_location_icon(node_id):
 
     return LOCATION_ICONS["Default"]
 
-ROOM_S = {
+ROOM_POLYGONS = {
     # Ground floor
     "Mega Supermarket": {
         "z": 0,
