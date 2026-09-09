@@ -1884,26 +1884,26 @@ with tab_home:
         ]
 
             
-                store_cols = st.columns(2)
-                for idx, room_id in enumerate(room_ids):
-                    col = store_cols[idx % 2]
+        store_cols = st.columns(2)
+            for idx, room_id in enumerate(room_ids):
+                col = store_cols[idx % 2]
+                
+                icon = get_location_icon(room_id)
+                z_val = (
+                    int(MULTI_CAD_NODES[room_id][2])
+                    if room_id in MULTI_CAD_NODES
+                    else 0
+                )
+                floor_code = (
+                    "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
+                )
+                
+                raw_name = POI_TRANSLATIONS.get(
+                    st.session_state.lang, {}
+                ).get(room_id, room_id)
+                clean_name = raw_name.split("(")[0].strip()
 
-                    icon = get_location_icon(room_id)
-                    z_val = (
-                        int(MULTI_CAD_NODES[room_id][2])
-                        if room_id in MULTI_CAD_NODES
-                        else 0
-                    )
-                    floor_code = (
-                        "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
-                    )
-
-                    raw_name = POI_TRANSLATIONS.get(
-                        st.session_state.lang, {}
-                    ).get(room_id, room_id)
-                    clean_name = raw_name.split("(")[0].strip()
-
-                    col.markdown(f"- **{clean_name}** `[{floor_code}]`")
+                col.markdown(f"- **{clean_name}** `[{floor_code}]`")
     else:
         st.info("No store categories defined.")
 
