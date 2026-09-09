@@ -1918,9 +1918,6 @@ with tab_home:
         st.info("No store categories defined.")
 
 
-    st.divider()
-
-
 # Mall map tab
 with tab_map:
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
