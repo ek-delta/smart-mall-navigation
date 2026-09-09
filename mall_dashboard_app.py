@@ -147,7 +147,7 @@ LOCALIZATION = {
         "marker_dest": " 终点",
         "intermediate_stops": "📍 途经点 (中转站)",
         "stop_lbl": "途经点 {idx}",
-        "btn_add_stop_manual": "➕ 手动添加途经点",
+        "": "➕ 手动添加途经点",
         "btn_interactive_pick": "🗺️ 地图交互式路线选择",
         "btn_cancel_interactive": "⏹️ 取消地图选择模式",
         "btn_reset_all": "🗑️ 重置全部",
@@ -218,7 +218,7 @@ LOCALIZATION = {
         "marker_dest": " Destinasi",
         "intermediate_stops": "📍 Hentian Antara",
         "stop_lbl": "Hentian {idx}",
-        "btn_add_stop_manual": "➕ Tambah Hentian Antara Secara Manual",
+        "": "➕ Tambah Hentian Antara Secara Manual",
         "btn_interactive_pick": "🗺️ Pemilihan Laluan Interaktif pada Peta",
         "btn_cancel_interactive": "⏹️ Batal Pemilihan Peta Interaktif",
         "btn_reset_all": "🗑️ Set Semula Semua",
@@ -1983,12 +1983,27 @@ with tab_map:
                         st.session_state.waypoints.pop(idx)
                         st.rerun()
 
-        if st.button(t["btn_add_stop_manual"], key="add_waypoint"):
-            default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
-            st.session_state.waypoints.append(default_wp)
-            st.rerun()
+        # 1. Native header that adapts automatically to Dark/Light theme colors
+        st.markdown(f"### 📍 {t['lbl_add_waypoint_manual']}")
 
-        st.markdown("---")
+# 2. Add Stop logic
+        col_wp_select, col_wp_btn = st.columns([0.7, 0.3])
+
+        with col_wp_select:
+            selected_wp = st.selectbox(
+                t["lbl_add_waypoint_manual"],
+                options=room_options,
+                format_func=format_poi_option,
+                key="manual_waypoint_select",
+                label_visibility="collapsed"  # Hides extra selectbox label to keep UI clean
+            )
+   
+        with col_wp_btn:
+            if st.button(t["btn_add_stop_manual"], key="add_waypoint", use_container_width=True):
+                if selected_wp not in st.session_state.waypoints:
+                    st.session_state.waypoints.append(selected_wp)
+                    st.rerun()
+                
 
         route_pref = st.radio(
             t["route_type"],
