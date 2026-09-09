@@ -1720,7 +1720,14 @@ st.markdown(
         background-color: #FF6700 !important; /* Orange */
     }
 
-    
+    /* 2. Force Settings header, labels, and text inside sidebar to black */
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3,
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] .stMarkdown p {
+        color: #000000 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
