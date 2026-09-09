@@ -3,7 +3,6 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
-import copy
 
 # ==============================================================================
 # 1. Translation table
@@ -970,34 +969,6 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
     return None
-
-def inject_custom_coordinate(
-    x, y, z, graph, nodes, node_prefix="TEMP_CLICK"
-):
-    """Dynamically projects an arbitrary clicked (x, y, z) coordinate into
-
-    the graph structure by linking it to the 3 nearest walkable nodes.
-    """
-    temp_node_id = f"{node_prefix}_{x:.2f}_{y:.2f}_{z}"
-
-    temp_nodes = nodes.copy()
-    temp_graph = {node: list(neighbors) for node, neighbors in graph.items()}
-
-    temp_nodes[temp_node_id] = (x, y, z)
-    temp_graph[temp_node_id] = []
-
-    candidates = []
-    for nid, (nx, ny, nz) in nodes.items():
-        if nz == z:
-            dist = float(np.hypot(nx - x, ny - y))
-            candidates.append((dist, nid))
-
-    candidates.sort(key=lambda item: item[0])
-    for dist, nid in candidates[:3]:
-        temp_graph[temp_node_id].append(nid)
-        temp_graph[nid].append(temp_node_id)
-
-    return temp_node_id, temp_graph, temp_nodes
     
 # ==============================================================================
 # 4. Map generation with Plotly
@@ -1121,21 +1092,6 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
 
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
-    X_MIN, X_MAX = 0, 500 
-    Y_MIN, Y_MAX = 0, 500
-
-    fig.add_trace(
-        go.Scatter(
-            x=[X_MIN, X_MAX, X_MAX, X_MIN, X_MIN],
-            y=[Y_MIN, Y_MIN, Y_MAX, Y_MAX, Y_MIN],
-            fill="toself",
-            fillcolor="rgba(0,0,0,0.001)", 
-            line=dict(color="rgba(0,0,0,0)"),
-            hoverinfo="x+y",
-            name="Map Canvas",
-            showlegend=False,
-        )
-    )
 
     floor_rooms = {
         r_id: poly["coords"]
@@ -1761,13 +1717,6 @@ tab_home, tab_map, tab_dir, tab_park = st.tabs(
 
 if "waypoints" not in st.session_state:
     st.session_state.waypoints = []
-if "custom_coordinates" not in st.session_state:
-    st.session_state.custom_coordinates = {}
-if "active_floor_3d" not in st.session_state:
-    st.session_state.active_floor_3d = 0
-
-if "map_pick_step" not in st.session_state:
-    st.session_state.map_pick_step = "START"
 if "map_pick_mode" not in st.session_state:
     st.session_state.map_pick_mode = False
 if "map_pick_step" not in st.session_state:
@@ -1785,6 +1734,7 @@ with st.sidebar:
         st.session_state.lang = selected_language_key
         st.rerun()
 
+# Home page tab
 with tab_home:
     st.title(t["title"])
     st.caption(t["subtitle"])
@@ -1878,81 +1828,61 @@ with tab_home:
     st.divider()
 
 
-import copy
-
 # Mall map tab
 with tab_map:
-    # Ensure custom coordinate storage dictionary exists
-    if "custom_coordinates" not in st.session_state:
-        st.session_state.custom_coordinates = {}
-
+    # Route Controls expander inside the Map tab
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
 
         col_start, col_dest = st.columns(2)
 
-        def safe_format_label(loc_id):
-            if isinstance(loc_id, str) and loc_id.startswith("COORD_"):
-                return f"📍 Clicked Spot ({loc_id.replace('COORD_', '')})"
-            return format_location_label(loc_id, st.session_state.lang)
-
-        # Build dropdown options while preserving active clicked spots
-        start_options = (
-            [st.session_state.selected_start] + room_options
-            if st.session_state.selected_start not in room_options
-            else room_options
-        )
-        dest_options = (
-            [st.session_state.selected_dest] + room_options
-            if st.session_state.selected_dest not in room_options
-            else room_options
-        )
-
         with col_start:
             start_node = st.selectbox(
                 t["start_loc"],
-                options=start_options,
-                format_func=safe_format_label,
+                options=room_options,
+                format_func=lambda room_id: format_location_label(
+                    room_id, st.session_state.lang
+                ),
                 index=(
-                    start_options.index(st.session_state.selected_start)
-                    if st.session_state.selected_start in start_options
+                    room_options.index(st.session_state.selected_start)
+                    if st.session_state.selected_start in room_options
                     else 0
                 ),
             )
         with col_dest:
             dest_node = st.selectbox(
                 t["dest_loc"],
-                options=dest_options,
-                format_func=safe_format_label,
+                options=room_options,
+                format_func=lambda room_id: format_location_label(
+                    room_id, st.session_state.lang
+                ),
                 index=(
-                    dest_options.index(st.session_state.selected_dest)
-                    if st.session_state.selected_dest in dest_options
-                    else len(dest_options) - 1
+                    room_options.index(st.session_state.selected_dest)
+                    if st.session_state.selected_dest in room_options
+                    else len(room_options) - 1
                 ),
             )
 
         st.session_state.selected_start = start_node
         st.session_state.selected_dest = dest_node
 
+        # Intermediate Stops (Waypoints)
         if st.session_state.waypoints:
             st.markdown(t["intermediate_stops"])
 
             for idx, wp in enumerate(st.session_state.waypoints):
                 wp_col1, wp_col2 = st.columns([0.85, 0.15])
-                wp_options = (
-                    [wp] + room_options
-                    if wp not in room_options
-                    else room_options
-                )
                 with wp_col1:
                     selected_wp = st.selectbox(
                         t["stop_lbl"].format(idx=idx + 1),
-                        options=wp_options,
-                        format_func=safe_format_label,
+                        options=room_options,
+                        format_func=lambda r_id: format_location_label(
+                            r_id, st.session_state.lang
+                        ),
                         index=(
-                            wp_options.index(wp)
-                            if wp in wp_options
-                            else 0
+                            room_options.index(wp)
+                            if wp in room_options
+                            else (idx + 1) % len(room_options)
                         ),
                         key=f"waypoint_select_{idx}",
                     )
@@ -1962,16 +1892,11 @@ with tab_map:
                     st.write("")
                     st.write("")
                     if st.button("❌", key=f"remove_wp_{idx}"):
-                        removed_wp = st.session_state.waypoints.pop(idx)
-                        # Clean up coordinate reference if removed waypoint was custom
-                        if isinstance(removed_wp, str) and removed_wp in st.session_state.custom_coordinates:
-                            del st.session_state.custom_coordinates[removed_wp]
+                        st.session_state.waypoints.pop(idx)
                         st.rerun()
 
         if st.button(t["btn_add_stop_manual"], key="add_waypoint"):
-            default_wp = (
-                room_options[1] if len(room_options) > 1 else room_options[0]
-            )
+            default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
             st.session_state.waypoints.append(default_wp)
             st.rerun()
 
@@ -1991,39 +1916,24 @@ with tab_map:
         )
 
         route_display_str = " ➔ ".join(
-            [f"`{safe_format_label(loc)}`" for loc in full_route_sequence]
+            [
+                f"`{format_location_label(loc, st.session_state.lang)}`"
+                for loc in full_route_sequence
+            ]
         )
         st.info(f"{t['current_route_lbl']}: {route_display_str}")
 
-    # FIX 1: Deep copy graphs to prevent modifying global reference memory
-    working_graph = copy.deepcopy(MULTI_CAD_GRAPH)
-    working_nodes = copy.deepcopy(MULTI_CAD_NODES)
-
-    resolved_route_sequence = []
-    # FIX 2: Resolve points using direct string lookup in custom_coordinates dictionary
-    for idx, loc_id in enumerate(full_route_sequence):
-        if (
-            isinstance(loc_id, str)
-            and loc_id in st.session_state.custom_coordinates
-        ):
-            cx, cy, cz = st.session_state.custom_coordinates[loc_id]
-            virt_id, working_graph, working_nodes = inject_custom_coordinate(
-                cx, cy, cz, working_graph, working_nodes, f"CLICK_{idx}"
-            )
-            resolved_route_sequence.append(virt_id)
-        else:
-            resolved_route_sequence.append(loc_id)
-            
+    # Multi-segment path calculation using Theta*
     full_path = []
-    for i in range(len(resolved_route_sequence) - 1):
-        segment_start = resolved_route_sequence[i]
-        segment_end = resolved_route_sequence[i + 1]
+    for i in range(len(full_route_sequence) - 1):
+        segment_start = full_route_sequence[i]
+        segment_end = full_route_sequence[i + 1]
 
         segment_path = theta_star_3d(
             segment_start,
             segment_end,
-            working_graph,
-            working_nodes,
+            MULTI_CAD_GRAPH,
+            MULTI_CAD_NODES,
             accessible_only=accessible_flag,
         )
 
@@ -2035,6 +1945,7 @@ with tab_map:
         else:
             full_path = []
             break
+
     path = full_path
 
     assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
@@ -2056,27 +1967,19 @@ with tab_map:
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
         if not st.session_state.map_pick_mode:
-            if st.button(
-                t["btn_interactive_pick"],
-                use_container_width=True,
-                type="primary",
-            ):
+            if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
                 st.session_state.map_pick_mode = True
                 st.session_state.map_pick_step = "START"
                 st.session_state.waypoints = []
                 st.rerun()
         else:
-            if st.button(
-                t["btn_cancel_interactive"], use_container_width=True
-            ):
+            if st.button(t["btn_cancel_interactive"], use_container_width=True):
                 st.session_state.map_pick_mode = False
                 st.rerun()
 
     with col_btn_clear:
-        # FIX 3: Flush custom coordinates on full reset
         if st.button(t["btn_reset_all"], use_container_width=True):
             st.session_state.waypoints = []
-            st.session_state.custom_coordinates = {}
             st.session_state.map_pick_mode = False
             st.rerun()
 
@@ -2102,9 +2005,7 @@ with tab_map:
             ),
         )
         fig_2d = render_2d_cad_view(
-            floor_select,
-            route_path=path,
-            current_lang=st.session_state.lang,
+            floor_select, route_path=path, current_lang=st.session_state.lang
         )
 
         selected_data = st.plotly_chart(
@@ -2124,7 +2025,6 @@ with tab_map:
             selection_mode="points",
         )
 
-    # Click Event Handler
     if (
         st.session_state.map_pick_mode
         and selected_data
@@ -2132,32 +2032,21 @@ with tab_map:
         and selected_data["selection"]["points"]
     ):
         point = selected_data["selection"]["points"][0]
+        clicked_id = None
 
-        click_x = point.get("x")
-        click_y = point.get("y")
-        
-        # FIX 4: Accurately derive Z height depending on 2D vs 3D rendering modes
-        if view_type == t["view_2d"]:
-            current_z = floor_select
-        else:
-            # Fallback for 3D view: extract Z directly from Plotly point data if available
-            raw_z = point.get("z", 0)
-            current_z = int(round(raw_z)) if raw_z is not None else 0
+        if "customdata" in point and point["customdata"]:
+            clicked_id = point["customdata"]
+        elif "text" in point:
+            raw_text = point["text"]
+            for room_key in ROOM_POLYGONS.keys():
+                t_name = POI_TRANSLATIONS.get(
+                    st.session_state.lang, {}
+                ).get(room_key, room_key)
+                if t_name == raw_text or room_key == raw_text:
+                    clicked_id = room_key
+                    break
 
-        clicked_id = point.get("customdata", None)
-
-        if not clicked_id and click_x is not None and click_y is not None:
-            clicked_id = f"COORD_({click_x:.1f},{click_y:.1f},{current_z})"
-
-        if clicked_id:
-            # FIX 5: Save coordinates directly into dictionary keyed by clicked_id
-            if clicked_id.startswith("COORD_"):
-                st.session_state.custom_coordinates[clicked_id] = (
-                    click_x,
-                    click_y,
-                    current_z,
-                )
-
+        if clicked_id and clicked_id in ROOM_POLYGONS:
             if st.session_state.map_pick_step == "START":
                 st.session_state.selected_start = clicked_id
                 st.session_state.map_pick_step = "WAYPOINT"
@@ -2172,7 +2061,7 @@ with tab_map:
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
-            
+
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
@@ -2328,7 +2217,6 @@ with tab_park:
 # 7. Footer
 # ==============================================================================
 
-
 def render_system_footer():
     st.markdown("---")
     foot_col1, foot_col2, foot_col3 = st.columns(3)
@@ -2341,7 +2229,6 @@ def render_system_footer():
         )
     with foot_col3:
         st.caption("🌐 **Localization:** Active Multilingual Engine")
-
 
 if __name__ == "__main__":
     if "initialized" not in st.session_state:
