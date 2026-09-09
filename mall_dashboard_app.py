@@ -1716,46 +1716,9 @@ st.markdown(
         background-color: #D32F2F !important; /* Deep Red */
     }
 
-    /* 2. Style the top navigation tab bar background */
-    div[data-baseweb="tab-list"] {
-        background-color: #B71C1C !important; /* Darker Red */
-        padding: 6px 12px;
-        border-radius: 8px;
-    }
-
-    /* 3. Style default state for tab navigation buttons */
-    button[data-baseweb="tab"] {
-        color: #FFFFFF !important;
-        font-weight: 600;
-    }
-
-    /* 4. Style the active tab highlight indicator and text */
-    button[data-baseweb="tab"][aria-selected="true"] {
-        color: #FFCDD2 !important; /* Light accent text */
-        border-bottom-color: #FFFFFF !important; /* White active line */
-    }
-
-    /* 5. Style tab hover states */
-    button[data-baseweb="tab"]:hover {
-        color: #FFEBEE !important;
-    }
-
     /* 1. Target the main sidebar background */
     section[data-testid="stSidebar"] {
         background-color: #FF6700 !important; /* Orange */
-    }
-
-    /* 2. Target child elements within the sidebar for proper contrast */
-    section[data-testid="stSidebar"] .stMarkdown,
-    section[data-testid="stSidebar"] label,
-    section[data-testid="stSidebar"] header {
-        color: #880E4F !important; /* Deep Magenta/Pink for readable text */
-    }
-
-    /* 3. Style selectbox/dropdown background inside sidebar */
-    section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
-        background-color: #000000 !important;
-        border-color: #C2185B !important;
     }
     </style>
     """,
