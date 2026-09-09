@@ -1707,56 +1707,37 @@ def format_location_label(room_id, lang):
 # 6. UI configuration
 # ==============================================================================
 
-# Custom CSS: Merges the Streamlit header and main tab bar into a single top red navbar
+# Custom CSS to style top header bar and tab navigation red
 st.markdown(
     """
     <style>
-    /* 1. Set top header background to primary red */
+    /* 1. Style the main top header bar */
     header[data-testid="stHeader"] {
-        background-color: #B71C1C !important; /* Rich Dark Red */
-        z-index: 999;
+        background-color: #D32F2F !important; /* Deep Red */
     }
 
-    /* 2. Position and style the tab bar to fuse with the header */
+    /* 2. Style the top navigation tab bar background */
     div[data-baseweb="tab-list"] {
-        background-color: #B71C1C !important;
-        padding: 8px 16px !important;
-        margin-top: -10px !important;
-        border-bottom: 2px solid #8E0000 !important;
-        gap: 12px;
-        display: flex;
-        justify-content: flex-start;
-        align-items: center;
+        background-color: #B71C1C !important; /* Darker Red */
+        padding: 6px 12px;
+        border-radius: 8px;
     }
 
-    /* 3. Style individual navbar tab buttons */
+    /* 3. Style default state for tab navigation buttons */
     button[data-baseweb="tab"] {
-        background-color: rgba(255, 255, 255, 0.1) !important;
         color: #FFFFFF !important;
-        font-weight: 600 !important;
-        border-radius: 6px !important;
-        padding: 8px 16px !important;
-        border: none !important;
-        transition: all 0.2s ease-in-out;
+        font-weight: 600;
     }
 
-    /* 4. Active tab highlight inside the red bar */
+    /* 4. Style the active tab highlight indicator and text */
     button[data-baseweb="tab"][aria-selected="true"] {
-        background-color: #FFFFFF !important;
-        color: #B71C1C !important; /* Red text on white active pill */
-        font-weight: 700 !important;
-        box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.2);
+        color: #FFCDD2 !important; /* Light accent text */
+        border-bottom-color: #FFFFFF !important; /* White active line */
     }
 
-    /* 5. Hover effects */
+    /* 5. Style tab hover states */
     button[data-baseweb="tab"]:hover {
-        background-color: rgba(255, 255, 255, 0.25) !important;
-        color: #FFFFFF !important;
-    }
-
-    /* 6. Remove default blue underline highlight from Streamlit tabs */
-    div[data-baseweb="tab-highlight"] {
-        background-color: transparent !important;
+        color: #FFEBEE !important;
     }
     </style>
     """,
