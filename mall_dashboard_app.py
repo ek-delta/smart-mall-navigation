@@ -1849,41 +1849,81 @@ with tab_home:
 
     st.subheader(category_header)
 
-    if "STORE_CATEGORIES" in globals() and STORE_CATEGORIES:
-        categorized_stores = {}
-        for room_id, cat_key in STORE_CATEGORIES.items():
-            categorized_stores.setdefault(cat_key, []).append(room_id)
+if "STORE_CATEGORIES" in globals() and STORE_CATEGORIES:
+    categorized_stores = {}
+    for room_id, cat_key in STORE_CATEGORIES.items():
+        categorized_stores.setdefault(cat_key, []).append(room_id)
 
-        for cat_key, room_ids in categorized_stores.items():
-            translated_cat = CATEGORY_TRANSLATIONS.get(
-                st.session_state.lang, {}
-            ).get(cat_key, cat_key)
+    # CSS for styling st.expander header red and inside content orange
+    st.markdown(
+        """
+        <style>
+        /* Red background for st.expander header button */
+        div[data-testid="stExpander"] details summary {
+            background-color: #D32F2F !important;
+            color: #FFFFFF !important;
+            border-radius: 8px 8px 0px 0px !important;
+            padding: 10px 16px !important;
+        }
 
-            with st.expander(
-                f"📁 **{translated_cat}** ({len(room_ids)})", expanded=True
-            ):
-                store_cols = st.columns(2)
-                for idx, room_id in enumerate(room_ids):
-                    col = store_cols[idx % 2]
+        /* White text & arrow icon for expander header */
+        div[data-testid="stExpander"] details summary p,
+        div[data-testid="stExpander"] details summary svg {
+            color: #FFFFFF !important;
+            fill: #FFFFFF !important;
+            font-weight: bold !important;
+        }
 
-                    icon = get_location_icon(room_id)
-                    z_val = (
-                        int(MULTI_CAD_NODES[room_id][2])
-                        if room_id in MULTI_CAD_NODES
-                        else 0
-                    )
-                    floor_code = (
-                        "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
-                    )
+        /* Orange background for expanded content container */
+        div[data-testid="stExpander"] details div[data-testid="stExpanderDetails"] {
+            background-color: #FF9800 !important;
+            border-radius: 0px 0px 8px 8px !important;
+            padding: 16px !important;
+            border: 1px solid #E65100 !important;
+            color: #000000 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
-                    raw_name = POI_TRANSLATIONS.get(
-                        st.session_state.lang, {}
-                    ).get(room_id, room_id)
-                    clean_name = raw_name.split("(")[0].strip()
+    for cat_key, room_ids in categorized_stores.items():
+        translated_cat = CATEGORY_TRANSLATIONS.get(
+            st.session_state.lang, {}
+        ).get(cat_key, cat_key.capitalize())
 
-                    col.markdown(f"- **{clean_name}** `[{floor_code}]`")
-    else:
-        st.info("No store categories defined.")
+        # Native expandable header
+        with st.expander(f"📁 **{translated_cat}** ({len(room_ids)})", expanded=True):
+            store_items_html = ['<div style="display: flex; flex-wrap: wrap; margin: -4px;">']
+
+            for room_id in room_ids:
+                icon = get_location_icon(room_id) if "get_location_icon" in globals() else "📍"
+
+                if "MULTI_CAD_NODES" in globals() and room_id in MULTI_CAD_NODES:
+                    z_val = int(MULTI_CAD_NODES[room_id][2])
+                    floor_code = "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
+                else:
+                    floor_code = "N/A"
+
+                raw_name = (
+                    POI_TRANSLATIONS.get(st.session_state.lang, {}).get(room_id)
+                    or POI_TRANSLATIONS.get("English", {}).get(room_id)
+                    or room_id.replace("_", " ")
+                )
+                clean_name = raw_name.split("(")[0].strip()
+
+                item_card = f"""
+                <div style="flex: 0 0 50%; max-width: 50%; padding: 6px; box-sizing: border-box; color: #000000;">
+                    <span style="font-weight: 600;">{icon} {clean_name}</span>
+                    <code style="background-color: #FFF3E0; color: #D84315; font-weight: bold; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">[{floor_code}]</code>
+                </div>
+                """
+                store_items_html.append(item_card)
+
+            store_items_html.append('</div>')
+            st.markdown("".join(store_items_html), unsafe_allow_html=True)
+else:
+    st.info("No store categories defined.")
 
     st.divider()
 
