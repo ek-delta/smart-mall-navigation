@@ -89,6 +89,9 @@ LOCALIZATION = {
         "tab_parking_exit": "🚪 2. Parking Spot to Exit",
         "drive_to_spot_title": "🚗 Driving to Parking Spot",
         "drive_to_exit_title": "🚪 Leaving Parking Spot to Driveway Exit",
+        "btn_keep_start": "⏭️ Keep Current Start",
+        "btn_keep_dest": "⏭️ Keep Current Destination",
+        "lbl_current": "Current",
     },
     "Simplified Chinese": {
         "title": "🏢 智能商场导航与停车系统",
@@ -157,6 +160,9 @@ LOCALIZATION = {
         "tab_parking_exit": "🚪 2. 停车位至出口",
         "drive_to_spot_title": "🚗 驱动至停车位路线",
         "drive_to_exit_title": "🚪 从停车位前往车道出口",
+        "btn_keep_start": "⏭️ 保留当前起点",
+        "btn_keep_dest": "⏭️ 保留当前终点",
+        "lbl_current": "当前",
     },
     "Malay": {
         "title": "🏢 Sistem Navigasi & Tempat Letak Kereta Pusat Beli-Belah Smart",
@@ -225,6 +231,9 @@ LOCALIZATION = {
         "tab_parking_exit": "🚪 2. Ruang Letak Kereta ke Pintu Keluar",
         "drive_to_spot_title": "🚗 Memandu ke Ruang Letak Kereta",
         "drive_to_exit_title": "🚪 Meninggalkan Ruang Letak Kereta ke Pintu Keluar",
+        "btn_keep_start": "⏭️ Kekalkan Permulaan Semasa",
+        "btn_keep_dest": "⏭️ Kekalkan Destinasi Semasa",
+        "lbl_current": "Semasa",
     }
 }
 
@@ -1984,17 +1993,20 @@ with tab_map:
             st.rerun()
 
     if st.session_state.map_pick_mode:
+        curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
+        curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
+
         if st.session_state.map_pick_step == "START":
-            col_msg, col_skip = st.columns([0.75, 0.25])
+            col_msg, col_skip = st.columns([0.72, 0.28])
             with col_msg:
-                st.info(f"{t['pick_step_1']} (Current: **{format_location_label(st.session_state.selected_start, st.session_state.lang)}**)")
+                st.info(f"{t['pick_step_1']} ({t['lbl_current']}: **{curr_start_label}**)")
             with col_skip:
-                if st.button("⏭️ Keep Current Start", use_container_width=True):
+                if st.button(t["btn_keep_start"], use_container_width=True):
                     st.session_state.map_pick_step = "WAYPOINT"
                     st.rerun()
 
         elif st.session_state.map_pick_step == "WAYPOINT":
-            col_msg, col_done = st.columns([0.75, 0.25])
+            col_msg, col_done = st.columns([0.72, 0.28])
             with col_msg:
                 st.warning(t["pick_step_2"])
             with col_done:
@@ -2003,11 +2015,11 @@ with tab_map:
                     st.rerun()
 
         elif st.session_state.map_pick_step == "DEST":
-            col_msg, col_skip = st.columns([0.75, 0.25])
+            col_msg, col_skip = st.columns([0.72, 0.28])
             with col_msg:
-                st.success(f"{t['pick_step_3']} (Current: **{format_location_label(st.session_state.selected_dest, st.session_state.lang)}**)")
+                st.success(f"{t['pick_step_3']} ({t['lbl_current']}: **{curr_dest_label}**)")
             with col_skip:
-                if st.button("⏭️ Keep Current Destination", use_container_width=True):
+                if st.button(t["btn_keep_dest"], use_container_width=True):
                     st.session_state.map_pick_mode = False
                     st.session_state.map_pick_step = "START"
                     st.rerun()
