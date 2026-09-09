@@ -1984,7 +1984,7 @@ with tab_map:
                         st.rerun()
 
         # 1. Native header that adapts automatically to Dark/Light theme colors
-        st.markdown(f"### 📍 {t['lbl_add_waypoint_manual']}")
+        st.markdown(f"### 📍 {t['btn_add_stop_manual']}")
 
 # 2. Add Stop logic
         col_wp_select, col_wp_btn = st.columns([0.7, 0.3])
@@ -2003,7 +2003,9 @@ with tab_map:
                 if selected_wp not in st.session_state.waypoints:
                     st.session_state.waypoints.append(selected_wp)
                     st.rerun()
-                
+
+            
+        st.markdown("---")
 
         route_pref = st.radio(
             t["route_type"],
