@@ -1736,7 +1736,9 @@ st.markdown(
 def render_orange_card(title, desc):
     card_html = f"""
     <div style="
-        background-color: #FF9800;
+        background-color: #FF6700;
+        border: 2px solid #E65100;
+        border-radius: 12px;
         padding: 18px 16px;
         margin-bottom: 10px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
