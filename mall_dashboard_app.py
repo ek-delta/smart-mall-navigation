@@ -1721,6 +1721,14 @@ if "map_pick_mode" not in st.session_state:
     st.session_state.map_pick_mode = False
 if "map_pick_step" not in st.session_state:
     st.session_state.map_pick_step = "START"
+    
+room_keys = list(ROOM_POLYGONS.keys())
+if "selected_start" not in st.session_state and room_keys:
+    st.session_state.selected_start = room_keys[0]
+
+default_lobby_key = "Central Lobby" if "Central Lobby" in ROOM_POLYGONS else (room_keys[0] if room_keys else None)
+if "selected_dest" not in st.session_state:
+    st.session_state.selected_dest = default_lobby_key
 
 with st.sidebar:
     st.header(t["config_header"])
@@ -1849,6 +1857,12 @@ with tab_map:
                 ),
             )
         with col_dest:
+            dest_default_index = (
+                room_options.index("Central Lobby")
+                if "Central Lobby" in room_options
+                else len(room_options) - 1
+            )
+    
             dest_node = st.selectbox(
                 t["dest_loc"],
                 options=room_options,
@@ -1858,7 +1872,7 @@ with tab_map:
                 index=(
                     room_options.index(st.session_state.selected_dest)
                     if st.session_state.selected_dest in room_options
-                    else len(room_options) - 1
+                    else dest_default_index
                 ),
             )
 
@@ -1979,10 +1993,11 @@ with tab_map:
             st.session_state.waypoints = []
             st.session_state.map_pick_mode = False
             st.session_state.map_pick_step = "START"
-            room_keys = list(ROOM_POLYGONS.keys())
-            if room_keys:
-                st.session_state.selected_start = room_keys[0]
-                st.session_state.selected_dest = room_keys[-1] if len(room_keys) > 1 else room_keys[0]       
+            if room_options:
+                st.session_state.selected_start = room_options[0]
+                st.session_state.selected_dest = (
+                    "Central Lobby" if "Central Lobby" in room_options else room_options[0]
+                )
             st.rerun()
 
     if st.session_state.map_pick_mode:
