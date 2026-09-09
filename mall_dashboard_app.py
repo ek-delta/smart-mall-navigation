@@ -1717,7 +1717,7 @@ st.markdown(
     }
 
     /* 1. Target the main sidebar background */
-    section[data-testid="stSidebar"] {
+    section[data-testid="st.sidebar"] {
         background-color: #FF6700 !important; /* Orange */
     }
 
@@ -1727,27 +1727,6 @@ st.markdown(
     section[data-testid="stSidebar"] h3,
     section[data-testid="stSidebar"] label,
     section[data-testid="stSidebar"] .stMarkdown p {
-        color: #000000 !important;
-    }
-
-    /* 3. Target sidebar collapse ('<<') button & expand button (all button variants) */
-    button[data-testid="stSidebarCollapseButton"],
-    button[aria-label="Close sidebar"],
-    button[aria-label="Open sidebar"],
-    div[data-testid="stSidebarHeader"] button {
-        color: #000000 !important;
-    }
-
-    /* 4. Force all nested SVGs, paths, and icons inside the button to render in solid black */
-    button[data-testid="stSidebarCollapseButton"] svg,
-    button[aria-label="Close sidebar"] svg,
-    button[aria-label="Open sidebar"] svg,
-    div[data-testid="stSidebarHeader"] button svg,
-    button[data-testid="stSidebarCollapseButton"] svg path,
-    button[aria-label="Close sidebar"] svg path,
-    div[data-testid="stSidebarHeader"] button svg path {
-        fill: #000000 !important;
-        stroke: #000000 !important;
         color: #000000 !important;
     }
     </style>
