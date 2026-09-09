@@ -1725,12 +1725,12 @@ st.markdown(
     section[data-testid="stSidebar"] .stMarkdown,
     section[data-testid="stSidebar"] label,
     section[data-testid="stSidebar"] header {
-        color: #FFFFFF !important; /* Deep Magenta/Pink for readable text */
+        color: #000000 !important; /* Deep Magenta/Pink for readable text */
     }
 
     /* 3. Style selectbox/dropdown background inside sidebar */
     section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
-        background-color: #000000 !important;
+        background-color: #FFFFFF !important;
         border-color: #000000 !important;
     }
     </style>
