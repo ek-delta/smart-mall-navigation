@@ -1983,28 +1983,11 @@ with tab_map:
                         st.session_state.waypoints.pop(idx)
                         st.rerun()
 
-        # 1. Native header that adapts automatically to Dark/Light theme colors
-        st.markdown(f"### 📍 {t['btn_add_stop_manual']}")
+        if st.button(t["btn_add_stop_manual"], key="add_waypoint"):
+            default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
+            st.session_state.waypoints.append(default_wp)
+            st.rerun()
 
-# 2. Add Stop logic
-        col_wp_select, col_wp_btn = st.columns([0.7, 0.3])
-
-        with col_wp_select:
-            selected_wp = st.selectbox(
-                t["lbl_add_waypoint_manual"],
-                options=room_options,
-                format_func=format_poi_option,
-                key="manual_waypoint_select",
-                label_visibility="collapsed"  # Hides extra selectbox label to keep UI clean
-            )
-   
-        with col_wp_btn:
-            if st.button(t["btn_add_stop_manual"], key="add_waypoint", use_container_width=True):
-                if selected_wp not in st.session_state.waypoints:
-                    st.session_state.waypoints.append(selected_wp)
-                    st.rerun()
-
-            
         st.markdown("---")
 
         route_pref = st.radio(
