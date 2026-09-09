@@ -2004,7 +2004,7 @@ with tab_map:
                         st.session_state.waypoints.pop(idx)
                         st.rerun()
 
-        if st.button(t["btn_add_stop_manual"], type="primary", use_container_width=True, key="add_waypoint"):
+        if st.button(t["btn_add_stop_manual"], type="primary", key="add_waypoint"):
             default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
             st.session_state.waypoints.append(default_wp)
             st.rerun()
