@@ -1972,6 +1972,7 @@ with tab_map:
         else:
             if st.button(t["btn_cancel_interactive"], use_container_width=True):
                 st.session_state.map_pick_mode = False
+                st.session_state.map_pick_step = "START"
                 st.rerun()
 
     with col_btn_clear:
@@ -1984,14 +1985,32 @@ with tab_map:
 
     if st.session_state.map_pick_mode:
         if st.session_state.map_pick_step == "START":
-            st.info(t["pick_step_1"])
+            col_msg, col_skip = st.columns([0.75, 0.25])
+            with col_msg:
+                st.info(f"{t['pick_step_1']} (Current: **{format_location_label(st.session_state.selected_start, st.session_state.lang)}**)")
+            with col_skip:
+                if st.button("⏭️ Keep Current Start", use_container_width=True):
+                    st.session_state.map_pick_step = "WAYPOINT"
+                    st.rerun()
+
         elif st.session_state.map_pick_step == "WAYPOINT":
-            st.warning(t["pick_step_2"])
-            if st.button(t["btn_done_adding_stops"], type="secondary"):
-                st.session_state.map_pick_step = "DEST"
-                st.rerun()
+            col_msg, col_done = st.columns([0.75, 0.25])
+            with col_msg:
+                st.warning(t["pick_step_2"])
+            with col_done:
+                if st.button(t["btn_done_adding_stops"], type="primary", use_container_width=True):
+                    st.session_state.map_pick_step = "DEST"
+                    st.rerun()
+
         elif st.session_state.map_pick_step == "DEST":
-            st.success(t["pick_step_3"])
+            col_msg, col_skip = st.columns([0.75, 0.25])
+            with col_msg:
+                st.success(f"{t['pick_step_3']} (Current: **{format_location_label(st.session_state.selected_dest, st.session_state.lang)}**)")
+            with col_skip:
+                if st.button("⏭️ Keep Current Destination", use_container_width=True):
+                    st.session_state.map_pick_mode = False
+                    st.session_state.map_pick_step = "START"
+                    st.rerun()
 
     selected_data = None
 
