@@ -1859,54 +1859,31 @@ with tab_home:
                 st.session_state.lang, {}
             ).get(cat_key, cat_key)
 
-            st.markdown(
-            f"""
-            <div style="
-                background-color: #D32F2F;
-                color: #FFFFFF;
-                padding: 10px 16px;
-                border-radius: 8px 8px 0px 0px;
-                font-size: 1.1rem;
-                font-weight: bold;
-                margin-top: 14px;
-            ">
-                with st.expander(
-                    f"📁 **{translated_cat}** ({len(room_ids)})", expanded=True
-                ):
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            with st.expander(
+                f"📁 **{translated_cat}** ({len(room_ids)})", expanded=True
+            ):
+                store_cols = st.columns(2)
+                for idx, room_id in enumerate(room_ids):
+                    col = store_cols[idx % 2]
 
-        store_items_html = [
-            '<div style="background-color: #FF9800; padding: 14px 16px; border-radius: 0px 0px 8px 8px; border: 1px solid #E65100;">',
-            '<div style="display: flex; flex-wrap: wrap; margin: -4px;">'
-        ]
+                    icon = get_location_icon(room_id)
+                    z_val = (
+                        int(MULTI_CAD_NODES[room_id][2])
+                        if room_id in MULTI_CAD_NODES
+                        else 0
+                    )
+                    floor_code = (
+                        "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
+                    )
 
-            
-        store_cols = st.columns(2)
-        for idx, room_id in enumerate(room_ids):
-            col = store_cols[idx % 2]
-                
-            icon = get_location_icon(room_id)
-            z_val = (
-                int(MULTI_CAD_NODES[room_id][2])
-                if room_id in MULTI_CAD_NODES
-                else 0
-            )
-            floor_code = (
-                "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
-            )
-            
-            raw_name = POI_TRANSLATIONS.get(
-                st.session_state.lang, {}
-            ).get(room_id, room_id)
-            clean_name = raw_name.split("(")[0].strip()
+                    raw_name = POI_TRANSLATIONS.get(
+                        st.session_state.lang, {}
+                    ).get(room_id, room_id)
+                    clean_name = raw_name.split("(")[0].strip()
 
-            col.markdown(f"- **{clean_name}** `[{floor_code}]`")
+                    col.markdown(f"- **{clean_name}** `[{floor_code}]`")
     else:
         st.info("No store categories defined.")
-
 
     st.divider()
 
