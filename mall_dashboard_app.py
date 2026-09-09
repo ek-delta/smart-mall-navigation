@@ -2014,11 +2014,11 @@ st.session_state.assigned_parking = assigned_slot_id
 st.session_state.entry_path = entry_path
 st.session_state.exit_path = exit_path
 
-    view_type = st.radio(
-        t["view_mode"],
-        options=[t["view_2d"], t["view_3d"]],
-        horizontal=True,
-    )
+view_type = st.radio(
+    t["view_mode"],
+    options=[t["view_2d"], t["view_3d"]],
+    horizontal=True,
+)
 
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
