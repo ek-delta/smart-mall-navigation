@@ -1711,38 +1711,30 @@ def format_location_label(room_id, lang):
 st.markdown(
     """
     <style>
-    /* 1. Top Header Bar (Soft Pink Accent) */
-    header[data-testid="stHeader"] {
-        background-color: #F8BBD0 !important;
+    /* Target the main container holding the tab buttons */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #FF69B4 !important; /* Hot Pink Bar */
+        padding: 8px 12px !important;
+        border-radius: 8px !important;
     }
 
-    /* 2. Main Tab Bar Container (Vibrant Pink Background) */
-    div[data-baseweb="tab-list"] {
-        background-color: #EC407A !important;
-        padding: 8px 14px;
-        border-radius: 10px;
-        gap: 8px;
-    }
-
-    /* 3. Tab Labels (Default White Bold Text) */
-    button[data-baseweb="tab"] {
+    /* Target individual tab text/buttons */
+    .stTabs [data-baseweb="tab"] {
         color: #FFFFFF !important;
-        font-weight: 600;
-        font-size: 15px;
-        border-radius: 6px;
-        padding: 6px 16px;
+        font-weight: bold !important;
+        border-radius: 6px !important;
+        padding: 6px 16px !important;
     }
 
-    /* 4. Active Selected Tab (Deep Rose Pink Highlight) */
-    button[data-baseweb="tab"][aria-selected="true"] {
-        background-color: #AD1457 !important;
+    /* Target the active selected tab */
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        background-color: #C71585 !important; /* Darker Pink for Active Tab */
         color: #FFFFFF !important;
-        border-bottom-color: transparent !important;
     }
 
-    /* 5. Tab Hover Effect (Soft Bright Pink) */
-    button[data-baseweb="tab"]:hover {
-        background-color: #F06292 !important;
+    /* Hover effect for inactive tabs */
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #FF1493 !important;
         color: #FFFFFF !important;
     }
     </style>
