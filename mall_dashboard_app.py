@@ -1707,6 +1707,42 @@ def format_location_label(room_id, lang):
 # 6. UI configuration
 # ==============================================================================
 
+st.markdown(
+    """
+    <style>
+    /* 1. Style the main top header bar */
+    header[data-testid="stHeader"] {
+        background-color: #D32F2F !important; /* Deep Red */
+    }
+
+    /* 2. Style the top navigation tab bar background */
+    div[data-baseweb="tab-list"] {
+        background-color: #B71C1C !important; /* Darker Red */
+        padding: 6px 12px;
+        border-radius: 8px;
+    }
+
+    /* 3. Style default state for tab navigation buttons */
+    button[data-baseweb="tab"] {
+        color: #FFFFFF !important;
+        font-weight: 600;
+    }
+
+    /* 4. Style the active tab highlight indicator and text */
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #FFCDD2 !important; /* Light accent text */
+        border-bottom-color: #FFFFFF !important; /* White active line */
+    }
+
+    /* 5. Style tab hover states */
+    button[data-baseweb="tab"]:hover {
+        color: #FFEBEE !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 t = LOCALIZATION[st.session_state.lang]
 
 home_tab_title = {
