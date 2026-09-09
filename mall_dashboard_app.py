@@ -1729,17 +1729,6 @@ st.markdown(
     section[data-testid="stSidebar"] .stMarkdown p {
         color: #000000 !important;
     }
-
-    /* 3. Target the sidebar toggle button ('<<' / collapse arrow) */
-    button[data-testid="stSidebarCollapseButton"] {
-        color: #000000 !important;
-    }
-
-    /* 4. Ensure icon SVG arrows inside the collapse button render in black */
-    button[data-testid="stSidebarCollapseButton"] svg {
-        fill: #000000 !important;
-        stroke: #000000 !important;
-    }
     </style>
     """,
     unsafe_allow_html=True,
