@@ -1728,6 +1728,26 @@ st.markdown(
     section[data-testid="stSidebar"] .stMarkdown p {
         color: #000000 !important;
     }
+
+    /* Target secondary buttons (like Add Intermediate Stop Manually) */
+    button[kind="secondary"] {
+        color: var(--text-color) !important;
+        background-color: var(--secondary-background-color) !important;
+        border: 1px solid var(--text-color) !important;
+        opacity: 0.9;
+    }
+
+    /* Target hover state while keeping dynamic theme text color */
+    button[kind="secondary"]:hover {
+        color: var(--text-color) !important;
+        border-color: var(--text-color) !important;
+        opacity: 1.0;
+    }
+
+    /* Ensure internal text paragraph inside the button adapts */
+    button[kind="secondary"] p {
+        color: var(--text-color) !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
