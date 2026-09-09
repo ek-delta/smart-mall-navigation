@@ -1741,6 +1741,28 @@ st.markdown(
     }
     </style>
     """,
+
+    """
+    <style>
+    /* 1. Target the main sidebar background */
+    section[data-testid="stSidebar"] {
+        background-color: #F8BBD0 !important; /* Soft Pink */
+    }
+
+    /* 2. Target child elements within the sidebar for proper contrast */
+    section[data-testid="stSidebar"] .stMarkdown,
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] header {
+        color: #880E4F !important; /* Deep Magenta/Pink for readable text */
+    }
+
+    /* 3. Style selectbox/dropdown background inside sidebar */
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+        background-color: #FFFFFF !important;
+        border-color: #C2185B !important;
+    }
+    </style>
+    """,
     unsafe_allow_html=True,
 )
 
