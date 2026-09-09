@@ -1849,18 +1849,17 @@ with tab_home:
 
     st.subheader(category_header)
 
-if "STORE_CATEGORIES" in globals() and STORE_CATEGORIES:
-    categorized_stores = {}
-    for room_id, cat_key in STORE_CATEGORIES.items():
-        categorized_stores.setdefault(cat_key, []).append(room_id)
+    if "STORE_CATEGORIES" in globals() and STORE_CATEGORIES:
+        categorized_stores = {}
+        for room_id, cat_key in STORE_CATEGORIES.items():
+            categorized_stores.setdefault(cat_key, []).append(room_id)
 
-    for cat_key, room_ids in categorized_stores.items():
-        translated_cat = CATEGORY_TRANSLATIONS.get(
-            st.session_state.lang, {}
-        ).get(cat_key, cat_key)
+        for cat_key, room_ids in categorized_stores.items():
+            translated_cat = CATEGORY_TRANSLATIONS.get(
+                st.session_state.lang, {}
+            ).get(cat_key, cat_key)
 
-        # 1. Custom Red Header for Category Expander
-        st.markdown(
+            st.markdown(
             f"""
             <div style="
                 background-color: #D32F2F;
@@ -1869,48 +1868,45 @@ if "STORE_CATEGORIES" in globals() and STORE_CATEGORIES:
                 border-radius: 8px 8px 0px 0px;
                 font-size: 1.1rem;
                 font-weight: bold;
-                margin-top: 12px;
+                margin-top: 14px;
             ">
-                📁 {translated_cat} ({len(room_ids)})
+                with st.expander(
+                    f"📁 **{translated_cat}** ({len(room_ids)})", expanded=True
+                ):
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        # 2. Store Items Container with Orange Background
-        store_items_html = ['<div style="background-color: #FF9800; padding: 16px; border-radius: 0px 0px 8px 8px; color: #000000; border: 1px solid #E65100;">']
-        store_items_html.append('<div style="display: flex; flex-wrap: wrap;">')
+        store_items_html = [
+            '<div style="background-color: #FF9800; padding: 14px 16px; border-radius: 0px 0px 8px 8px; border: 1px solid #E65100;">',
+            '<div style="display: flex; flex-wrap: wrap; margin: -4px;">'
+        ]
 
-        for room_id in room_ids:
-            icon = get_location_icon(room_id)
-            z_val = (
-                int(MULTI_CAD_NODES[room_id][2])
-                if room_id in MULTI_CAD_NODES
-                else 0
-            )
-            floor_code = (
-                "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
-            )
+            
+                store_cols = st.columns(2)
+                for idx, room_id in enumerate(room_ids):
+                    col = store_cols[idx % 2]
 
-            raw_name = POI_TRANSLATIONS.get(
-                st.session_state.lang, {}
-            ).get(room_id, room_id)
-            clean_name = raw_name.split("(")[0].strip()
+                    icon = get_location_icon(room_id)
+                    z_val = (
+                        int(MULTI_CAD_NODES[room_id][2])
+                        if room_id in MULTI_CAD_NODES
+                        else 0
+                    )
+                    floor_code = (
+                        "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
+                    )
 
-            # Render each POI inside an orange background grid cell with black text
-            item_card = f"""
-            <div style="flex: 0 0 50%; max-width: 50%; padding: 4px 8px; box-sizing: border-box; font-size: 0.95rem; color: #000000;">
-                <b>{icon} {clean_name}</b> <code style="background-color: #FFF3E0; color: #D84315; font-weight: bold; padding: 2px 6px; border-radius: 4px;">[{floor_code}]</code>
-            </div>
-            """
-            store_items_html.append(item_card)
+                    raw_name = POI_TRANSLATIONS.get(
+                        st.session_state.lang, {}
+                    ).get(room_id, room_id)
+                    clean_name = raw_name.split("(")[0].strip()
 
-        store_items_html.append('</div></div>')
+                    col.markdown(f"- **{clean_name}** `[{floor_code}]`")
+    else:
+        st.info("No store categories defined.")
 
-        # Render complete category card
-        st.markdown("".join(store_items_html), unsafe_allow_html=True)
-else:
-    st.info("No store categories defined.")
 
     st.divider()
 
