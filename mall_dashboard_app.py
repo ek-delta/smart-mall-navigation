@@ -1879,7 +1879,6 @@ with tab_home:
             store_items_html = ['<div style="background-color: #FF9800; padding: 16px; border-radius: 0px 0px 8px 8px; color: #000000; border: 1px solid #E65100;">']
             store_items_html.append('<div style="display: flex; flex-wrap: wrap;">')
 
-            store_cols = st.columns(2)
                 for idx, room_id in enumerate(room_ids):
                     col = store_cols[idx % 2]
 
