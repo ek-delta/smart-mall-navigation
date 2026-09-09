@@ -1717,7 +1717,7 @@ st.markdown(
     }
 
     /* 1. Target the main sidebar background */
-    section[data-testid="st.sidebar"] {
+    section[data-testid="stSidebar"] {
         background-color: #FF6700 !important; /* Orange */
     }
 
