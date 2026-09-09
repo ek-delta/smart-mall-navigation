@@ -1978,11 +1978,6 @@ with tab_map:
         if st.button(t["btn_reset_all"], use_container_width=True):
             st.session_state.waypoints = []
             st.session_state.map_pick_mode = False
-            if room_options:
-                st.session_state.selected_start = room_options[0]
-                st.session_state.selected_dest = (
-                    "Central Lobby" if "Central Lobby" in room_options else room_options[0]
-                )
             st.rerun()
 
     if st.session_state.map_pick_mode:
