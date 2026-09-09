@@ -1717,7 +1717,7 @@ st.markdown(
 
     /* 1. Target the main sidebar background */
     section[data-testid="stSidebar"] {
-        background-color: #FF9800 !important; /* Orange */
+        background-color: #FF6700 !important; /* Orange */
     }
 
     /* 2. Force Settings header, labels, and text inside sidebar to black */
@@ -1732,8 +1732,8 @@ st.markdown(
     /* Target secondary buttons (like Add Intermediate Stop Manually) */
     button[kind="secondary"] {
         color: var(--text-color) !important;
-        background-color: #FF9800 !important;
-        border: 2px solid #FF9800 !important;
+        background-color: #FF6700 !important;
+        border: 2px solid #FF6700 !important;
         border-radius: 12px;
         opacity: 0.9;
     }
@@ -1757,8 +1757,8 @@ st.markdown(
 def render_orange_card(title, desc):
     card_html = f"""
     <div style="
-        background-color: #FF9800;
-        border: 2px solid #FF9800;
+        background-color: #FF6700;
+        border: 2px solid #FF6700;
         border-radius: 12px;
         padding: 18px 16px;
         margin-bottom: 10px;
@@ -1896,7 +1896,7 @@ with tab_home:
 
           /* Orange background for expanded content container */
           div[data-testid="stExpander"] details div[data-testid="stExpanderDetails"] {
-            background-color: #FF9800 !important;
+            background-color: #FF6700 !important;
             border-radius: 0px 0px 8px 8px !important;
             padding: 16px !important;
             border: 1px solid #E65100 !important;
