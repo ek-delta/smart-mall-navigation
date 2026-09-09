@@ -1707,61 +1707,56 @@ def format_location_label(room_id, lang):
 # 6. UI configuration
 # ==============================================================================
 
-# Custom CSS to integrate the tabs directly into the top red navigation bar
+# Custom CSS: Merges the Streamlit header and main tab bar into a single top red navbar
 st.markdown(
     """
     <style>
-    /* 1. Make the main Streamlit header fixed and tall enough to hold tabs */
+    /* 1. Set top header background to primary red */
     header[data-testid="stHeader"] {
-        background-color: #D32F2F !important; /* Deep Red */
-        height: 3.75rem !important;
-        z-index: 999990 !important;
+        background-color: #B71C1C !important; /* Rich Dark Red */
+        z-index: 999;
     }
 
-    /* 2. Reposition the tab list into the top header container */
-    div[data-testid="stTabs"] > div:first-child {
-        position: fixed !important;
-        top: 0.4rem !important;
-        left: 4rem !important;
-        z-index: 999999 !important;
-        background-color: transparent !important;
-        border-bottom: none !important;
-    }
-
-    /* 3. Style the tab container background */
+    /* 2. Position and style the tab bar to fuse with the header */
     div[data-baseweb="tab-list"] {
-        background-color: #B71C1C !important; /* Darker Red accent background */
-        border-radius: 8px !important;
-        padding: 4px 8px !important;
-        gap: 4px !important;
+        background-color: #B71C1C !important;
+        padding: 8px 16px !important;
+        margin-top: -10px !important;
+        border-bottom: 2px solid #8E0000 !important;
+        gap: 12px;
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
     }
 
-    /* 4. Style tab text and default state */
+    /* 3. Style individual navbar tab buttons */
     button[data-baseweb="tab"] {
+        background-color: rgba(255, 255, 255, 0.1) !important;
         color: #FFFFFF !important;
         font-weight: 600 !important;
-        padding: 6px 14px !important;
         border-radius: 6px !important;
-        border-bottom: none !important;
-        background-color: transparent !important;
+        padding: 8px 16px !important;
+        border: none !important;
+        transition: all 0.2s ease-in-out;
     }
 
-    /* 5. Highlight active tab */
+    /* 4. Active tab highlight inside the red bar */
     button[data-baseweb="tab"][aria-selected="true"] {
-        background-color: #D32F2F !important; /* Matches main header red */
-        color: #FFFFFF !important;
-        box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2) !important;
+        background-color: #FFFFFF !important;
+        color: #B71C1C !important; /* Red text on white active pill */
+        font-weight: 700 !important;
+        box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.2);
     }
 
-    /* 6. Style tab hover effects */
+    /* 5. Hover effects */
     button[data-baseweb="tab"]:hover {
-        background-color: rgba(255, 255, 255, 0.15) !important;
+        background-color: rgba(255, 255, 255, 0.25) !important;
         color: #FFFFFF !important;
     }
 
-    /* 7. Push main content down so it doesn't clip underneath the fixed header */
-    .main .block-container {
-        padding-top: 4rem !important;
+    /* 6. Remove default blue underline highlight from Streamlit tabs */
+    div[data-baseweb="tab-highlight"] {
+        background-color: transparent !important;
     }
     </style>
     """,
