@@ -1712,7 +1712,7 @@ st.markdown(
     <style>
     /* 1. Force top header and padding to blend seamlessly */
     header[data-testid="stHeader"] {
-        background-color: #B71C1C !important;
+        background-color: #D32F2F !important;
         height: 3.5rem !important;
         z-index: 99999 !important;
     }
