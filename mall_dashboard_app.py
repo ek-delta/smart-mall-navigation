@@ -1731,7 +1731,7 @@ st.markdown(
     }
 
     /* Style border containers inside columns as orange cards with black text */
-    div[data-testid="column"] div[data-testid="stVerticalBlockBorderWrapper"] {
+    div[data-testid="stColumns"] div[data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #FF9800 !important; /* Vibrant Orange */
         border: 2px solid #E65100 !important;  /* Dark Orange Border */
         border-radius: 12px !important;
