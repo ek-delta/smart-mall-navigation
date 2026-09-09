@@ -1976,7 +1976,6 @@ with tab_map:
             if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
                 st.session_state.map_pick_mode = True
                 st.session_state.map_pick_step = "START"
-                st.session_state.waypoints = []
                 st.rerun()
         else:
             if st.button(t["btn_cancel_interactive"], use_container_width=True):
