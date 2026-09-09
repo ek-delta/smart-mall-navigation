@@ -1123,8 +1123,8 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
 
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
-    X_MIN, X_MAX = 0, 100  # Replace 500 with your maximum CAD X limit
-    Y_MIN, Y_MAX = 0, 60
+    X_MIN, X_MAX = 0, 500  # Replace 500 with your maximum CAD X limit
+    Y_MIN, Y_MAX = 0, 500
 
     fig.add_trace(
         go.Scatter(
