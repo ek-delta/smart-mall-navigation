@@ -1859,6 +1859,26 @@ with tab_home:
                 st.session_state.lang, {}
             ).get(cat_key, cat_key)
 
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: #D32F2F;
+                    color: #FFFFFF;
+                    padding: 10px 16px;
+                    border-radius: 8px 8px 0px 0px;
+                    font-size: 1.1rem;
+                    font-weight: bold;
+                    margin-top: 12px;
+                ">
+                    📁 {translated_cat} ({len(room_ids)})
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            store_items_html = ['<div style="background-color: #FF9800; padding: 16px; border-radius: 0px 0px 8px 8px; color: #000000; border: 1px solid #E65100;">']
+            store_items_html.append('<div style="display: flex; flex-wrap: wrap;">')
+
             with st.expander(
                 f"📁 **{translated_cat}** ({len(room_ids)})", expanded=True
             ):
@@ -1880,6 +1900,14 @@ with tab_home:
                         st.session_state.lang, {}
                     ).get(room_id, room_id)
                     clean_name = raw_name.split("(")[0].strip()
+
+                    item_card = f"""
+                    <div style="flex: 0 0 50%; max-width: 50%; padding: 4px 8px; box-sizing: border-box; font-size: 0.95rem; color: #000000;">
+                        <b>{icon} {clean_name}</b> <code style="background-color: #FFF3E0; color: #D84315; font-weight: bold; padding: 2px 6px; border-radius: 4px;">[{floor_code}]</code>
+                    </div>
+                    """
+                    store_items_html.append(item_card)
+                    store_items_html.append('</div></div>')
 
                     col.markdown(f"- **{clean_name}** `[{floor_code}]`")
     else:
