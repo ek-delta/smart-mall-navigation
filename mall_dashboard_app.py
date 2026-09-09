@@ -1721,17 +1721,24 @@ st.markdown(
         background-color: #FF6700 !important; /* Orange */
     }
 
-    /* 2. Target child elements within the sidebar for proper contrast */
-    section[data-testid="stSidebar"] .stMarkdown,
+    /* 2. Force Settings header, labels, and text inside sidebar to black */
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3,
     section[data-testid="stSidebar"] label,
-    section[data-testid="stSidebar"] header {
-        color: #000000 !important; /* Deep Magenta/Pink for readable text */
+    section[data-testid="stSidebar"] .stMarkdown p {
+        color: #000000 !important;
     }
 
-    /* 3. Style selectbox/dropdown background inside sidebar */
-    section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
-        background-color: #FFFFFF !important;
-        border-color: #000000 !important;
+    /* 3. Target the sidebar toggle button ('<<' / collapse arrow) */
+    button[data-testid="stSidebarCollapseButton"] {
+        color: #000000 !important;
+    }
+
+    /* 4. Ensure icon SVG arrows inside the collapse button render in black */
+    button[data-testid="stSidebarCollapseButton"] svg {
+        fill: #000000 !important;
+        stroke: #000000 !important;
     }
     </style>
     """,
