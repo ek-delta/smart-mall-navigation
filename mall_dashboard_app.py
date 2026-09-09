@@ -1738,10 +1738,7 @@ st.markdown(
 
     button[kind="primary"]:hover {
         background-color: #E55451 !important;
-        color: #000000 !important;
-    }
-
-    button[kind="primary"] p {
+        border: 1px solid #E55451 !important;
         color: #000000 !important;
     }
     </style>
