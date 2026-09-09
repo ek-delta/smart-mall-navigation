@@ -1711,57 +1711,39 @@ def format_location_label(room_id, lang):
 st.markdown(
     """
     <style>
-    /* 1. Set full top header background to Red */
+    /* 1. Top Header Bar (Soft Pink Accent) */
     header[data-testid="stHeader"] {
-        background-color: #D32F2F !important;
-        height: 3.75rem !important;
-        z-index: 999990 !important;
+        background-color: #F8BBD0 !important;
     }
 
-    /* 2. Color and align the sidebar toggle arrow inside the header */
-    header[data-testid="stHeader"] button[data-testid="baseButton-header"],
-    header[data-testid="stHeader"] [data-testid="stSidebarCollapseButton"] button {
-        color: #FFFFFF !important;
-        background-color: transparent !important;
-    }
-    header[data-testid="stHeader"] button[data-testid="baseButton-header"]:hover {
-        background-color: rgba(255, 255, 255, 0.2) !important;
-    }
-
-    /* 3. Sticky top navigation tab container attached under header */
+    /* 2. Main Tab Bar Container (Vibrant Pink Background) */
     div[data-baseweb="tab-list"] {
-        position: sticky;
-        top: 3.75rem;
-        z-index: 999980;
-        background-color: #B71C1C !important; /* Darker red matching top header */
-        padding: 4px 16px;
-        margin-top: -1rem;
-        margin-bottom: 1.5rem;
-        border-radius: 0px 0px 10px 10px;
-        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
+        background-color: #EC407A !important;
+        padding: 8px 14px;
+        border-radius: 10px;
+        gap: 8px;
     }
 
-    /* 4. Tab Button Typography & Styling */
+    /* 3. Tab Labels (Default White Bold Text) */
     button[data-baseweb="tab"] {
-        color: #FFCDD2 !important; /* Soft white-pink inactive text */
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-        padding: 8px 16px !important;
-        border-bottom: 3px solid transparent !important;
+        color: #FFFFFF !important;
+        font-weight: 600;
+        font-size: 15px;
+        border-radius: 6px;
+        padding: 6px 16px;
     }
 
-    /* 5. Active Tab Highlight */
+    /* 4. Active Selected Tab (Deep Rose Pink Highlight) */
     button[data-baseweb="tab"][aria-selected="true"] {
+        background-color: #AD1457 !important;
         color: #FFFFFF !important;
-        border-bottom: 3px solid #FFFFFF !important;
-        background-color: rgba(255, 255, 255, 0.12) !important;
-        border-radius: 6px 6px 0px 0px;
+        border-bottom-color: transparent !important;
     }
 
-    /* 6. Hover States */
+    /* 5. Tab Hover Effect (Soft Bright Pink) */
     button[data-baseweb="tab"]:hover {
+        background-color: #F06292 !important;
         color: #FFFFFF !important;
-        background-color: rgba(255, 255, 255, 0.08) !important;
     }
     </style>
     """,
