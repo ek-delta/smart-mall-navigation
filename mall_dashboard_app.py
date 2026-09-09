@@ -455,9 +455,9 @@ if "clicked_location" not in st.session_state:
 
 DATASET_PATHS = ["/content/drive/MyDrive/FYP Smart Navigation/train-00", "./train-01", "./test-00"]
 
- ==============================================================================
- 2. Navigation nodes and boundaries
- ==============================================================================
+# ==============================================================================
+# 2. Navigation nodes and boundaries
+# ==============================================================================
 
 LOCATION_ICONS = {
     "Fashion": "👗",
