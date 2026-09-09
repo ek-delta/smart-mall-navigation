@@ -1742,7 +1742,7 @@ st.markdown(
 
     /* 1. Target the main sidebar background */
     section[data-testid="stSidebar"] {
-        background-color: #F8BBD0 !important; /* Soft Pink */
+        background-color: #FF8C00 !important; /* Orange */
     }
 
     /* 2. Target child elements within the sidebar for proper contrast */
