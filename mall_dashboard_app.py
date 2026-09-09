@@ -2004,15 +2004,15 @@ for i in range(len(resolved_route_sequence) - 1):
         break
 path = full_path
 
-assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
-    "P_L3_Driveway_Entrance",
-    MULTI_CAD_GRAPH,
-    MULTI_CAD_NODES,
-    accessible_only=accessible_flag,
-)
-st.session_state.assigned_parking = assigned_slot_id
-st.session_state.entry_path = entry_path
-st.session_state.exit_path = exit_path
+    assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
+        "P_L3_Driveway_Entrance",
+        MULTI_CAD_GRAPH,
+        MULTI_CAD_NODES,
+        accessible_only=accessible_flag,
+    )
+    st.session_state.assigned_parking = assigned_slot_id
+    st.session_state.entry_path = entry_path
+    st.session_state.exit_path = exit_path
 
     view_type = st.radio(
         t["view_mode"],
