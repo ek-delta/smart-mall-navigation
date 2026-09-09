@@ -1870,7 +1870,7 @@ with tab_home:
                     font-weight: bold;
                     margin-top: 12px;
                 ">
-                    📁 {translated_cat} ({len(room_ids)})
+                    📁 {translated_cat} ({len(room_ids)}), expanded=True
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1879,9 +1879,6 @@ with tab_home:
             store_items_html = ['<div style="background-color: #FF9800; padding: 16px; border-radius: 0px 0px 8px 8px; color: #000000; border: 1px solid #E65100;">']
             store_items_html.append('<div style="display: flex; flex-wrap: wrap;">')
 
-            with st.expander(
-                f"📁 **{translated_cat}** ({len(room_ids)})", expanded=True
-            ):
                 store_cols = st.columns(2)
                 for idx, room_id in enumerate(room_ids):
                     col = store_cols[idx % 2]
