@@ -1717,7 +1717,7 @@ st.markdown(
 
     /* 1. Target the main sidebar background */
     section[data-testid="stSidebar"] {
-        background-color: #FF6700 !important; /* Orange */
+        background-color: #FF9800 !important; /* Orange */
     }
 
     /* 2. Force Settings header, labels, and text inside sidebar to black */
@@ -1736,7 +1736,7 @@ st.markdown(
 def render_orange_card(title, desc):
     card_html = f"""
     <div style="
-        background-color: #FF6700;
+        background-color: #FF9800;
         border: 2px solid #FF6700;
         border-radius: 12px;
         padding: 18px 16px;
