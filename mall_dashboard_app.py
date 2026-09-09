@@ -1729,25 +1729,20 @@ st.markdown(
         color: #000000 !important;
     }
 
-    /* Target secondary buttons (like Add Intermediate Stop Manually) */
-    button[kind="secondary"] {
-        color: var(--text-color) !important;
-        background-color: #FF6700 !important;
-        border: 2px solid #FF6700 !important;
-        border-radius: 12px;
-        opacity: 0.9;
+    button[kind="primary"] {
+        background-color: #D32F2F !important;
+        color: #FFFFFF !important;           
+        border: 1px solid #D32F2F !important;
+        font-weight: 600 !important;
     }
 
-    /* Target hover state while keeping dynamic theme text color */
-    button[kind="secondary"]:hover {
-        color: var(--text-color) !important;
-        border-color: var(--text-color) !important;
-        opacity: 1.0;
+    button[kind="primary"]:hover {
+        background-color: #E55451 !important;
+        color: #000000 !important;
     }
 
-    /* Ensure internal text paragraph inside the button adapts */
-    button[kind="secondary"] p {
-        color: var(--text-color) !important;
+    button[kind="primary"] p {
+        color: #000000 !important;
     }
     </style>
     """,
