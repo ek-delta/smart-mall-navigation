@@ -2047,7 +2047,7 @@ if st.session_state.map_pick_mode:
         if st.button(t["btn_done_adding_stops"], type="secondary"):
             st.session_state.map_pick_step = "DEST"
             st.rerun()
-        elif st.session_state.map_pick_step == "DEST":
+    elif st.session_state.map_pick_step == "DEST":
         st.success(t["pick_step_3"])
 
 selected_data = None
