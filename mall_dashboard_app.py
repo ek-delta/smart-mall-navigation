@@ -1830,7 +1830,6 @@ with tab_home:
 
 # Mall map tab
 with tab_map:
-    # Route Controls expander inside the Map tab
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
 
@@ -1866,7 +1865,6 @@ with tab_map:
         st.session_state.selected_start = start_node
         st.session_state.selected_dest = dest_node
 
-        # Intermediate Stops (Waypoints)
         if st.session_state.waypoints:
             st.markdown(t["intermediate_stops"])
 
@@ -1923,7 +1921,6 @@ with tab_map:
         )
         st.info(f"{t['current_route_lbl']}: {route_display_str}")
 
-    # Multi-segment path calculation using Theta*
     full_path = []
     for i in range(len(full_route_sequence) - 1):
         segment_start = full_route_sequence[i]
@@ -1981,6 +1978,11 @@ with tab_map:
         if st.button(t["btn_reset_all"], use_container_width=True):
             st.session_state.waypoints = []
             st.session_state.map_pick_mode = False
+            st.session_state.map_pick_step = "START"
+            room_keys = list(ROOM_POLYGONS.keys())
+            if room_keys:
+                st.session_state.selected_start = room_keys[0]
+                st.session_state.selected_dest = room_keys[-1] if len(room_keys) > 1 else room_keys[0]       
             st.rerun()
 
     if st.session_state.map_pick_mode:
