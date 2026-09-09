@@ -1707,60 +1707,61 @@ def format_location_label(room_id, lang):
 # 6. UI configuration
 # ==============================================================================
 
+# Custom CSS: Unified Red Top Navigation Bar
 st.markdown(
     """
     <style>
-    /* 1. Force top header and padding to blend seamlessly */
+    /* 1. Set full top header background to Red */
     header[data-testid="stHeader"] {
         background-color: #D32F2F !important;
-        height: 3.5rem !important;
-        z-index: 99999 !important;
+        height: 3.75rem !important;
+        z-index: 999990 !important;
     }
 
-    /* 2. Remove default top padding from main container so tabs pull directly into top bar */
-    .main .block-container {
-        padding-top: 1rem !important;
-    }
-
-    /* 3. Style and elevate the Tab list wrapper */
-    div[data-baseweb="tab-list"], [data-testid="stTabs"] > div:first-child {
-        background-color: #B71C1C !important;
-        padding: 6px 16px !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.15) !important;
-        gap: 8px !important;
-    }
-
-    /* 4. Target tab button elements directly */
-    button[role="tab"], div[data-baseweb="tab"] {
-        background-color: rgba(255, 255, 255, 0.15) !important;
+    /* 2. Color and align the sidebar toggle arrow inside the header */
+    header[data-testid="stHeader"] button[data-testid="baseButton-header"],
+    header[data-testid="stHeader"] [data-testid="stSidebarCollapseButton"] button {
         color: #FFFFFF !important;
-        border-radius: 6px !important;
-        border: none !important;
-        padding: 8px 16px !important;
+        background-color: transparent !important;
+    }
+    header[data-testid="stHeader"] button[data-testid="baseButton-header"]:hover {
+        background-color: rgba(255, 255, 255, 0.2) !important;
+    }
+
+    /* 3. Sticky top navigation tab container attached under header */
+    div[data-baseweb="tab-list"] {
+        position: sticky;
+        top: 3.75rem;
+        z-index: 999980;
+        background-color: #B71C1C !important; /* Darker red matching top header */
+        padding: 4px 16px;
+        margin-top: -1rem;
+        margin-bottom: 1.5rem;
+        border-radius: 0px 0px 10px 10px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
+    }
+
+    /* 4. Tab Button Typography & Styling */
+    button[data-baseweb="tab"] {
+        color: #FFCDD2 !important; /* Soft white-pink inactive text */
         font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        padding: 8px 16px !important;
+        border-bottom: 3px solid transparent !important;
     }
 
-    /* 5. Active Tab styling (White pill with red text) */
-    button[role="tab"][aria-selected="true"], div[data-baseweb="tab"][aria-selected="true"] {
-        background-color: #FFFFFF !important;
-        color: #B71C1C !important;
-        font-weight: 700 !important;
-    }
-
-    /* 6. Active Tab text inner element override */
-    button[role="tab"][aria-selected="true"] p, button[role="tab"][aria-selected="true"] span {
-        color: #B71C1C !important;
-    }
-
-    /* 7. Default Tab text inner element override */
-    button[role="tab"] p, button[role="tab"] span {
+    /* 5. Active Tab Highlight */
+    button[data-baseweb="tab"][aria-selected="true"] {
         color: #FFFFFF !important;
+        border-bottom: 3px solid #FFFFFF !important;
+        background-color: rgba(255, 255, 255, 0.12) !important;
+        border-radius: 6px 6px 0px 0px;
     }
 
-    /* 8. Hide Streamlit's native blue sliding underline indicator */
-    div[data-baseweb="tab-borderBar"], div[data-baseweb="tab-highlight"] {
-        display: none !important;
+    /* 6. Hover States */
+    button[data-baseweb="tab"]:hover {
+        color: #FFFFFF !important;
+        background-color: rgba(255, 255, 255, 0.08) !important;
     }
     </style>
     """,
