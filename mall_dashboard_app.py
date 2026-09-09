@@ -1739,11 +1739,7 @@ st.markdown(
     button[data-baseweb="tab"]:hover {
         color: #FFEBEE !important;
     }
-    </style>
-    """,
 
-    """
-    <style>
     /* 1. Target the main sidebar background */
     section[data-testid="stSidebar"] {
         background-color: #F8BBD0 !important; /* Soft Pink */
