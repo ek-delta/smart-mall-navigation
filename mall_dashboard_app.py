@@ -1729,28 +1729,39 @@ st.markdown(
     section[data-testid="stSidebar"] .stMarkdown p {
         color: #000000 !important;
     }
-
-    /* Style border containers inside columns as orange cards with black text */
-    div[data-testid="stColumns"] div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #FF9800 !important; /* Vibrant Orange */
-        border: 2px solid #E65100 !important;  /* Dark Orange Border */
-        border-radius: 12px !important;
-        padding: 16px !important;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    /* Force all headings, text, and icons within feature containers to solid black */
-    div[data-testid="column"] div[data-testid="stVerticalBlockBorderWrapper"] h1,
-    div[data-testid="column"] div[data-testid="stVerticalBlockBorderWrapper"] h2,
-    div[data-testid="column"] div[data-testid="stVerticalBlockBorderWrapper"] h3,
-    div[data-testid="column"] div[data-testid="stVerticalBlockBorderWrapper"] p,
-    div[data-testid="column"] div[data-testid="stVerticalBlockBorderWrapper"] span {
-        color: #000000 !important;
-    }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+def render_orange_card(title, desc):
+    card_html = f"""
+    <div style="
+        background-color: #FF9800;
+        border: 2px solid #E65100;
+        border-radius: 12px;
+        padding: 18px 16px;
+        margin-bottom: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        color: #000000;
+        height: 100%;
+    ">
+        <h3 style="
+            color: #000000 !important;
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+            font-weight: 700;
+        ">{title}</h3>
+        <p style="
+            color: #000000 !important;
+            margin: 0;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        ">{desc}</p>
+    </div>
+    """
+    st.markdown(card_html, unsafe_allow_html=True)
 
 t = LOCALIZATION[st.session_state.lang]
 
@@ -1805,19 +1816,13 @@ with tab_home:
     col_f1, col_f2, col_f3 = st.columns(3)
 
     with col_f1:
-        with st.container(border=True):
-            st.subheader(t["feat_map_title"])
-            st.write(t["feat_map_desc"])
+        render_orange_card(t["feat_map_title"], t["feat_map_desc"])
 
     with col_f2:
-        with st.container(border=True):
-            st.subheader(t["feat_turn_title"])
-            st.write(t["feat_turn_desc"])
+        render_orange_card(t["feat_turn_title"], t["feat_turn_desc"])
 
     with col_f3:
-        with st.container(border=True):
-            st.subheader(t["feat_park_title"])
-            st.write(t["feat_park_desc"])
+        render_orange_card(t["feat_park_title"], t["feat_park_desc"])
         
     st.divider()
 
