@@ -1732,8 +1732,9 @@ st.markdown(
     /* Target secondary buttons (like Add Intermediate Stop Manually) */
     button[kind="secondary"] {
         color: var(--text-color) !important;
-        background-color: var(--secondary-background-color) !important;
-        border: 1px solid var(--text-color) !important;
+        background-color: #FF9800 !important;
+        border: 2px solid #FF9800 !important;
+        border-radius: 12px;
         opacity: 0.9;
     }
 
@@ -2003,7 +2004,7 @@ with tab_map:
                         st.session_state.waypoints.pop(idx)
                         st.rerun()
 
-        if st.button(t["btn_add_stop_manual"], key="add_waypoint"):
+        if st.button(t["btn_add_stop_manual"], type="primary", use_container_width=True, key="add_waypoint"):
             default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
             st.session_state.waypoints.append(default_wp)
             st.rerun()
