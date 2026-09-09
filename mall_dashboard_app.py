@@ -1870,7 +1870,7 @@ with tab_home:
                     font-weight: bold;
                     margin-top: 12px;
                 ">
-                    📁 {translated_cat} ({len(room_ids)}), expanded=True
+                    📁 {translated_cat} ({len(room_ids)})
                 </div>
                 """,
                 unsafe_allow_html=True,
