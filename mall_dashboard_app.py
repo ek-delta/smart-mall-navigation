@@ -1109,22 +1109,32 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
-    for room_id, coords in floor_rooms.items():
-        x_coords = [c[0] for c in coords] + [coords[0][0]]
-        y_coords = [c[1] for c in coords] + [coords[0][1]]
-        room_info = ROOM_POLYGONS[room_id]
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+    for room_id, geom in ROOM_POLYGONS.items():
+        # Filter rooms by selected floor
+        if f"_L{floor}_" not in room_id:
+            continue
 
+        coords = geom.get("coords", [])
+        if not coords:
+            continue
+
+        # Close the polygon loop (connect last point back to first)
+        x_pts = [p[0] for p in coords] + [coords[0][0]]
+        y_pts = [p[1] for p in coords] + [coords[0][1]]
+
+        # Render room polygon as interactive Scatter trace
         fig.add_trace(
             go.Scatter(
-                x=x_coords,
-                y=y_coords,
-                fill="toself",
-                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
-                line=dict(color="#4A5568", width=1.5),
+                x=x_pts,
+                y=y_pts,
+                fill="toself",  # Fills the interior of the polygon
+                fillcolor="#EFEFEF",
+                line=dict(color="#888888", width=1),
+                mode="lines",
+                name=room_id,
+                customdata=[room_id] * len(x_pts),  # Sends room_id on click
                 hoverinfo="text",
-                text=translated_name,
-                customdata=[room_id] * len(x_coords),
+                text=format_location_label(room_id, current_lang),
                 showlegend=False,
             )
         )
@@ -1257,8 +1267,9 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         showlegend=False,
         plot_bgcolor="#FFB6C1",
         paper_bgcolor="#000000",
-        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
-        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
+        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000", visible=False),
+        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", visible=False, scaleanchor="x", scaleratio=1),
+        margin=dict(l=10, r=10, t=10, b=10),
     )
 
     return fig
