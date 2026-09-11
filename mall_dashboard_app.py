@@ -1703,7 +1703,6 @@ def format_location_label(room_id, lang):
 
     return f"[{floor_code}] {clean_name}"
 
-app = Dash(__name__)
 
 # Distance scale ratio (e.g., 1 unit on grid = 1 meter in real life)
 METERS_PER_UNIT = 1.0
