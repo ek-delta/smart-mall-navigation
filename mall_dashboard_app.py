@@ -3,6 +3,7 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
+import numpy as np
 
 # ==============================================================================
 # 1. Translation table
@@ -460,6 +461,12 @@ if "exit_path" not in st.session_state:
     st.session_state.exit_path = []
 if "clicked_location" not in st.session_state:
     st.session_state.clicked_location = None
+if "pin_start" not in st.session_state:
+    st.session_state.pin_start = None  # (x, y, z)
+if "pin_end" not in st.session_state:
+    st.session_state.pin_end = None    # (x, y, z)
+if "measuring_mode" not in st.session_state:
+    st.session_state.measuring_mode = False
 
 DATASET_PATHS = ["/content/drive/MyDrive/FYP Smart Navigation/train-00", "./train-01", "./test-00"]
 
@@ -1480,6 +1487,63 @@ def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang
     )
     return fig
 
+
+def overlay_measurement_pins(fig, p1, p2, is_3d=False):
+    """Draws custom user pins and direct distance polyline without snapping."""
+    if p1:
+        if is_3d:
+            fig.add_trace(go.Scatter3d(
+                x=[p1[0]], y=[p1[1]], z=[p1[2]],
+                mode="markers+text",
+                marker=dict(size=8, color="#00E676", symbol="diamond"),
+                text=["📍 Start Pin"], textposition="top center",
+                name="Start Pin"
+            ))
+        else:
+            fig.add_trace(go.Scatter(
+                x=[p1[0]], y=[p1[1]],
+                mode="markers+text",
+                marker=dict(size=12, color="#00E676", symbol="star"),
+                text=["📍 Start Pin"], textposition="top center",
+                name="Start Pin"
+            ))
+
+    if p2:
+        if is_3d:
+            fig.add_trace(go.Scatter3d(
+                x=[p2[0]], y=[p2[1]], z=[p2[2]],
+                mode="markers+text",
+                marker=dict(size=8, color="#FF1744", symbol="diamond"),
+                text=["🎯 End Pin"], textposition="top center",
+                name="End Pin"
+            ))
+        else:
+            fig.add_trace(go.Scatter(
+                x=[p2[0]], y=[p2[1]],
+                mode="markers+text",
+                marker=dict(size=12, color="#FF1744", symbol="star"),
+                text=["🎯 End Pin"], textposition="top center",
+                name="End Pin"
+            ))
+
+    if p1 and p2:
+        # Draw straight line between raw point 1 and point 2
+        if is_3d:
+            fig.add_trace(go.Scatter3d(
+                x=[p1[0], p2[0]], y=[p1[1], p2[1]], z=[p1[2], p2[2]],
+                mode="lines",
+                line=dict(color="#00E5FF", width=6, dash="dash"),
+                name="Measured Direct Path"
+            ))
+        else:
+            fig.add_trace(go.Scatter(
+                x=[p1[0], p2[0]], y=[p1[1], p2[1]],
+                mode="lines",
+                line=dict(color="#00E5FF", width=4, dash="dash"),
+                name="Measured Direct Path"
+            ))
+    return fig
+
 # ==============================================================================
 # 5. Step-by-step directions and smart parking
 # ==============================================================================
@@ -2079,126 +2143,94 @@ with tab_map:
         horizontal=True,
     )
 
-    col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
-    with col_btn_pick:
-        if not st.session_state.map_pick_mode:
-            if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
-                st.session_state.map_pick_mode = True
-                st.session_state.map_pick_step = "START"
-                st.rerun()
-        else:
-            if st.button(t["btn_cancel_interactive"], use_container_width=True):
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
-
-    with col_btn_clear:
-        if st.button(t["btn_reset_all"], use_container_width=True):
-            st.session_state.waypoints = []
-            st.session_state.map_pick_mode = False
-            st.session_state.selected_start = "A_L0_Entrance"
-            st.session_state.selected_dest = "A_L0_Lobby"
-            st.rerun()
-
-    if st.session_state.map_pick_mode:
-        curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
-        curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
-
-        if st.session_state.map_pick_step == "START":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.info(f"{t['pick_step_1']} ({t['lbl_current']}: **{curr_start_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_start"], use_container_width=True):
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "WAYPOINT":
-            col_msg, col_done = st.columns([0.72, 0.28])
-            with col_msg:
-                st.warning(t["pick_step_2"])
-            with col_done:
-                if st.button(t["btn_done_adding_stops"], type="primary", use_container_width=True):
-                    st.session_state.map_pick_step = "DEST"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "DEST":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.success(f"{t['pick_step_3']} ({t['lbl_current']}: **{curr_dest_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_dest"], use_container_width=True):
-                    st.session_state.map_pick_mode = False
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-
-    selected_data = None
-
-    if view_type == t["view_2d"]:
-        floor_select = st.selectbox(
-            t["active_floor"],
-            options=[0, 1, 2, 3],
-            format_func=lambda x: get_translated_floor_name(
-                x, lang=st.session_state.lang
-            ),
-        )
-        fig_2d = render_2d_cad_view(
-            floor_select, route_path=path, current_lang=st.session_state.lang
-        )
-
-        selected_data = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
+    # --- Map Controls for Distance Measurement Tool ---
+col_measure, col_reset_measure = st.columns([0.7, 0.3])
+with col_measure:
+    if st.checkbox("📏 Free-Click Distance Measurement Mode", value=st.session_state.measuring_mode):
+        st.session_state.measuring_mode = True
     else:
-        fig_3d = render_3d_isometric_view(
-            route_path=path, current_lang=st.session_state.lang
-        )
-        selected_data = st.plotly_chart(
-            fig_3d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
+        st.session_state.measuring_mode = False
 
-    if (
-        st.session_state.map_pick_mode
-        and selected_data
-        and "selection" in selected_data
-        and selected_data["selection"]["points"]
-    ):
-        point = selected_data["selection"]["points"][0]
-        clicked_id = None
+with col_reset_measure:
+    if st.button("🧹 Clear Measurement Pins", use_container_width=True):
+        st.session_state.pin_start = None
+        st.session_state.pin_end = None
+        st.rerun()
 
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(
-                    st.session_state.lang, {}
-                ).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
+# --- Render Map Figure ---
+is_3d_mode = (view_type == t["view_3d"])
 
-        if clicked_id and clicked_id in ROOM_POLYGONS:
-            if st.session_state.map_pick_step == "START":
-                st.session_state.selected_start = clicked_id
-                st.session_state.map_pick_step = "WAYPOINT"
+if not is_3d_mode:
+    fig_map = render_2d_cad_view(
+        floor_select, route_path=path, current_lang=st.session_state.lang
+    )
+else:
+    fig_map = render_3d_isometric_view(
+        route_path=path, current_lang=st.session_state.lang
+    )
+
+# Apply measurement pins to figure
+fig_map = overlay_measurement_pins(
+    fig_map, 
+    st.session_state.pin_start, 
+    st.session_state.pin_end, 
+    is_3d=is_3d_mode
+)
+
+selected_data = st.plotly_chart(
+    fig_map,
+    use_container_width=True,
+    on_select="rerun",
+    selection_mode="points",
+)
+
+# --- Handle Click Logic (Raw CAD Coordinate Capture) ---
+if selected_data and "selection" in selected_data and selected_data["selection"]["points"]:
+    point = selected_data["selection"]["points"][0]
+    
+    # Extract raw geometric coordinates without snapping to room/node lists
+    raw_x = point.get("x")
+    raw_y = point.get("y")
+    raw_z = point.get("z", floor_select if not is_3d_mode else 0)
+
+    if raw_x is not None and raw_y is not None:
+        clicked_exact_point = (float(raw_x), float(raw_y), float(raw_z))
+
+        if st.session_state.measuring_mode:
+            # Pin measurement state machine
+            if st.session_state.pin_start is None:
+                st.session_state.pin_start = clicked_exact_point
+                st.rerun()
+            elif st.session_state.pin_end is None and clicked_exact_point != st.session_state.pin_start:
+                st.session_state.pin_end = clicked_exact_point
+                st.rerun()
+            else:
+                # Reset and start new measurement on 3rd click
+                st.session_state.pin_start = clicked_exact_point
+                st.session_state.pin_end = None
                 st.rerun()
 
-            elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(clicked_id)
-                st.rerun()
-
-            elif st.session_state.map_pick_step == "DEST":
-                st.session_state.selected_dest = clicked_id
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
+# --- Distance Calculation Metric Display ---
+if st.session_state.pin_start or st.session_state.pin_end:
+    st.markdown("### 📏 Direct Distance Measurement")
+    c_p1, c_p2, c_dist = st.columns(3)
+    
+    p1_str = f"({st.session_state.pin_start[0]:.2f}, {st.session_state.pin_start[1]:.2f})" if st.session_state.pin_start else "Not Clicked"
+    p2_str = f"({st.session_state.pin_end[0]:.2f}, {st.session_state.pin_end[1]:.2f})" if st.session_state.pin_end else "Not Clicked"
+    
+    c_p1.metric("Start Point (X, Y)", p1_str)
+    c_p2.metric("End Point (X, Y)", p2_str)
+    
+    if st.session_state.pin_start and st.session_state.pin_end:
+        p1 = np.array(st.session_state.pin_start)
+        p2 = np.array(st.session_state.pin_end)
+        
+        # Calculate true Euclidean distance in CAD units (meters)
+        direct_cad_dist = np.linalg.norm(p1 - p2)
+        
+        c_dist.metric("Direct Euclidean Distance", f"{direct_cad_dist:.2f} m")
+    else:
+        c_dist.metric("Direct Euclidean Distance", "Awaiting 2nd Pin")
 
 # Directions tab
 with tab_dir:
