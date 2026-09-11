@@ -1249,6 +1249,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
+        clickmode='event+select',
         height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
