@@ -1251,6 +1251,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
 
     fig.update_layout(
         clickmode="event+select",
+        dragmode="pan",
         height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
@@ -2196,21 +2197,20 @@ with tab_map:
             selection_mode="points",
         )
 
+    # Extract selection/click event data
     if (
         st.session_state.map_pick_mode
         and selected_data
         and "selection" in selected_data
-        and selected_data["selection"]["points"]
+        and selected_data["selection"].get("points")
     ):
         point = selected_data["selection"]["points"][0]
         clicked_id = None
 
-        # 1. Direct customdata match (Existing Trace Point)
+        # Method A: Try direct room match via customdata or text
         if "customdata" in point and point["customdata"]:
             c_data = point["customdata"]
-            clicked_id = c_data[0] if isinstance(c_data, list) else c_data
-
-        # 2. Text match (Fallback Trace Point)
+            clicked_id = c_data[0] if isinstance(c_data, (list, tuple)) else c_data
         elif "text" in point:
             raw_text = point["text"]
             for room_key in ROOM_POLYGONS.keys():
@@ -2221,16 +2221,33 @@ with tab_map:
                     clicked_id = room_key
                     break
 
-        # 3. CLICK ANYWHERE FALLBACK (Calculates nearest room from raw X, Y coordinates)
+        # Method B: Fallback - Extract raw (X, Y) coordinates anywhere on the map
         if not clicked_id or clicked_id not in ROOM_POLYGONS:
             click_x = point.get("x")
             click_y = point.get("y")
 
             if click_x is not None and click_y is not None:
                 current_floor = floor_select if view_type == t["view_2d"] else None
-                clicked_id = get_nearest_room(click_x, click_y, active_floor=current_floor)
+                
+                # Find nearest room ID to clicked (X, Y)
+                best_room = None
+                min_dist = float("inf")
+                
+                for r_id, node_data in MULTI_CAD_NODES.items():
+                    # Filter by floor in 2D view if node has floor info
+                    if current_floor is not None and node_data.get("floor") != current_floor:
+                        continue
+                    
+                    nx, ny = node_data.get("x", 0), node_data.get("y", 0)
+                    dist = ((click_x - nx) ** 2 + (click_y - ny) ** 2) ** 0.5
+                    
+                    if dist < min_dist:
+                        min_dist = dist
+                        best_room = r_id
+                
+                clicked_id = best_room
 
-        # Process the resolved room ID into Start, Waypoint, or Destination
+        # Update Start / Waypoint / Destination state
         if clicked_id and clicked_id in ROOM_POLYGONS:
             if st.session_state.map_pick_step == "START":
                 st.session_state.selected_start = clicked_id
