@@ -2023,6 +2023,23 @@ with tab_map:
             ]
         )
         st.info(f"{t['current_route_lbl']}: {route_display_str}")
+        
+        st.markdown(
+            f"""
+            <div style="
+                background-color: #E91E63;
+                color: #FFFFFF;
+                padding: 12px 16px;
+                border-radius: 8px;
+                font-size: 0.95rem;
+                margin-top: 10px;
+                margin-bottom: 10px;
+            ">
+                <strong>{t['current_route_lbl']}:</strong> {route_display_str}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     full_path = []
     for i in range(len(full_route_sequence) - 1):
@@ -2357,6 +2374,3 @@ if __name__ == "__main__":
     if "initialized" not in st.session_state:
         st.session_state.initialized = True
     render_system_footer()
-
-
-
