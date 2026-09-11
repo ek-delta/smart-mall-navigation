@@ -1703,6 +1703,14 @@ def format_location_label(room_id, lang):
 
     return f"[{floor_code}] {clean_name}"
 
+def calculate_exact_distance(p1, p2):
+    """Calculates direct Euclidean distance between two exact clicked (x, y) points."""
+    if not p1 or not p2:
+        return 0.0
+    if len(p1) == 3 and len(p2) == 3:
+        return math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2 + (p2[2] - p1[2])**2)
+    return math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+
 # ==============================================================================
 # 6. UI configuration
 # ==============================================================================
@@ -1797,6 +1805,11 @@ if "map_pick_mode" not in st.session_state:
     st.session_state.map_pick_mode = False
 if "map_pick_step" not in st.session_state:
     st.session_state.map_pick_step = "START"
+    
+if "measure_p1" not in st.session_state:
+    st.session_state.measure_p1 = None
+if "measure_p2" not in st.session_state:
+    st.session_state.measure_p2 = None
 
 with st.sidebar:
     st.header(t["config_header"])
@@ -2016,28 +2029,28 @@ with tab_map:
             + [st.session_state.selected_dest]
         )
 
-        route_display_str = " ➔ ".join(
-            [
-                f"`{format_location_label(loc, st.session_state.lang)}`"
+        if full_route_sequence:
+            route_display_str = " ➔ ".join([
+                f"<code>{format_location_label(loc, st.session_state.lang)}</code>" 
                 for loc in full_route_sequence
-            ]
-        )
-        st.markdown(
-            f"""
-            <div style="
-                background-color: #E91E63;
-                color: #FFFFFF;
-                padding: 12px 16px;
-                border-radius: 8px;
-                font-size: 0.95rem;
-                margin-top: 10px;
-                margin-bottom: 10px;
-            ">
-                <strong>{t['current_route_lbl']}:</strong> {route_display_str}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            ])
+        
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: #E91E63;
+                    color: #FFFFFF;
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    font-size: 0.95rem;
+                    margin-top: 10px;
+                    margin-bottom: 15px;
+                ">
+                    <strong>{t['current_route_lbl']}:</strong> {route_display_str}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
     full_path = []
     for i in range(len(full_route_sequence) - 1):
@@ -2079,126 +2092,106 @@ with tab_map:
         horizontal=True,
     )
 
-    col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
-    with col_btn_pick:
-        if not st.session_state.map_pick_mode:
-            if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
-                st.session_state.map_pick_mode = True
-                st.session_state.map_pick_step = "START"
-                st.rerun()
-        else:
-            if st.button(t["btn_cancel_interactive"], use_container_width=True):
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
-
-    with col_btn_clear:
-        if st.button(t["btn_reset_all"], use_container_width=True):
-            st.session_state.waypoints = []
-            st.session_state.map_pick_mode = False
-            st.session_state.selected_start = "A_L0_Entrance"
-            st.session_state.selected_dest = "A_L0_Lobby"
+    st.subheader("📏 Point-to-Point Distance Measurement")
+    
+    col_m1, col_m2 = st.columns([0.8, 0.2])
+    with col_m1:
+        st.caption("Click any two locations on the CAD map below to measure direct physical distance (no node snapping).")
+    with col_m2:
+        if st.button("🔄 Reset Points", use_container_width=True):
+            st.session_state.measure_p1 = None
+            st.session_state.measure_p2 = None
             st.rerun()
 
-    if st.session_state.map_pick_mode:
-        curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
-        curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
-
-        if st.session_state.map_pick_step == "START":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.info(f"{t['pick_step_1']} ({t['lbl_current']}: **{curr_start_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_start"], use_container_width=True):
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "WAYPOINT":
-            col_msg, col_done = st.columns([0.72, 0.28])
-            with col_msg:
-                st.warning(t["pick_step_2"])
-            with col_done:
-                if st.button(t["btn_done_adding_stops"], type="primary", use_container_width=True):
-                    st.session_state.map_pick_step = "DEST"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "DEST":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.success(f"{t['pick_step_3']} ({t['lbl_current']}: **{curr_dest_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_dest"], use_container_width=True):
-                    st.session_state.map_pick_mode = False
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-
-    selected_data = None
-
+    # --------------------------------------------------------------------------
+    # C. Prepare Plotly Figure & Render Overlays
+    # --------------------------------------------------------------------------
     if view_type == t["view_2d"]:
-        floor_select = st.selectbox(
-            t["active_floor"],
-            options=[0, 1, 2, 3],
-            format_func=lambda x: get_translated_floor_name(
-                x, lang=st.session_state.lang
-            ),
-        )
-        fig_2d = render_2d_cad_view(
-            floor_select, route_path=path, current_lang=st.session_state.lang
-        )
-
-        selected_data = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
+        fig = render_2d_cad_view(floor_select, route_path=path, current_lang=st.session_state.lang)
     else:
-        fig_3d = render_3d_isometric_view(
-            route_path=path, current_lang=st.session_state.lang
-        )
-        selected_data = st.plotly_chart(
-            fig_3d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
+        fig = render_3d_isometric_view(route_path=path, current_lang=st.session_state.lang)
 
-    if (
-        st.session_state.map_pick_mode
-        and selected_data
-        and "selection" in selected_data
-        and selected_data["selection"]["points"]
-    ):
-        point = selected_data["selection"]["points"][0]
-        clicked_id = None
+    # Plot exact start point marker
+    if st.session_state.measure_p1:
+        p1 = st.session_state.measure_p1
+        fig.add_trace(go.Scatter(
+            x=[p1[0]], y=[p1[1]],
+            mode="markers+text",
+            marker=dict(color="#2E7D32", size=14, symbol="circle"),
+            text=[" Point A"],
+            textposition="top center",
+            showlegend=False
+        ))
 
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(
-                    st.session_state.lang, {}
-                ).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
+    # Plot exact end point marker & connecting line
+    if st.session_state.measure_p2:
+        p2 = st.session_state.measure_p2
+        fig.add_trace(go.Scatter(
+            x=[p2[0]], y=[p2[1]],
+            mode="markers+text",
+            marker=dict(color="#C62828", size=14, symbol="square"),
+            text=[" Point B"],
+            textposition="top center",
+            showlegend=False
+        ))
+        
+        fig.add_trace(go.Scatter(
+            x=[st.session_state.measure_p1[0], p2[0]],
+            y=[st.session_state.measure_p1[1], p2[1]],
+            mode="lines",
+            line=dict(color="#E91E63", width=3, dash="dash"),
+            showlegend=False
+        ))
 
-        if clicked_id and clicked_id in ROOM_POLYGONS:
-            if st.session_state.map_pick_step == "START":
-                st.session_state.selected_start = clicked_id
-                st.session_state.map_pick_step = "WAYPOINT"
+    # --------------------------------------------------------------------------
+    # D. Interactive Chart Capture
+    # --------------------------------------------------------------------------
+    selected_data = st.plotly_chart(
+        fig,
+        use_container_width=True,
+        on_select="rerun",
+        selection_mode="points",
+        key="plotly_map_interaction"
+    )
+
+    # --------------------------------------------------------------------------
+    # E. Click Event Processing (Raw X/Y Extracted directly)
+    # --------------------------------------------------------------------------
+    if selected_data and "selection" in selected_data and selected_data["selection"]["points"]:
+        clicked_point = selected_data["selection"]["points"][0]
+        
+        click_x = clicked_point.get("x")
+        click_y = clicked_point.get("y")
+        click_z = clicked_point.get("z", 0)
+        
+        if click_x is not None and click_y is not None:
+            coords = (round(click_x, 2), round(click_y, 2), round(click_z, 2))
+            
+            if st.session_state.measure_p1 is None:
+                st.session_state.measure_p1 = coords
+                st.rerun()
+            elif st.session_state.measure_p2 is None and coords != st.session_state.measure_p1:
+                st.session_state.measure_p2 = coords
                 st.rerun()
 
-            elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(clicked_id)
-                st.rerun()
-
-            elif st.session_state.map_pick_step == "DEST":
-                st.session_state.selected_dest = clicked_id
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
+    # --------------------------------------------------------------------------
+    # F. Calculated Results Metrics Display
+    # --------------------------------------------------------------------------
+    if st.session_state.measure_p1 or st.session_state.measure_p2:
+        m1, m2, m3 = st.columns(3)
+        p1 = st.session_state.measure_p1
+        p2 = st.session_state.measure_p2
+        
+        with m1:
+            st.metric("Point A (X, Y)", f"({p1[0]}, {p1[1]})" if p1 else "Not Set")
+        with m2:
+            st.metric("Point B (X, Y)", f"({p2[0]}, {p2[1]})" if p2 else "Not Set")
+        with m3:
+            if p1 and p2:
+                dist = calculate_exact_distance(p1, p2)
+                st.metric("Direct Distance", f"{dist:.2f} m")
+            else:
+                st.metric("Direct Distance", "Awaiting Point B...")
 
 # Directions tab
 with tab_dir:
