@@ -2162,7 +2162,9 @@ is_3d_mode = (view_type == t["view_3d"])
 
 if not is_3d_mode:
     fig_map = render_2d_cad_view(
-        floor_select, route_path=path, current_lang=st.session_state.lang
+        floor_rooms=floor_select,
+        route_path=path,
+        current_lang=st.session_state.lang
     )
 else:
     fig_map = render_3d_isometric_view(
