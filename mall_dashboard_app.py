@@ -2092,34 +2092,7 @@ with tab_map:
         horizontal=True,
     )
 
-    floor_options = ["GF", "1F", "2F", "R"]  # Adjust floor options to match your app
-    floor_select = st.selectbox(
-        "Select Floor View",
-        options=floor_options,
-        key="map_floor_select"
-    )
-
-    # 2. View Mode Selection (2D vs 3D)
-    view_type = st.radio(
-        "View Mode",
-        options=[t["view_2d"], t["view_3d"]],
-        horizontal=True,
-        key="map_view_type"
-    )
-
-    # 3. Render Plotly Figure
-    if view_type == t["view_2d"]:
-        fig = render_2d_cad_view(
-            floor_select=floor_select, 
-            route_path=path, 
-            current_lang=st.session_state.lang
-        )
-    else:
-        fig = render_3d_isometric_view(
-            route_path=path, 
-            current_lang=st.session_state.lang
-        )
-
+    
     st.subheader("📏 Point-to-Point Distance Measurement")
     
     col_m1, col_m2 = st.columns([0.8, 0.2])
@@ -2134,10 +2107,25 @@ with tab_map:
     # --------------------------------------------------------------------------
     # C. Prepare Plotly Figure & Render Overlays
     # --------------------------------------------------------------------------
+
     if view_type == t["view_2d"]:
+        floor_select = st.selectbox(
+            t["active_floor"],
+            options=[0, 1, 2, 3],
+            format_func=lambda x: get_translated_floor_name(
+                x, lang=st.session_state.lang
+            ),
+        )
         fig = render_2d_cad_view(floor_select, route_path=path, current_lang=st.session_state.lang)
     else:
         fig = render_3d_isometric_view(route_path=path, current_lang=st.session_state.lang)
+        selected_data = st.plotly_chart(
+            fig_3d,
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="points",
+        )
+
 
     # Plot exact start point marker
     if st.session_state.measure_p1:
