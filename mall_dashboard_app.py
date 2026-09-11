@@ -2022,8 +2022,6 @@ with tab_map:
                 for loc in full_route_sequence
             ]
         )
-        st.info(f"{t['current_route_lbl']}: {route_display_str}")
-        
         st.markdown(
             f"""
             <div style="
