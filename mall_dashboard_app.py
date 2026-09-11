@@ -1177,12 +1177,13 @@ def render_2d_cad_view(
     # Invisible background bounding box so clicks on empty areas register
     # -------------------------------------------------------------------------
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
+
     fig.add_trace(
         go.Scatter(
-            x=[min_x - 5, max_x + 5, max_x + 5, min_x - 5, min_x - 5],
-            y=[min_y - 5, min_y - 5, max_y + 5, max_y + 5, min_y - 5],
+            x=[min_x - 10, max_x + 10, max_x + 10, min_x - 10, min_x - 10],
+            y=[min_y - 10, min_y - 10, max_y + 10, max_y + 10, min_y - 10],
             fill="toself",
-            fillcolor="rgba(0,0,0,0)",
+            fillcolor="rgba(0,0,0,0)", # Invisible fill catches clicks
             line=dict(color="rgba(0,0,0,0)", width=0),
             hoverinfo="none",
             showlegend=False,
@@ -2342,7 +2343,6 @@ with tab_map:
             fig_2d,
             click_event=True,
             override_height=650,
-            key=f"cad_events_floor_{floor_select}"
         )
     else:
         fig_3d = render_3d_isometric_view(
@@ -2402,6 +2402,18 @@ with tab_map:
                     st.rerun()
                 else:
                     st.rerun()
+
+if selected_data:
+    click_info = selected_data[0]
+    
+    # 2D coordinates check
+    raw_x = click_info.get("x")
+    raw_y = click_info.get("y")
+    
+    # Fallback for point selections
+    if raw_x is None and "pointNumber" in click_info:
+        # Extract from point indices if clicking on an existing trace
+        pass
 
 # Directions tab
 with tab_dir:
