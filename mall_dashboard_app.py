@@ -3,6 +3,7 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
+from streamlit_plotly_events import plotly_events
 
 # ==============================================================================
 # 1. Translation table
