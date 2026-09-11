@@ -2085,8 +2085,10 @@ with tab_home:
         st.info("No store categories defined.")
 
 
-# Mall map tab
 with tab_map:
+    # -------------------------------------------------------------
+    # 1. Navigation Controls Expander
+    # -------------------------------------------------------------
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
 
@@ -2122,6 +2124,7 @@ with tab_map:
         st.session_state.selected_start = start_node
         st.session_state.selected_dest = dest_node
 
+        # Waypoint list editor
         if st.session_state.waypoints:
             st.markdown(t["intermediate_stops"])
 
@@ -2170,9 +2173,10 @@ with tab_map:
             + [st.session_state.selected_dest]
         )
 
+        # Pink Banner showing current route
         route_display_str = " ➔ ".join(
             [
-                f"`{format_location_label(loc, st.session_state.lang)}`"
+                f"<code>{format_location_label(loc, st.session_state.lang)}</code>"
                 for loc in full_route_sequence
             ]
         )
@@ -2193,6 +2197,9 @@ with tab_map:
             unsafe_allow_html=True,
         )
 
+    # -------------------------------------------------------------
+    # 2. Theta* 3D Path Finding Engine Compute
+    # -------------------------------------------------------------
     full_path = []
     for i in range(len(full_route_sequence) - 1):
         segment_start = full_route_sequence[i]
@@ -2217,6 +2224,7 @@ with tab_map:
 
     path = full_path
 
+    # Compute rooftop parking allocation
     assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
         "P_L3_Driveway_Entrance",
         MULTI_CAD_GRAPH,
@@ -2227,13 +2235,16 @@ with tab_map:
     st.session_state.entry_path = entry_path
     st.session_state.exit_path = exit_path
 
+    # -------------------------------------------------------------
+    # 3. View Selection & Action Toolbar
+    # -------------------------------------------------------------
     view_type = st.radio(
         t["view_mode"],
         options=[t["view_2d"], t["view_3d"]],
         horizontal=True,
     )
 
-    col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
+    col_btn_pick, col_btn_ruler, col_btn_clear = st.columns([0.4, 0.35, 0.25])
     with col_btn_pick:
         if not st.session_state.map_pick_mode:
             if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
@@ -2246,14 +2257,21 @@ with tab_map:
                 st.session_state.map_pick_step = "START"
                 st.rerun()
 
+    with col_btn_ruler:
+        if st.button("📏 Clear Measurement", use_container_width=True):
+            st.session_state.ruler_points = []
+            st.rerun()
+
     with col_btn_clear:
         if st.button(t["btn_reset_all"], use_container_width=True):
             st.session_state.waypoints = []
+            st.session_state.ruler_points = []
             st.session_state.map_pick_mode = False
             st.session_state.selected_start = "A_L0_Entrance"
             st.session_state.selected_dest = "A_L0_Lobby"
             st.rerun()
 
+    # Dynamic guidance bar when Interactive Pick is Active
     if st.session_state.map_pick_mode:
         curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
         curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
@@ -2286,7 +2304,11 @@ with tab_map:
                     st.session_state.map_pick_step = "START"
                     st.rerun()
 
+    # -------------------------------------------------------------
+    # 4. Render CAD / Plotly Maps & Capture Selection Events
+    # -------------------------------------------------------------
     selected_data = None
+    floor_select = 0
 
     if view_type == t["view_2d"]:
         floor_select = st.selectbox(
@@ -2305,6 +2327,7 @@ with tab_map:
             use_container_width=True,
             on_select="rerun",
             selection_mode="points",
+            key="map_2d_plot",
         )
     else:
         fig_3d = render_3d_isometric_view(
@@ -2315,19 +2338,27 @@ with tab_map:
             use_container_width=True,
             on_select="rerun",
             selection_mode="points",
+            key="map_3d_plot",
         )
 
+    # -------------------------------------------------------------
+    # 5. Process Map Click Selection Events
+    # -------------------------------------------------------------
     if (
-        st.session_state.map_pick_mode
-        and selected_data
+        selected_data
         and "selection" in selected_data
         and selected_data["selection"]["points"]
     ):
         point = selected_data["selection"]["points"][0]
         clicked_id = None
+        raw_x = point.get("x")
+        raw_y = point.get("y")
+        target_z = floor_select * 15.0 if view_type == t["view_2d"] else point.get("z", 0.0)
 
+        # 5a. Resolve clicked point identity
         if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
+            custom_val = point["customdata"]
+            clicked_id = custom_val[0] if isinstance(custom_val, (list, tuple)) else custom_val
         elif "text" in point:
             raw_text = point["text"]
             for room_key in ROOM_POLYGONS.keys():
@@ -2338,14 +2369,22 @@ with tab_map:
                     clicked_id = room_key
                     break
 
-        if clicked_id and clicked_id in ROOM_POLYGONS:
+        # Fallback: Snap raw coordinate to nearest graph node if no POI customdata attached
+        if not clicked_id and raw_x is not None and raw_y is not None:
+            clicked_id = find_nearest_node_id(raw_x, raw_y, target_z, MULTI_CAD_NODES)
+
+        # ---------------------------------------------------------
+        # Handler Mode A: Interactive Store Picker Active
+        # ---------------------------------------------------------
+        if st.session_state.map_pick_mode and clicked_id:
             if st.session_state.map_pick_step == "START":
                 st.session_state.selected_start = clicked_id
                 st.session_state.map_pick_step = "WAYPOINT"
                 st.rerun()
 
             elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(clicked_id)
+                if clicked_id not in st.session_state.waypoints:
+                    st.session_state.waypoints.append(clicked_id)
                 st.rerun()
 
             elif st.session_state.map_pick_step == "DEST":
@@ -2353,6 +2392,51 @@ with tab_map:
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
+
+        # ---------------------------------------------------------
+        # Handler Mode B: Map Distance Tape Measure (Ruler Mode)
+        # ---------------------------------------------------------
+        elif not st.session_state.map_pick_mode and raw_x is not None and raw_y is not None:
+            new_ruler_pt = (raw_x, raw_y, target_z)
+
+            # Prevent double-append on single click rerenders
+            if (
+                not st.session_state.ruler_points
+                or st.session_state.ruler_points[-1] != new_ruler_pt
+            ):
+                st.session_state.ruler_points.append(new_ruler_pt)
+                if len(st.session_state.ruler_points) > 2:
+                    st.session_state.ruler_points = st.session_state.ruler_points[-2:]
+                st.rerun()
+
+    # -------------------------------------------------------------
+    # 6. Display Distance Measurement Results Box (Ruler Display)
+    # -------------------------------------------------------------
+    if "ruler_points" in st.session_state and len(st.session_state.ruler_points) == 1:
+        pt1 = st.session_state.ruler_points[0]
+        st.info(f"📍 **Point 1 set**: `(X: {pt1[0]:.1f}m, Y: {pt1[1]:.1f}m)`. Click anywhere to set Point 2 and measure distance.")
+
+    elif "ruler_points" in st.session_state and len(st.session_state.ruler_points) == 2:
+        p1, p2 = st.session_state.ruler_points
+
+        # Calculate 3D Euclidean distance (in meters)
+        straight_dist = math.dist(p1, p2)
+
+        # Calculate graph walking path distance between nearest snapped nodes
+        node_a = find_nearest_node_id(p1[0], p1[1], p1[2], MULTI_CAD_NODES)
+        node_b = find_nearest_node_id(p2[0], p2[1], p2[2], MULTI_CAD_NODES)
+        
+        walk_dist = 0.0
+        if node_a and node_b:
+            ruler_path = theta_star_3d(node_a, node_b, MULTI_CAD_GRAPH, MULTI_CAD_NODES)
+            if ruler_path:
+                walk_dist = compute_route_summary(ruler_path)["total_distance"]
+
+        st.subheader("📏 Map Distance Measurement")
+        m_col1, m_col2, m_col3 = st.columns(3)
+        m_col1.metric("Direct Air Distance", f"{straight_dist:.1f} m")
+        m_col2.metric("Walkable Path Distance", f"{walk_dist:.1f} m" if walk_dist > 0 else "N/A")
+        m_col3.metric("Between Nodes", f"{node_a or '?'} ➔ {node_b or '?'}")
 
 # Directions tab
 with tab_dir:
