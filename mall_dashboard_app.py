@@ -3,6 +3,7 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
+import numpy as np
 
 # ==============================================================================
 # 1. Translation table
@@ -1249,6 +1250,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
+        clickmode="event+select",
         height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
@@ -1354,7 +1356,8 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
             aspectmode="data"
         ),
         height=680,  
-        margin=dict(l=0, r=0, t=0, b=0)
+        margin=dict(l=0, r=0, t=0, b=0),
+        clickmode="event+select"
     )
     return fig
 
@@ -1703,6 +1706,36 @@ def format_location_label(room_id, lang):
 
     return f"[{floor_code}] {clean_name}"
 
+def get_nearest_room(click_x, click_y, active_floor=None):
+    """Finds the closest ROOM_POLYGON key to a given (x, y) coordinate."""
+    best_room = None
+    min_dist = float("inf")
+
+    for room_id, geom_data in ROOM_POLYGONS.items():
+        # Optional: Filter by active floor if room_id contains floor info (e.g., 'A_L0_Entrance')
+        if active_floor is not None and f"_L{active_floor}_" not in room_id:
+            continue
+
+        # Extract polygon coordinates to compute centroid
+        # Assumes geom_data is a list of [x, y] coordinates or similar structure
+        if "coords" in geom_data:
+            coords = np.array(geom_data["coords"])
+        elif isinstance(geom_data, (list, tuple)):
+            coords = np.array(geom_data)
+        else:
+            continue
+
+        centroid_x = np.mean(coords[:, 0])
+        centroid_y = np.mean(coords[:, 1])
+
+        # Calculate Euclidean distance
+        dist = np.hypot(click_x - centroid_x, click_y - centroid_y)
+        if dist < min_dist:
+            min_dist = dist
+            best_room = room_id
+
+    return best_room
+    
 # ==============================================================================
 # 6. UI configuration
 # ==============================================================================
@@ -2172,8 +2205,12 @@ with tab_map:
         point = selected_data["selection"]["points"][0]
         clicked_id = None
 
+        # 1. Direct customdata match (Existing Trace Point)
         if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
+            c_data = point["customdata"]
+            clicked_id = c_data[0] if isinstance(c_data, list) else c_data
+
+        # 2. Text match (Fallback Trace Point)
         elif "text" in point:
             raw_text = point["text"]
             for room_key in ROOM_POLYGONS.keys():
@@ -2184,6 +2221,16 @@ with tab_map:
                     clicked_id = room_key
                     break
 
+        # 3. CLICK ANYWHERE FALLBACK (Calculates nearest room from raw X, Y coordinates)
+        if not clicked_id or clicked_id not in ROOM_POLYGONS:
+            click_x = point.get("x")
+            click_y = point.get("y")
+
+            if click_x is not None and click_y is not None:
+                current_floor = floor_select if view_type == t["view_2d"] else None
+                clicked_id = get_nearest_room(click_x, click_y, active_floor=current_floor)
+
+        # Process the resolved room ID into Start, Waypoint, or Destination
         if clicked_id and clicked_id in ROOM_POLYGONS:
             if st.session_state.map_pick_step == "START":
                 st.session_state.selected_start = clicked_id
