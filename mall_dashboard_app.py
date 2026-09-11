@@ -2160,6 +2160,9 @@ with col_reset_measure:
 # --- Render Map Figure ---
 is_3d_mode = (view_type == t["view_3d"])
 
+floor_options = ["GF", "1F", "2F", "R"]
+floor_select = st.selectbox("Select Floor", options=floor_options, index=0)
+
 if not is_3d_mode:
     fig_map = render_2d_cad_view(
         current_floor=floor_select,
