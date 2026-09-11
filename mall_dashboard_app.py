@@ -3,7 +3,6 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
-from streamlit_plotly_events import plotly_events
 
 # ==============================================================================
 # 1. Translation table
@@ -979,69 +978,6 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
     return None
-
-# ==============================================================================
-# SECTION 4: PATHFINDING & ALGORITHM FUNCTIONS
-# ==============================================================================
-
-def get_path_between_exact_points(p1, p2, graph, nodes, accessible_only=False):
-    """
-    Computes a path between two exact arbitrary (x, y, z) coordinates.
-    Connects raw point inputs to the nearest network entry/exit nodes without 
-    requiring the user to select predefined graph nodes.
-    
-    Parameters:
-        p1 (tuple): (x, y, z) for exact start location.
-        p2 (tuple): (x, y, z) for exact destination location.
-        graph (nx.Graph): Indoor topology graph.
-        nodes (dict): Node metadata containing coordinates and floor levels.
-        accessible_only (bool): If True, avoids stairs/escalators.
-        
-    Returns:
-        tuple: (full_route_sequence, dynamic_nodes_dict)
-    """
-    # 1. Create temporary node IDs for exact clicked points
-    start_id = "EXACT_START"
-    end_id = "EXACT_END"
-    
-    # 2. Find closest existing network entry points
-    nearest_start_node = get_nearest_graph_node(p1[0], p1[1], p1[2], nodes)
-    nearest_end_node = get_nearest_graph_node(p2[0], p2[1], p2[2], nodes)
-    
-    if not nearest_start_node or not nearest_end_node:
-        return [], nodes
-
-    # 3. Clone nodes dictionary and inject raw clicked coordinates
-    dynamic_nodes = nodes.copy()
-    dynamic_nodes[start_id] = {
-        "x": p1[0], "y": p1[1], "z": p1[2], 
-        "label": "Custom Start", "category": "custom"
-    }
-    dynamic_nodes[end_id] = {
-        "x": p2[0], "y": p2[1], "z": p2[2], 
-        "label": "Custom End", "category": "custom"
-    }
-    
-    # 4. If start and end are on the same floor and close, draw direct line
-    if p1[2] == p2[2] and nearest_start_node == nearest_end_node:
-        return [start_id, end_id], dynamic_nodes
-
-    # 5. Compute network path using Theta* algorithm
-    network_path = theta_star_3d(
-        nearest_start_node, 
-        nearest_end_node, 
-        graph, 
-        nodes, 
-        accessible_only=accessible_only
-    )
-    
-    if not network_path:
-        return [], dynamic_nodes
-
-    # 6. Prepend and append exact pick locations to the complete sequence
-    full_path = [start_id] + network_path + [end_id]
-    
-    return full_path, dynamic_nodes
     
 # ==============================================================================
 # 4. Map generation with Plotly
@@ -1163,39 +1099,9 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def render_2d_cad_view(
-    active_floor_z,
-    route_path=None,
-    current_lang="English",
-    nodes_dict=None,
-    picked_coords=None,
-):
+def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
-    # -------------------------------------------------------------------------
-    # 0. CLICK CATCHER LAYER
-    # Invisible background bounding box so clicks on empty areas register
-    # -------------------------------------------------------------------------
-    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
-
-    fig.add_trace(
-        go.Scatter(
-            x=[min_x - 10, max_x + 10, max_x + 10, min_x - 10, min_x - 10],
-            y=[min_y - 10, min_y - 10, max_y + 10, max_y + 10, min_y - 10],
-            fill="toself",
-            fillcolor="rgba(0,0,0,0)", # Invisible fill catches clicks
-            line=dict(color="rgba(0,0,0,0)", width=0),
-            hoverinfo="none",
-            showlegend=False,
-        )
-    )
-
-    # Use custom dynamic nodes if provided; fallback to global MULTI_CAD_NODES
-    active_nodes = nodes_dict if nodes_dict is not None else MULTI_CAD_NODES
-
-    # -------------------------------------------------------------------------
-    # 1. ROOM POLYGONS (UNCHANGED)
-    # -------------------------------------------------------------------------
     floor_rooms = {
         r_id: poly["coords"]
         for r_id, poly in ROOM_POLYGONS.items()
@@ -1206,9 +1112,7 @@ def render_2d_cad_view(
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
         room_info = ROOM_POLYGONS[room_id]
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(
-            room_id, room_id
-        )
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
         fig.add_trace(
             go.Scatter(
@@ -1224,24 +1128,12 @@ def render_2d_cad_view(
             )
         )
 
-    # -------------------------------------------------------------------------
-    # 2. ROUTE PATH & MARKERS (UPDATED TO USE ENHANCED NODE LOOKUP)
-    # -------------------------------------------------------------------------
     if route_path:
-        # Helper to extract (x, y, z) regardless of node storage format
-        def get_node_coords(nid):
-            val = active_nodes.get(nid)
-            if isinstance(val, dict):
-                return val["x"], val["y"], val["z"]
-            return val[0], val[1], val[2]
-
-        floor_path = [
-            node for node in route_path if get_node_coords(node)[2] == active_floor_z
-        ]
+        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
         if len(floor_path) > 1:
-            path_x = [get_node_coords(node)[0] for node in floor_path]
-            path_y = [get_node_coords(node)[1] for node in floor_path]
+            path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
+            path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
 
             fig.add_trace(
                 go.Scatter(
@@ -1251,13 +1143,13 @@ def render_2d_cad_view(
                     line=dict(color="#FF0000", width=4, dash="solid"),
                     marker=dict(size=8, color="#8B0000"),
                     name="Route Path",
-                    showlegend=False,
+                    showlegend=False
                 )
             )
 
             for i in range(len(floor_path) - 1):
-                x_start, y_start, _ = get_node_coords(floor_path[i])
-                x_end, y_end, _ = get_node_coords(floor_path[i + 1])
+                x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
+                x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
 
                 x_mid = x_start + 0.6 * (x_end - x_start)
                 y_mid = y_start + 0.6 * (y_end - y_start)
@@ -1275,90 +1167,49 @@ def render_2d_cad_view(
                     arrowhead=2,
                     arrowsize=1.5,
                     arrowwidth=2.5,
-                    arrowcolor="#CC0000",
+                    arrowcolor="#CC0000"
                 )
 
-        lang_dict = LOCALIZATION.get(
-            current_lang, LOCALIZATION.get("English", {})
-        )
+        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
         start_lbl = lang_dict.get("marker_start", " Start")
         dest_lbl = lang_dict.get("marker_dest", " Destination")
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
-        if get_node_coords(start_node_id)[2] == active_floor_z:
-            start_x, start_y, _ = get_node_coords(start_node_id)
+        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
+            start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
             fig.add_trace(
                 go.Scatter(
                     x=[start_x],
                     y=[start_y],
                     mode="markers+text",
-                    marker=dict(
-                        size=14,
-                        color="#FF0000",
-                        symbol="circle",
-                        line=dict(color="#8B0000", width=2),
-                    ),
+                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
                     text=[start_lbl],
                     textposition="top right",
-                    textfont=dict(
-                        color="#FF0000", size=12, family="Arial Black"
-                    ),
+                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
                     name="Start Location",
-                    showlegend=False,
+                    showlegend=False
                 )
             )
 
-        if get_node_coords(dest_node_id)[2] == active_floor_z:
-            dest_x, dest_y, _ = get_node_coords(dest_node_id)
+        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
+            dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
             fig.add_trace(
                 go.Scatter(
                     x=[dest_x],
                     y=[dest_y],
                     mode="markers+text",
-                    marker=dict(
-                        size=14,
-                        color="#00FF00",
-                        symbol="circle",
-                        line=dict(color="#006600", width=2),
-                    ),
+                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
                     text=[dest_lbl],
                     textposition="top right",
-                    textfont=dict(
-                        color="#00FF00", size=12, family="Arial Black"
-                    ),
+                    textfont=dict(color="#00FF00", size=12, family="Arial Black"),
                     name="Destination",
-                    showlegend=False,
+                    showlegend=False
                 )
             )
 
-    # -------------------------------------------------------------------------
-    # 3. MANUAL EXACT PICK OVERLAY (WHENEVER USER CLICKS WITHOUT PATHFINDING)
-    # -------------------------------------------------------------------------
-    if picked_coords:
-        floor_picks = [p for p in picked_coords if len(p) > 2 and p[2] == active_floor_z]
-        if floor_picks:
-            px = [p[0] for p in floor_picks]
-            py = [p[1] for p in floor_picks]
-            fig.add_trace(
-                go.Scatter(
-                    x=px,
-                    y=py,
-                    mode="markers+lines",
-                    marker=dict(size=14, color="#E91E63", symbol="x"),
-                    line=dict(width=2, color="#E91E63", dash="dot"),
-                    name="Exact Picked Points",
-                    showlegend=False,
-                )
-            )
-
-    # -------------------------------------------------------------------------
-    # 4. ROOM LABELS & TEXT (UNCHANGED)
-    # -------------------------------------------------------------------------
     for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(
-            room_id, room_id
-        )
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
         xs = [p[0] for p in coords]
         ys = [p[1] for p in coords]
@@ -1373,12 +1224,8 @@ def render_2d_cad_view(
         if bbox_w < 0.6 or bbox_h < 0.6:
             continue
 
-        font_size, max_chars = calculate_optimal_font_size(
-            bbox_w, bbox_h, translated_name
-        )
-        wrapped_label = wrap_text_to_fit(
-            translated_name, max_chars_per_line=max_chars
-        )
+        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
+        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
 
         fig.add_trace(
             go.Scatter(
@@ -1388,37 +1235,27 @@ def render_2d_cad_view(
                 mode="text",
                 textposition="middle center",
                 textfont=dict(
-                    color="#000000", size=12, family="Arial Black, sans-serif"
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
                 ),
                 customdata=[room_id],
                 hoverinfo="text",
                 hovertext=[translated_name],
-                showlegend=False,
+                showlegend=False
             )
         )
 
-    # -------------------------------------------------------------------------
-    # 5. LAYOUT & EXTENTS (UNCHANGED)
-    # -------------------------------------------------------------------------
+    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
+
     fig.update_layout(
-        height=650,
+        height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
         plot_bgcolor="#FFB6C1",
         paper_bgcolor="#000000",
-        xaxis=dict(
-            range=[min_x - 5, max_x + 5],
-            showgrid=False,
-            zeroline=False,
-            gridcolor="#000000",
-        ),
-        yaxis=dict(
-            range=[min_y - 5, max_y + 5],
-            showgrid=False,
-            zeroline=False,
-            gridcolor="#000000",
-            scaleanchor="x",
-        ),
+        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
+        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
     )
 
     return fig
@@ -2173,22 +2010,16 @@ with tab_map:
         )
         accessible_flag = route_pref == t["accessible"]
 
-        # If custom points are selected via click-anywhere, use custom node IDs
-        if st.session_state.get("custom_picked_points") and len(st.session_state.custom_picked_points) == 2:
-            full_route_sequence = ["EXACT_START"] + st.session_state.waypoints + ["EXACT_END"]
-            display_sequence = ["Custom Start Point"] + st.session_state.waypoints + ["Custom Destination"]
-        else:
-            full_route_sequence = (
-                [st.session_state.selected_start]
-                + st.session_state.waypoints
-                + [st.session_state.selected_dest]
-            )
-            display_sequence = full_route_sequence
+        full_route_sequence = (
+            [st.session_state.selected_start]
+            + st.session_state.waypoints
+            + [st.session_state.selected_dest]
+        )
 
         route_display_str = " ➔ ".join(
             [
-                f"<code>{format_location_label(loc, st.session_state.lang) if loc in ROOM_POLYGONS else loc}</code>"
-                for loc in display_sequence
+                f"`{format_location_label(loc, st.session_state.lang)}`"
+                for loc in full_route_sequence
             ]
         )
         st.markdown(
@@ -2208,42 +2039,29 @@ with tab_map:
             unsafe_allow_html=True,
         )
 
-    # -------------------------------------------------------------------------
-    # ROUTE COMPUTATION (HANDLES Predefined vs. Free Picked Coordinates)
-    # -------------------------------------------------------------------------
     full_path = []
-    
-    # Check if exact pick route should be calculated
-    if st.session_state.get("custom_picked_points") and len(st.session_state.custom_picked_points) == 2:
-        p1 = st.session_state.custom_picked_points[0]
-        p2 = st.session_state.custom_picked_points[1]
-        
-        path, active_nodes = get_path_between_exact_points(
-            p1, p2, MULTI_CAD_GRAPH, MULTI_CAD_NODES, accessible_only=accessible_flag
+    for i in range(len(full_route_sequence) - 1):
+        segment_start = full_route_sequence[i]
+        segment_end = full_route_sequence[i + 1]
+
+        segment_path = theta_star_3d(
+            segment_start,
+            segment_end,
+            MULTI_CAD_GRAPH,
+            MULTI_CAD_NODES,
+            accessible_only=accessible_flag,
         )
-    else:
-        active_nodes = MULTI_CAD_NODES
-        for i in range(len(full_route_sequence) - 1):
-            segment_start = full_route_sequence[i]
-            segment_end = full_route_sequence[i + 1]
 
-            segment_path = theta_star_3d(
-                segment_start,
-                segment_end,
-                MULTI_CAD_GRAPH,
-                active_nodes,
-                accessible_only=accessible_flag,
-            )
-
-            if segment_path:
-                if full_path:
-                    full_path.extend(segment_path[1:])
-                else:
-                    full_path.extend(segment_path)
+        if segment_path:
+            if full_path:
+                full_path.extend(segment_path[1:])
             else:
-                full_path = []
-                break
-        path = full_path
+                full_path.extend(segment_path)
+        else:
+            full_path = []
+            break
+
+    path = full_path
 
     assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
         "P_L3_Driveway_Entrance",
@@ -2267,20 +2085,17 @@ with tab_map:
             if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
                 st.session_state.map_pick_mode = True
                 st.session_state.map_pick_step = "START"
-                st.session_state.custom_picked_points = []
                 st.rerun()
         else:
             if st.button(t["btn_cancel_interactive"], use_container_width=True):
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
-                st.session_state.custom_picked_points = []
                 st.rerun()
 
     with col_btn_clear:
         if st.button(t["btn_reset_all"], use_container_width=True):
             st.session_state.waypoints = []
             st.session_state.map_pick_mode = False
-            st.session_state.custom_picked_points = []
             st.session_state.selected_start = "A_L0_Entrance"
             st.session_state.selected_dest = "A_L0_Lobby"
             st.rerun()
@@ -2317,11 +2132,7 @@ with tab_map:
                     st.session_state.map_pick_step = "START"
                     st.rerun()
 
-    # -------------------------------------------------------------------------
-    # MAP RENDERING & EXACT PICK INTEGRATION
-    # -------------------------------------------------------------------------
     selected_data = None
-    floor_select = 0
 
     if view_type == t["view_2d"]:
         floor_select = st.selectbox(
@@ -2332,88 +2143,62 @@ with tab_map:
             ),
         )
         fig_2d = render_2d_cad_view(
-            floor_select, 
-            route_path=path, 
-            current_lang=st.session_state.lang,
-            nodes_dict=active_nodes,
-            picked_coords=st.session_state.get("custom_picked_points")
+            floor_select, route_path=path, current_lang=st.session_state.lang
         )
 
-        selected_data = plotly_events(
+        selected_data = st.plotly_chart(
             fig_2d,
-            click_event=True,
-            override_height=650,
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="points",
         )
     else:
         fig_3d = render_3d_isometric_view(
             route_path=path, current_lang=st.session_state.lang
         )
-        selected_data = plotly_events(
+        selected_data = st.plotly_chart(
             fig_3d,
-            click_event=True,
-            override_height=650,
-            key="cad_events_3d"
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="points",
         )
 
-    # -------------------------------------------------------------------------
-    # CLICK EVENT PROCESSING (POIs AND FREE-SPACE CLICKS)
-    # -------------------------------------------------------------------------
-    if st.session_state.map_pick_mode and selected_data:
-        click_info = selected_data[0]
-        raw_x = click_info.get("x")
-        raw_y = click_info.get("y")
-        
-        # Check if click targeted an existing room/POI
+    if (
+        st.session_state.map_pick_mode
+        and selected_data
+        and "selection" in selected_data
+        and selected_data["selection"]["points"]
+    ):
+        point = selected_data["selection"]["points"][0]
         clicked_id = None
-        if "customdata" in click_info and click_info["customdata"]:
-            clicked_id = click_info["customdata"]
-        
-        # Process click based on step
+
+        if "customdata" in point and point["customdata"]:
+            clicked_id = point["customdata"]
+        elif "text" in point:
+            raw_text = point["text"]
+            for room_key in ROOM_POLYGONS.keys():
+                t_name = POI_TRANSLATIONS.get(
+                    st.session_state.lang, {}
+                ).get(room_key, room_key)
+                if t_name == raw_text or room_key == raw_text:
+                    clicked_id = room_key
+                    break
+
         if clicked_id and clicked_id in ROOM_POLYGONS:
             if st.session_state.map_pick_step == "START":
                 st.session_state.selected_start = clicked_id
                 st.session_state.map_pick_step = "WAYPOINT"
                 st.rerun()
+
             elif st.session_state.map_pick_step == "WAYPOINT":
                 st.session_state.waypoints.append(clicked_id)
                 st.rerun()
+
             elif st.session_state.map_pick_step == "DEST":
                 st.session_state.selected_dest = clicked_id
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
-        
-        # Process exact point free-click anywhere on the canvas
-        elif raw_x is not None and raw_y is not None:
-            new_coord = (round(raw_x, 2), round(raw_y, 2), float(floor_select))
-            
-            if "custom_picked_points" not in st.session_state:
-                st.session_state.custom_picked_points = []
-                
-            if not st.session_state.custom_picked_points or st.session_state.custom_picked_points[-1] != new_coord:
-                st.session_state.custom_picked_points.append(new_coord)
-                
-                if st.session_state.map_pick_step == "START":
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
-                elif st.session_state.map_pick_step == "DEST":
-                    st.session_state.map_pick_mode = False
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-                else:
-                    st.rerun()
-
-if selected_data:
-    click_info = selected_data[0]
-    
-    # 2D coordinates check
-    raw_x = click_info.get("x")
-    raw_y = click_info.get("y")
-    
-    # Fallback for point selections
-    if raw_x is None and "pointNumber" in click_info:
-        # Extract from point indices if clicking on an existing trace
-        pass
 
 # Directions tab
 with tab_dir:
