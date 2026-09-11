@@ -1703,177 +1703,6 @@ def format_location_label(room_id, lang):
 
     return f"[{floor_code}] {clean_name}"
 
-
-# Distance scale ratio (e.g., 1 unit on grid = 1 meter in real life)
-METERS_PER_UNIT = 1.0
-
-
-def euclidean_distance(p1, p2):
-    """Calculates 2D Euclidean distance in meters."""
-    dx = p2["x"] - p1["x"]
-    dy = p2["y"] - p1["y"]
-    units = math.sqrt(dx**2 + dy**2)
-    return units * METERS_PER_UNIT
-
-
-# App Layout
-app.layout = html.Div(
-    [
-        html.H2("Smart Mall 2D Navigation & Distance Calculator"),
-        html.Div(
-            [
-                html.Button(
-                    "Reset Route",
-                    id="reset-btn",
-                    n_clicks=0,
-                    style={"marginRight": "10px"},
-                ),
-                html.Div(
-                    id="distance-output",
-                    style={
-                        "marginTop": "10px",
-                        "fontWeight": "bold",
-                        "display": "inline-block",
-                    },
-                ),
-            ],
-            style={"marginBottom": "15px"},
-        ),
-        # Store for raw clicked (x, y) coordinates
-        dcc.Store(id="click-coordinates-store", data=[]),
-        # Interactive 2D Mall Canvas
-        dcc.Graph(id="mall-2d-map", style={"height": "75vh"}),
-    ]
-)
-
-
-# Callback 1: Capture point clicks and handles resets
-@callback(
-    Output("click-coordinates-store", "data"),
-    Input("mall-2d-map", "clickData"),
-    Input("reset-btn", "n_clicks"),
-    State("click-coordinates-store", "data"),
-    prevent_initial_call=True,
-)
-def update_stored_coordinates(click_data, reset_clicks, current_points):
-    triggered_id = callback_context.triggered[0]["prop_id"].split(".")[0]
-
-    # Handle Reset Button
-    if triggered_id == "reset-btn":
-        return []
-
-    # Handle Map Click
-    if click_data and "points" in click_data:
-        point = click_data["points"][0]
-        x = point.get("x")
-        y = point.get("y")
-
-        if x is not None and y is not None:
-            current_points.append({"x": round(x, 2), "y": round(y, 2)})
-
-    return current_points
-
-
-# Callback 2: Render 2D Floorplan, Waypoints, and Path Distance
-@callback(
-    Output("mall-2d-map", "figure"),
-    Output("distance-output", "children"),
-    Input("click-coordinates-store", "data"),
-)
-def update_mall_map(stored_points):
-    fig = go.Figure()
-
-    # Extract X and Y sequences
-    xs = [p["x"] for p in stored_points]
-    ys = [p["y"] for p in stored_points]
-
-    # --- 1. BASE MALL FLOORPLAN SETUP ---
-    # Optional: Load background CAD/floor plan image here:
-    # fig.add_layout_image(
-    #     dict(source="/assets/floorplan_gf.png", x=0, y=100, sizex=100, sizey=100, xref="x", yref="y", sizing="stretch", opacity=0.5, layer="below")
-    # )
-
-    # Dummy Mall Walls/Boundaries (Replace with your shop polygons/floor outline)
-    fig.add_shape(
-        type="rect",
-        x0=0,
-        y0=0,
-        x1=100,
-        y1=100,
-        line=dict(color="Black", width=2),
-        fillcolor="whitesmoke",
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=[20, 70],
-            y=[80, 20],
-            text=["Anchor Store A", "Anchor Store B"],
-            mode="text",
-            showlegend=False,
-        )
-    )
-
-    # --- 2. CLICKED WAYPOINTS & CONNECTING ROUTE ---
-    if stored_points:
-        # Waypoint Markers
-        fig.add_trace(
-            go.Scatter(
-                x=xs,
-                y=ys,
-                mode="markers+text",
-                marker=dict(size=14, color="#E91E63", symbol="pin"),
-                text=[f"P{i+1}" for i in range(len(stored_points))],
-                textposition="top center",
-                name="Waypoints",
-            )
-        )
-
-        # Path Line
-        if len(stored_points) > 1:
-            fig.add_trace(
-                go.Scatter(
-                    x=xs,
-                    y=ys,
-                    mode="lines",
-                    line=dict(width=4, color="#007BFF", dash="solid"),
-                    name="Path Segment",
-                )
-            )
-
-    # --- 3. METRICS & DISTANCE COMPUTATION ---
-    total_distance = 0.0
-    if not stored_points:
-        output_text = "Click anywhere on the mall floorplan to place your starting waypoint."
-    elif len(stored_points) == 1:
-        output_text = f"Start Point set at ({xs[0]}, {ys[0]}). Click another area to measure route."
-    else:
-        for i in range(len(stored_points) - 1):
-            total_distance += euclidean_distance(
-                stored_points[i], stored_points[i + 1]
-            )
-        output_text = f"Total Route Distance: {total_distance:.2f} meters across {len(stored_points)} waypoints."
-
-    # --- 4. MAP LAYOUT STYLING ---
-    fig.update_layout(
-        xaxis=dict(range=[-5, 105], showgrid=True, zeroline=False),
-        yaxis=dict(
-            range=[-5, 105],
-            showgrid=True,
-            zeroline=False,
-            scaleanchor="x",
-            scaleratio=1,
-        ),
-        margin=dict(r=20, t=20, l=20, b=20),
-        hovermode="closest",
-        plot_bgcolor="#FAFAFA",
-    )
-
-    return fig, output_text
-
-
-if __name__ == "__main__":
-    app.run_server(debug=True)
-
 # ==============================================================================
 # 6. UI configuration
 # ==============================================================================
@@ -2103,11 +1932,7 @@ with tab_home:
 
 
 # Mall map tab
-# ==========================================
-# Mall Map Tab (2D CAD / 3D Isometric View & Interactive Navigation)
-# ==========================================
 with tab_map:
-    # --- Navigation Controls Expander ---
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
 
@@ -2143,7 +1968,6 @@ with tab_map:
         st.session_state.selected_start = start_node
         st.session_state.selected_dest = dest_node
 
-        # --- Intermediate Stops / Waypoints ---
         if st.session_state.waypoints:
             st.markdown(t["intermediate_stops"])
 
@@ -2179,7 +2003,6 @@ with tab_map:
 
         st.markdown("---")
 
-        # --- Route Preferences ---
         route_pref = st.radio(
             t["route_type"],
             options=[t["shortest"], t["accessible"]],
@@ -2187,14 +2010,12 @@ with tab_map:
         )
         accessible_flag = route_pref == t["accessible"]
 
-        # Compile Full Route Sequence
         full_route_sequence = (
             [st.session_state.selected_start]
             + st.session_state.waypoints
             + [st.session_state.selected_dest]
         )
 
-        # Render Selected Structured Route Banner
         route_display_str = " ➔ ".join(
             [
                 f"`{format_location_label(loc, st.session_state.lang)}`"
@@ -2218,7 +2039,6 @@ with tab_map:
             unsafe_allow_html=True,
         )
 
-    # --- Compute 3D Theta* Route for Selected POIs ---
     full_path = []
     for i in range(len(full_route_sequence) - 1):
         segment_start = full_route_sequence[i]
@@ -2243,7 +2063,6 @@ with tab_map:
 
     path = full_path
 
-    # Compute Rooftop Parking Guidance State
     assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
         "P_L3_Driveway_Entrance",
         MULTI_CAD_GRAPH,
@@ -2254,7 +2073,6 @@ with tab_map:
     st.session_state.entry_path = entry_path
     st.session_state.exit_path = exit_path
 
-    # --- View Mode Controls ---
     view_type = st.radio(
         t["view_mode"],
         options=[t["view_2d"], t["view_3d"]],
@@ -2277,13 +2095,11 @@ with tab_map:
     with col_btn_clear:
         if st.button(t["btn_reset_all"], use_container_width=True):
             st.session_state.waypoints = []
-            st.session_state.clicked_points = []
             st.session_state.map_pick_mode = False
             st.session_state.selected_start = "A_L0_Entrance"
             st.session_state.selected_dest = "A_L0_Lobby"
             st.rerun()
 
-    # --- Interactive Pick Helper Guidance Banners ---
     if st.session_state.map_pick_mode:
         curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
         curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
@@ -2316,7 +2132,6 @@ with tab_map:
                     st.session_state.map_pick_step = "START"
                     st.rerun()
 
-    # --- Render Map Figure ---
     selected_data = None
 
     if view_type == t["view_2d"]:
@@ -2331,46 +2146,12 @@ with tab_map:
             floor_select, route_path=path, current_lang=st.session_state.lang
         )
 
-        # Initialize dynamic click-anywhere storage if not present
-        if "clicked_points" not in st.session_state:
-            st.session_state.clicked_points = []
-
-        # Overlay freeform click-anywhere waypoints and path lines on the 2D figure
-        pts = st.session_state.clicked_points
-        if pts:
-            xs = [p["x"] for p in pts]
-            ys = [p["y"] for p in pts]
-
-            fig_2d.add_trace(
-                go.Scatter(
-                    x=xs,
-                    y=ys,
-                    mode="markers+text",
-                    marker=dict(size=14, color="#E91E63", symbol="pin"),
-                    text=[f"P{i+1}" for i in range(len(pts))],
-                    textposition="top center",
-                    name="Custom Coordinates",
-                )
-            )
-
-            if len(pts) > 1:
-                fig_2d.add_trace(
-                    go.Scatter(
-                        x=xs,
-                        y=ys,
-                        mode="lines",
-                        line=dict(width=3, color="#007BFF", dash="dot"),
-                        name="Measured Distance Path",
-                    )
-                )
-
         selected_data = st.plotly_chart(
             fig_2d,
             use_container_width=True,
             on_select="rerun",
             selection_mode="points",
         )
-
     else:
         fig_3d = render_3d_isometric_view(
             route_path=path, current_lang=st.session_state.lang
@@ -2382,81 +2163,41 @@ with tab_map:
             selection_mode="points",
         )
 
-    # --- Click Event & Coordinate Processing ---
-    if selected_data and "selection" in selected_data and selected_data["selection"]["points"]:
+    if (
+        st.session_state.map_pick_mode
+        and selected_data
+        and "selection" in selected_data
+        and selected_data["selection"]["points"]
+    ):
         point = selected_data["selection"]["points"][0]
+        clicked_id = None
 
-        # 1. Store Freeform (x, y) coordinates if clicked on background grid
-        if "x" in point and "y" in point:
-            click_pt = {"x": round(point["x"], 2), "y": round(point["y"], 2)}
-            if not st.session_state.clicked_points or st.session_state.clicked_points[-1] != click_pt:
-                st.session_state.clicked_points.append(click_pt)
+        if "customdata" in point and point["customdata"]:
+            clicked_id = point["customdata"]
+        elif "text" in point:
+            raw_text = point["text"]
+            for room_key in ROOM_POLYGONS.keys():
+                t_name = POI_TRANSLATIONS.get(
+                    st.session_state.lang, {}
+                ).get(room_key, room_key)
+                if t_name == raw_text or room_key == raw_text:
+                    clicked_id = room_key
+                    break
 
-        # 2. Process POI Selection for Interactive Waypoint Routing Mode
-        if st.session_state.map_pick_mode:
-            clicked_id = None
-            if "customdata" in point and point["customdata"]:
-                clicked_id = point["customdata"]
-            elif "text" in point:
-                raw_text = point["text"]
-                for room_key in ROOM_POLYGONS.keys():
-                    t_name = POI_TRANSLATIONS.get(
-                        st.session_state.lang, {}
-                    ).get(room_key, room_key)
-                    if t_name == raw_text or room_key == raw_text:
-                        clicked_id = room_key
-                        break
+        if clicked_id and clicked_id in ROOM_POLYGONS:
+            if st.session_state.map_pick_step == "START":
+                st.session_state.selected_start = clicked_id
+                st.session_state.map_pick_step = "WAYPOINT"
+                st.rerun()
 
-            if clicked_id and clicked_id in ROOM_POLYGONS:
-                if st.session_state.map_pick_step == "START":
-                    st.session_state.selected_start = clicked_id
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
+            elif st.session_state.map_pick_step == "WAYPOINT":
+                st.session_state.waypoints.append(clicked_id)
+                st.rerun()
 
-                elif st.session_state.map_pick_step == "WAYPOINT":
-                    st.session_state.waypoints.append(clicked_id)
-                    st.rerun()
-
-                elif st.session_state.map_pick_step == "DEST":
-                    st.session_state.selected_dest = clicked_id
-                    st.session_state.map_pick_mode = False
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-
-    # --- Dynamic Click-Anywhere Distance Measurement Output ---
-    if st.session_state.get("clicked_points"):
-        pts = st.session_state.clicked_points
-        col_meas_info, col_meas_reset = st.columns([0.8, 0.2])
-
-        with col_meas_info:
-            if len(pts) == 1:
-                dist_str = f"Point 1 set at ({pts[0]['x']}, {pts[0]['y']}). Click a second spot on the 2D map to measure."
-            else:
-                total_m = 0.0
-                for idx in range(len(pts) - 1):
-                    total_m += euclidean_distance(pts[idx], pts[idx + 1])
-                dist_str = f"Measured Route Distance: {total_m:.2f} meters across {len(pts)} dynamic waypoints."
-
-            st.markdown(
-                f"""
-                <div style="
-                    background-color: #E91E63;
-                    color: #FFFFFF;
-                    padding: 10px 14px;
-                    border-radius: 6px;
-                    font-size: 0.9rem;
-                    margin-top: 8px;
-                ">
-                    <strong>📏 Dynamic Map Distance:</strong> {dist_str}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        with col_meas_reset:
-            st.write("")
-            if st.button("Clear Measured Points", use_container_width=True):
-                st.session_state.clicked_points = []
+            elif st.session_state.map_pick_step == "DEST":
+                st.session_state.selected_dest = clicked_id
+                st.session_state.map_pick_mode = False
+                st.session_state.map_pick_step = "START"
                 st.rerun()
 
 # Directions tab
