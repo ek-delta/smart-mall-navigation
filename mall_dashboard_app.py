@@ -1,592 +1,627 @@
 import math
 import heapq
+import pandas as pd
+import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
 from geopy.distance import geodesic
+from streamlit_plotly_events import plotly_events
 
-# ==========================================
-# 1. PAGE CONFIGURATION & LOCALIZATION
-# ==========================================
+# ==============================================================================
+# 1. PAGE CONFIGURATION & CUSTOM STYLING
+# ==============================================================================
 st.set_page_config(
-    page_title="Indoor Navigation & Map Distance Calculator",
+    page_title="Indoor Navigation & Map Calculator",
     page_icon="🗺️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Translations dictionary
-TRANSLATIONS = {
-    "English": {
-        "title": "🗺️ Indoor Navigation & Distance Calculator",
-        "subtitle": "Calculate exact point-to-point map distance or navigate indoor facilities.",
-        "tab_home": "🏠 Dashboard",
-        "tab_map": "🗺️ Interactive Map",
-        "tab_dir": "📋 Directions",
-        "tab_park": "🅿️ Parking Guidance",
-        "view_2d": "2D CAD View",
-        "view_3d": "3D Isometric View",
-        "active_floor": "Select Floor Layer",
-        "measure_mode": "📍 Free-Click Distance Measurement",
-        "route_mode": "🧭 Room-to-Room Pathfinding",
-        "current_route_lbl": "Current Route",
-        "calc_dist_lbl": "Point-to-Point Exact Distance",
-        "reset_btn": "Reset Selection Points",
-        "clear_picks": "Clear Clicked Points",
-        "p1_sel": "Point 1 selected",
-        "p2_sel": "Point 2 selected",
-        "prompt_p2": "Click a second point on the map to calculate exact distance.",
-        "dist_calc_success": "Distance Calculated!",
-        "km_unit": "Kilometers (Geodesic)",
-        "mi_unit": "Miles (Geodesic)",
-        "euclidean_unit": "Euclidean Map Units",
-        "no_route": "No route selected or target unreachable.",
-    },
-    "Español": {
-        "title": "🗺️ Navegación Interior y Calculadora de Distancia",
-        "subtitle": "Calcule la distancia exacta entre puntos o navegue por las instalaciones.",
-        "tab_home": "🏠 Panel Principal",
-        "tab_map": "🗺️ Mapa Interactivo",
-        "tab_dir": "📋 Instrucciones",
-        "tab_park": "🅿️ Guía de Estacionamiento",
-        "view_2d": "Vista CAD 2D",
-        "view_3d": "Vista Isométrica 3D",
-        "active_floor": "Seleccionar Planta",
-        "measure_mode": "📍 Medición de Distancia Libre",
-        "route_mode": "🧭 Navegación entre Salas",
-        "current_route_lbl": "Ruta Actual",
-        "calc_dist_lbl": "Distancia Exacta Entre Puntos",
-        "reset_btn": "Restablecer Puntos",
-        "clear_picks": "Limpiar Selección",
-        "p1_sel": "Punto 1 seleccionado",
-        "p2_sel": "Punto 2 seleccionado",
-        "prompt_p2": "Haga clic en un segundo punto para calcular la distancia.",
-        "dist_calc_success": "¡Distancia Calculada!",
-        "km_unit": "Kilómetros (Geodésica)",
-        "mi_unit": "Millas (Geodésica)",
-        "euclidean_unit": "Unidades de Mapa Euclídeas",
-        "no_route": "No hay ruta seleccionada o el destino es inalcanzable.",
-    }
-}
-
-# ==========================================
-# 2. SESSION STATE INITIALIZATION
-# ==========================================
-if "lang" not in st.session_state:
-    st.session_state.lang = "English"
-
-if "clicked_points" not in st.session_state:
-    st.session_state.clicked_points = []  # Stores free click tuples: (x, y, floor)
-
-if "start_node" not in st.session_state:
-    st.session_state.start_node = "GF_LOBBY"
-
-if "dest_node" not in st.session_state:
-    st.session_state.dest_node = "2F_RESTROOM"
-
-if "map_mode" not in st.session_state:
-    st.session_state.map_mode = "Measure"
-
-t = TRANSLATIONS[st.session_state.lang]
-
-# ==========================================
-# 3. GLOBAL CUSTOM CSS & THEME STYLING
-# ==========================================
-st.markdown(
-    """
-    <style>
-    /* Primary Action & Brand Styling */
-    .stButton>button {
-        background-color: #D32F2F;
-        color: white;
-        border-radius: 6px;
-        font-weight: 600;
-        border: none;
-    }
-    .stButton>button:hover {
-        background-color: #B71C1C;
-        color: white;
+st.markdown("""
+<style>
+    /* Theme Color Variables */
+    :root {
+        --primary-red: #D32F2F;
+        --secondary-orange: #FF6700;
+        --pink-banner: #E91E63;
     }
 
-    /* Orange Side Cards / Highlight Containers */
-    .orange-card {
-        background-color: #FFF3E0;
-        border-left: 5px solid #FF6700;
-        padding: 14px;
-        border-radius: 6px;
-        margin-bottom: 12px;
+    /* Main Container Adjustments */
+    .main .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 2rem;
     }
-    
-    /* Custom Pink Route Summary Container */
-    .pink-route-banner {
-        background-color: #E91E63;
+
+    /* Primary Headers */
+    h1, h2, h3 {
+        color: var(--primary-red);
+        font-weight: 700;
+    }
+
+    /* Pink Route Banner (Custom Requested Background) */
+    .custom-route-banner {
+        background-color: var(--pink-banner);
         color: #FFFFFF;
-        padding: 12px 16px;
+        padding: 14px 18px;
         border-radius: 8px;
-        font-size: 0.95rem;
+        font-size: 1rem;
         margin-top: 10px;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.15);
     }
     
-    /* Style code elements inside custom pink route banner */
-    .pink-route-banner code {
+    .custom-route-banner code {
         background-color: rgba(255, 255, 255, 0.25) !important;
         color: #FFFFFF !important;
         border: 1px solid rgba(255, 255, 255, 0.4) !important;
         padding: 2px 6px !important;
         border-radius: 4px !important;
+        font-weight: bold;
+    }
+
+    /* Orange Feature Cards */
+    .orange-card {
+        background-color: #FFF3E0;
+        border-left: 5px solid var(--secondary-orange);
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 15px;
+    }
+
+    /* Custom Buttons */
+    .stButton>button {
+        border-radius: 6px;
         font-weight: 600;
     }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+</style>
+""", unsafe_allow_html=True)
 
-# ==========================================
-# 4. ORIGINAL STORES & POI DATASETS (UNTOUCHED)
-# ==========================================
-NODES = {
-    "GF_LOBBY": {"name": "Main Entrance Lobby", "floor": 0, "x": 10.0, "y": 10.0, "z": 0.0, "cat": "Lobby"},
-    "GF_INFO": {"name": "Information Desk", "floor": 0, "x": 25.0, "y": 20.0, "z": 0.0, "cat": "Service"},
-    "GF_ELEVATOR": {"name": "Ground Floor Elevator", "floor": 0, "x": 50.0, "y": 50.0, "z": 0.0, "cat": "Transport"},
-    "1F_ELEVATOR": {"name": "First Floor Elevator", "floor": 1, "x": 50.0, "y": 50.0, "z": 4.0, "cat": "Transport"},
-    "1F_CAFE": {"name": "Central Cafe", "floor": 1, "x": 70.0, "y": 30.0, "z": 4.0, "cat": "Dining"},
-    "1F_STORE_A": {"name": "Tech World Store", "floor": 1, "x": 30.0, "y": 80.0, "z": 4.0, "cat": "Retail"},
-    "2F_ELEVATOR": {"name": "Second Floor Elevator", "floor": 2, "x": 50.0, "y": 50.0, "z": 8.0, "cat": "Transport"},
-    "2F_RESTROOM": {"name": "Restroom Hub 2F", "floor": 2, "x": 85.0, "y": 85.0, "z": 8.0, "cat": "Amenity"},
-    "2F_CINEMA": {"name": "Multiplex Cinema", "floor": 2, "x": 20.0, "y": 60.0, "z": 8.0, "cat": "Entertainment"},
-    "R_PARKING_ENTRANCE": {"name": "Rooftop Deck Entrance", "floor": 3, "x": 50.0, "y": 50.0, "z": 12.0, "cat": "Parking"},
-    "R_SLOT_A1": {"name": "Parking Slot A1", "floor": 3, "x": 15.0, "y": 25.0, "z": 12.0, "cat": "Parking Slot"},
-    "R_SLOT_B4": {"name": "Parking Slot B4", "floor": 3, "x": 80.0, "y": 75.0, "z": 12.0, "cat": "Parking Slot"},
+# ==============================================================================
+# 2. SESSION STATE INITIALIZATION
+# ==============================================================================
+if "lang" not in st.session_state:
+    st.session_state.lang = "English"
+
+if "clicked_points" not in st.session_state:
+    st.session_state.clicked_points = []  # Stores raw (x, y, floor) exact clicks
+
+if "nav_mode" not in st.session_state:
+    st.session_state.nav_mode = "POI Navigation"  # Options: 'POI Navigation' or 'Free Pick Distance'
+
+if "start_poi" not in st.session_state:
+    st.session_state.start_poi = "ENTRANCE_MAIN"
+
+if "dest_poi" not in st.session_state:
+    st.session_state.dest_poi = "STORE_TECH"
+
+# ==============================================================================
+# 3. TRANSLATION & DICTIONARY CONFIGURATION
+# ==============================================================================
+TRANSLATIONS = {
+    "English": {
+        "title": "🗺️ Indoor Navigation & Map Calculator",
+        "subtitle": "Interactive CAD mapping, 3D routing, and high-precision spatial distance calculation.",
+        "current_route_lbl": "Current Selected Route",
+        "free_click_lbl": "Exact Click Points",
+        "view_2d": "2D CAD View",
+        "view_3d": "3D Isometric View",
+        "active_floor": "Select Active Floor",
+        "mode_select": "Select Interaction Mode",
+        "mode_poi": "Structured Store Navigation",
+        "mode_free": "Free-Click Distance Pick (No Node Snapping)",
+        "reset_btn": "Reset Click Points",
+        "calc_dist_lbl": "Direct Measured Distance",
+        "total_floors": "Total Floors",
+        "total_pois": "Total POIs",
+        "parking_spots": "Parking Spots Available",
+    },
+    "Spanish": {
+        "title": "🗺️ Navegación Interior y Calculadora de Mapas",
+        "subtitle": "Mapeo CAD interactivo, enrutamiento 3D y cálculo de distancia espacial.",
+        "current_route_lbl": "Ruta Seleccionada Actual",
+        "free_click_lbl": "Puntos de Clic Exactos",
+        "view_2d": "Vista CAD 2D",
+        "view_3d": "Vista Isométrica 3D",
+        "active_floor": "Seleccionar Planta Activa",
+        "mode_select": "Seleccionar Modo de Interacción",
+        "mode_poi": "Navegación Estructurada de Tiendas",
+        "mode_free": "Selección de Distancia Libre (Sin ajuste de nodos)",
+        "reset_btn": "Restablecer Puntos",
+        "calc_dist_lbl": "Distancia Directa Medida",
+        "total_floors": "Pisos Totales",
+        "total_pois": "POIs Totales",
+        "parking_spots": "Plazas de Aparcamiento Disponibles",
+    }
 }
 
-GRAPH = {
-    "GF_LOBBY": ["GF_INFO"],
-    "GF_INFO": ["GF_LOBBY", "GF_ELEVATOR"],
-    "GF_ELEVATOR": ["GF_INFO", "1F_ELEVATOR"],
-    "1F_ELEVATOR": ["GF_ELEVATOR", "1F_CAFE", "1F_STORE_A", "2F_ELEVATOR"],
-    "1F_CAFE": ["1F_ELEVATOR"],
-    "1F_STORE_A": ["1F_ELEVATOR"],
-    "2F_ELEVATOR": ["1F_ELEVATOR", "2F_RESTROOM", "2F_CINEMA", "R_PARKING_ENTRANCE"],
-    "2F_RESTROOM": ["2F_ELEVATOR"],
-    "2F_CINEMA": ["2F_ELEVATOR"],
-    "R_PARKING_ENTRANCE": ["2F_ELEVATOR", "R_SLOT_A1", "R_SLOT_B4"],
-    "R_SLOT_A1": ["R_PARKING_ENTRANCE"],
-    "R_SLOT_B4": ["R_PARKING_ENTRANCE"],
+# Language translations helper
+def get_text(key):
+    return TRANSLATIONS.get(st.session_state.lang, TRANSLATIONS["English"]).get(key, key)
+
+# ==============================================================================
+# 4. MOCK DATA & GRAPH MODEL
+# ==============================================================================
+FLOOR_HEIGHT_METERS = 4.5
+
+# Floor layout definitions & POI nodes (X, Y, Floor)
+MOCK_NODES = {
+    "ENTRANCE_MAIN": {"x": 10, "y": 10, "z": 0, "name": "Main Entrance", "category": "Entrance"},
+    "LOBBY_GF": {"x": 25, "y": 25, "z": 0, "name": "Ground Lobby", "category": "Lobby"},
+    "STORE_GROCERY": {"x": 75, "y": 20, "z": 0, "name": "Hypermarket Superstore", "category": "Shopping"},
+    "ELEVATOR_GF": {"x": 50, "y": 50, "z": 0, "name": "Central Elevator (GF)", "category": "Elevator"},
+    "ESCALATOR_GF": {"x": 80, "y": 50, "z": 0, "name": "Escalator to 1F", "category": "Escalator"},
+    
+    "ELEVATOR_1F": {"x": 50, "y": 50, "z": 1, "name": "Central Elevator (1F)", "category": "Elevator"},
+    "ESCALATOR_1F": {"x": 80, "y": 50, "z": 1, "name": "Escalator to 2F", "category": "Escalator"},
+    "STORE_FASHION": {"x": 20, "y": 75, "z": 1, "name": "Fashion Boutique", "category": "Shopping"},
+    "STORE_TECH": {"x": 80, "y": 80, "z": 1, "name": "Tech & Gadgets Hub", "category": "Shopping"},
+    "FOOD_COURT": {"x": 40, "y": 25, "z": 1, "name": "Gourmet Food Court", "category": "Dining"},
+    
+    "ELEVATOR_2F": {"x": 50, "y": 50, "z": 2, "name": "Central Elevator (2F)", "category": "Elevator"},
+    "CINEMA_HALL": {"x": 30, "y": 70, "z": 2, "name": "Cineplex Theater", "category": "Entertainment"},
+    "ROOFTOP_PARK": {"x": 50, "y": 20, "z": 3, "name": "Rooftop Parking Slot P-12", "category": "Parking"}
 }
 
-MAP_GEO_REF = {
-    "lat_base": 3.1390,
-    "lon_base": 101.6869,
-    "scale": 0.0001
-}
+# Navigation Graph (Edges with cost)
+GRAPH_EDGES = [
+    ("ENTRANCE_MAIN", "LOBBY_GF", 1),
+    ("LOBBY_GF", "STORE_GROCERY", 1),
+    ("LOBBY_GF", "ELEVATOR_GF", 1),
+    ("STORE_GROCERY", "ESCALATOR_GF", 1),
+    ("ELEVATOR_GF", "ELEVATOR_1F", 2),
+    ("ESCALATOR_GF", "ESCALATOR_1F", 2),
+    ("ELEVATOR_1F", "STORE_FASHION", 1),
+    ("ELEVATOR_1F", "STORE_TECH", 1),
+    ("STORE_FASHION", "FOOD_COURT", 1),
+    ("ESCALATOR_1F", "STORE_TECH", 1),
+    ("ELEVATOR_1F", "ELEVATOR_2F", 2),
+    ("ELEVATOR_2F", "CINEMA_HALL", 1),
+    ("ELEVATOR_2F", "ROOFTOP_PARK", 3)
+]
 
-# ==========================================
-# 5. HELPER FUNCTIONS & PATHFINDING
-# ==========================================
 def format_location_label(node_key, lang="English"):
-    """Formats location identifiers with clean floor badges."""
-    node = NODES.get(node_key, {})
-    name = node.get("name", node_key)
-    flr = node.get("floor", 0)
-    flr_str = "GF" if flr == 0 else f"{flr}F" if flr < 3 else "R"
-    return f"[{flr_str}] {name}"
+    if node_key in MOCK_NODES:
+        node = MOCK_NODES[node_key]
+        floor_prefix = f"[{'GF' if node['z']==0 else f'{node['z']}F'}]"
+        return f"{floor_prefix} {node['name']}"
+    return str(node_key)
 
-def compute_3d_distance(n1_key, n2_key):
-    """Calculates Euclidean distance between two node keys."""
-    p1, p2 = NODES[n1_key], NODES[n2_key]
-    return math.sqrt((p1['x'] - p2['x'])**2 + (p1['y'] - p2['y'])**2 + (p1['z'] - p2['z'])**2)
+# ==============================================================================
+# 5. ROUTING & DISTANCE ALGORITHMS
+# ==============================================================================
+def euclidean_distance_3d(p1, p2):
+    """Calculates real-world metric distance incorporating floor elevation."""
+    dx = p2[0] - p1[0]
+    dy = p2[1] - p1[1]
+    dz = (p2[2] - p1[2]) * FLOOR_HEIGHT_METERS
+    return math.sqrt(dx**2 + dy**2 + dz**2)
 
-def theta_star_3d(start_key, target_key):
-    """3D Pathfinding algorithm returning sequence of node keys."""
-    open_set = []
-    heapq.heappush(open_set, (0, start_key))
-    came_from = {}
-    g_score = {node: float('inf') for node in NODES}
-    g_score[start_key] = 0
+def dijkstra_shortest_path(start_node, dest_node):
+    """Computes shortest node path using Dijkstra algorithm."""
+    adj = {}
+    for u, v, w in GRAPH_EDGES:
+        adj.setdefault(u, []).append((v, w))
+        adj.setdefault(v, []).append((u, w))
 
-    while open_set:
-        _, current = heapq.heappop(open_set)
-        if current == target_key:
-            path = [current]
-            while current in came_from:
-                current = came_from[current]
-                path.append(current)
-            return path[::-1]
+    queue = [(0, start_node, [])]
+    seen = set()
 
-        for neighbor in GRAPH.get(current, []):
-            tentative_g = g_score[current] + compute_3d_distance(current, neighbor)
-            if tentative_g < g_score[neighbor]:
-                came_from[neighbor] = current
-                g_score[neighbor] = tentative_g
-                f_score = tentative_g + compute_3d_distance(neighbor, target_key)
-                heapq.heappush(open_set, (f_score, neighbor))
+    while queue:
+        (cost, node, path) = heapq.heappop(queue)
+        if node not in seen:
+            seen.add(node)
+            path = path + [node]
+            if node == dest_node:
+                return path
+
+            for next_node, weight in adj.get(node, []):
+                if next_node not in seen:
+                    heapq.heappush(queue, (cost + weight, next_node, path))
     return []
 
-def node_to_geo(x, y):
-    """Converts local CAD (x, y) coordinates to Lat/Lon for distance calculation."""
-    lat = MAP_GEO_REF["lat_base"] + (y * MAP_GEO_REF["scale"])
-    lon = MAP_GEO_REF["lon_base"] + (x * MAP_GEO_REF["scale"])
-    return (lat, lon)
+def compute_route_summary(route_nodes):
+    if len(route_nodes) < 2:
+        return 0, 0, 0
+    
+    total_dist = 0
+    floor_changes = 0
+    
+    for i in range(len(route_nodes) - 1):
+        n1 = MOCK_NODES[route_nodes[i]]
+        n2 = MOCK_NODES[route_nodes[i+1]]
+        p1 = (n1['x'], n1['y'], n1['z'])
+        p2 = (n2['x'], n2['y'], n2['z'])
+        
+        total_dist += euclidean_distance_3d(p1, p2)
+        if n1['z'] != n2['z']:
+            floor_changes += abs(n1['z'] - n2['z'])
+            
+    steps = int(total_dist / 0.75) # Approx 0.75 meters per step
+    return round(total_dist, 2), floor_changes, steps
 
-def render_orange_card(title, content):
-    """Custom UI component rendering an orange highlighted card."""
-    st.markdown(
-        f"""
-        <div class="orange-card">
-            <h4 style="margin:0 0 8px 0; color:#FF6700;">{title}</h4>
-            <div>{content}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-# ==========================================
-# 6. UNTOUCHED CAD & MAP LAYOUT RENDERING
-# ==========================================
-def render_2d_cad_view(floor_num, route_nodes=None, clicked_points=None):
-    """Generates 2D Plotly figure preserving the exact CAD map layout."""
+# ==============================================================================
+# 6. PLOTLY MAP GENERATORS
+# ==============================================================================
+def render_2d_cad_view(floor_num, route_path=None, picked_points=None):
     fig = go.Figure()
 
-    # Outer Building Perimeter
+    # 1. Base CAD Plane Clickable Area (Invisible mesh capturing all clicks)
     fig.add_trace(go.Scatter(
         x=[0, 100, 100, 0, 0],
         y=[0, 0, 100, 100, 0],
-        mode="lines",
-        line=dict(color="#B0BEC5", width=3),
-        name="Floor Boundary"
+        fill="toself",
+        fillcolor="rgba(245, 245, 245, 0.8)",
+        line=dict(color="#CCCCCC", width=1),
+        hoverinfo="none",
+        showlegend=False,
+        name="Floor Base"
     ))
 
-    # Render Floor Nodes & Labels
-    floor_nodes = {k: v for k, v in NODES.items() if v["floor"] == floor_num}
-    if floor_nodes:
-        fig.add_trace(go.Scatter(
-            x=[v["x"] for v in floor_nodes.values()],
-            y=[v["y"] for v in floor_nodes.values()],
-            mode="markers+text",
-            marker=dict(size=14, color="#1976D2"),
-            text=[v["name"] for v in floor_nodes.values()],
-            textposition="top center",
-            name="Locations"
-        ))
+    # 2. Draw Floor POI Nodes
+    floor_pois = {k: v for k, v in MOCK_NODES.items() if v['z'] == floor_num}
+    
+    x_coords = [v['x'] for v in floor_pois.values()]
+    y_coords = [v['y'] for v in floor_pois.values()]
+    labels = [v['name'] for v in floor_pois.values()]
+    
+    fig.add_trace(go.Scatter(
+        x=x_coords,
+        y=y_coords,
+        mode="markers+text",
+        marker=dict(size=14, color="#D32F2F", symbol="square"),
+        text=labels,
+        textposition="top center",
+        name="Stores & POIs"
+    ))
 
-    # Overlay Room-to-Room Path (if active)
-    if route_nodes:
-        r_x = [NODES[k]["x"] for k in route_nodes if NODES[k]["floor"] == floor_num]
-        r_y = [NODES[k]["y"] for k in route_nodes if NODES[k]["floor"] == floor_num]
-        if len(r_x) > 1:
+    # 3. Draw Path Route Overlay if active
+    if route_path:
+        rx, ry = [], []
+        for r_node in route_path:
+            if MOCK_NODES[r_node]['z'] == floor_num:
+                rx.append(MOCK_NODES[r_node]['x'])
+                ry.append(MOCK_NODES[r_node]['y'])
+        
+        if len(rx) > 1:
             fig.add_trace(go.Scatter(
-                x=r_x, y=r_y,
+                x=rx, y=ry,
                 mode="lines+markers",
-                line=dict(color="#D32F2F", width=4),
-                marker=dict(size=8, color="#D32F2F"),
-                name="Calculated Path"
+                line=dict(color="#FF6700", width=4, dash="solid"),
+                marker=dict(size=8, color="#FF6700"),
+                name="Nav Path"
             ))
 
-    # Overlay Exact Picked Points & Distance Line
-    if clicked_points:
-        cp_x = [p[0] for p in clicked_points if len(p) < 3 or p[2] == floor_num]
-        cp_y = [p[1] for p in clicked_points if len(p) < 3 or p[2] == floor_num]
-        if cp_x:
-            fig.add_trace(go.Scatter(
-                x=cp_x, y=cp_y,
-                mode="markers+lines",
-                marker=dict(size=12, color="#E91E63", symbol="cross"),
-                line=dict(width=3, color="#E91E63", dash="dash"),
-                name="Exact Clicked Points"
-            ))
+    # 4. Draw Free Picked Custom Points (Pink Lines & Pins)
+    if picked_points:
+        current_floor_picks = [p for p in picked_points if p[2] == floor_num]
+        px = [p[0] for p in current_floor_picks]
+        py = [p[1] for p in current_floor_picks]
+        
+        fig.add_trace(go.Scatter(
+            x=px, y=py,
+            mode="markers+lines+text",
+            marker=dict(size=16, color="#E91E63", symbol="x"),
+            line=dict(width=3, color="#E91E63", dash="dash"),
+            text=[f"P{i+1}" for i in range(len(px))],
+            textposition="bottom center",
+            name="Exact Picked Points"
+        ))
 
     fig.update_layout(
         xaxis=dict(range=[-5, 105], showgrid=True, zeroline=False),
         yaxis=dict(range=[-5, 105], showgrid=True, zeroline=False, scaleanchor="x", scaleratio=1),
         margin=dict(l=10, r=10, b=10, t=10),
-        height=600,
-        showlegend=True,
+        height=550,
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="#FAFAFA"
+        plot_bgcolor="rgba(0,0,0,0)"
     )
+
     return fig
 
-def render_3d_isometric_view(route_nodes=None):
-    """Renders 3D isometric representation (Layout untouched)."""
+def render_3d_isometric_view(route_path=None):
     fig = go.Figure()
 
-    # Draw floor planes
-    for flr in range(4):
-        z_val = flr * 4
-        fig.add_trace(go.Mesh3d(
-            x=[0, 100, 100, 0],
-            y=[0, 0, 100, 100],
-            z=[z_val, z_val, z_val, z_val],
-            opacity=0.1,
-            color="#90A4AE",
-            name=f"Floor {flr}"
+    # Draw stacked floor layers
+    for f in range(4):
+        # Draw floor planes
+        fig.add_trace(go.Scatter3d(
+            x=[0, 100, 100, 0, 0],
+            y=[0, 0, 100, 100, 0],
+            z=[f*FLOOR_HEIGHT_METERS]*5,
+            mode="lines",
+            line=dict(color="#BDBDBD", width=2),
+            showlegend=False
         ))
 
-    # Draw Nodes
-    x_n = [v["x"] for v in NODES.values()]
-    y_n = [v["y"] for v in NODES.values()]
-    z_n = [v["z"] for v in NODES.values()]
-    txt = [v["name"] for v in NODES.values()]
+    # Plot POIs in 3D
+    x3, y3, z3, labels = [], [], [], []
+    for k, v in MOCK_NODES.items():
+        x3.append(v['x'])
+        y3.append(v['y'])
+        z3.append(v['z'] * FLOOR_HEIGHT_METERS)
+        labels.append(v['name'])
 
     fig.add_trace(go.Scatter3d(
-        x=x_n, y=y_n, z=z_n,
+        x=x3, y=y3, z=z3,
         mode="markers+text",
-        marker=dict(size=6, color="#1976D2"),
-        text=txt,
+        marker=dict(size=6, color="#D32F2F"),
+        text=labels,
         textposition="top center",
-        name="Nodes"
+        name="All POIs"
     ))
 
-    # Draw Route Path
-    if route_nodes:
-        rx = [NODES[k]["x"] for k in route_nodes]
-        ry = [NODES[k]["y"] for k in route_nodes]
-        rz = [NODES[k]["z"] for k in route_nodes]
+    # Route line in 3D
+    if route_path and len(route_path) > 1:
+        rx = [MOCK_NODES[n]['x'] for n in route_path]
+        ry = [MOCK_NODES[n]['y'] for n in route_path]
+        rz = [MOCK_NODES[n]['z'] * FLOOR_HEIGHT_METERS for n in route_path]
+
         fig.add_trace(go.Scatter3d(
             x=rx, y=ry, z=rz,
             mode="lines+markers",
-            line=dict(color="#D32F2F", width=6),
-            marker=dict(size=8, color="#D32F2F"),
-            name="Active Route"
+            line=dict(color="#FF6700", width=6),
+            marker=dict(size=8, color="#E91E63"),
+            name="3D Route Path"
         ))
 
     fig.update_layout(
         scene=dict(
-            xaxis=dict(range=[0, 100]),
-            yaxis=dict(range=[0, 100]),
-            zaxis=dict(range=[0, 16]),
+            xaxis=dict(range=[-5, 105]),
+            yaxis=dict(range=[-5, 105]),
+            zaxis=dict(range=[-2, 20], title="Elevation (m)"),
+            aspectmode="manual",
             aspectratio=dict(x=1, y=1, z=0.4)
         ),
         margin=dict(l=0, r=0, b=0, t=0),
-        height=650
+        height=600
     )
     return fig
 
-# ==========================================
-# 7. MAIN LAYOUT & STREAMLIT APP STRUCTURE
-# ==========================================
-st.sidebar.title("🌐 Settings & Preferences")
-st.session_state.lang = st.sidebar.selectbox("Language / Idioma", options=["English", "Español"])
+# ==============================================================================
+# 7. UI LAYOUT & SIDEBAR
+# ==============================================================================
 
-st.title(t["title"])
-st.caption(t["subtitle"])
+# Sidebar Configuration
+with st.sidebar:
+    st.image("https://img.icons8.com/color/96/000000/map-navigation.png", width=64)
+    st.title("Navigation Panel")
+    
+    # Language selector
+    st.session_state.lang = st.selectbox("🌐 Language / Idioma", ["English", "Spanish"])
+    t = TRANSLATIONS[st.session_state.lang]
 
-tab_home, tab_map, tab_dir, tab_park = st.tabs([
-    t["tab_home"], t["tab_map"], t["tab_dir"], t["tab_park"]
-])
-
-# ------------------------------------------
-# TAB 1: DASHBOARD
-# ------------------------------------------
-with tab_home:
-    st.subheader("System Overview")
+    st.markdown("---")
     
-    col_a, col_b, col_c = st.columns(3)
-    col_a.metric("Total Defined POIs", len(NODES))
-    col_b.metric("Floors Mapped", "4 (GF, 1F, 2F, Rooftop)")
-    col_c.metric("Active Parking Slots", "2 Available")
-    
-    st.write("---")
-    
-    render_orange_card(
-        "Interactive Dual-Mode Navigation",
-        "Switch seamlessly between point-and-click distance measurement or room-to-room pathfinding."
+    # Mode Switcher
+    st.session_state.nav_mode = st.radio(
+        get_text("mode_select"),
+        [get_text("mode_poi"), get_text("mode_free")]
     )
     
-    with st.expander("📂 View Location Directory"):
-        for k, v in NODES.items():
-            st.write(f"• **{format_location_label(k, st.session_state.lang)}** - Category: `{v['cat']}` (X: {v['x']}, Y: {v['y']})")
+    st.markdown("---")
 
-# ------------------------------------------
-# TAB 2: INTERACTIVE MAP (WITH PINK BANNER & NATIVE CLICKS)
-# ------------------------------------------
-with tab_map:
-    col_ctrl1, col_ctrl2 = st.columns([2, 2])
-    
-    with col_ctrl1:
-        st.session_state.map_mode = st.radio(
-            "Select Interaction Mode",
-            options=[t["measure_mode"], t["route_mode"]],
-            horizontal=True
-        )
-
-    with col_ctrl2:
-        view_type = st.radio(
-            "Visualization Mode",
-            options=[t["view_2d"], t["view_3d"]],
-            horizontal=True
-        )
-
-    full_route_sequence = []
-    
-    # --------------------------------------
-    # ROOM-TO-ROOM ROUTE MODE
-    # --------------------------------------
-    if t["route_mode"] in st.session_state.map_mode:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.session_state.start_node = st.selectbox(
-                "Starting Point",
-                options=list(NODES.keys()),
-                format_func=lambda x: format_location_label(x, st.session_state.lang),
-                index=0
-            )
-        with c2:
-            st.session_state.dest_node = st.selectbox(
-                "Destination Point",
-                options=list(NODES.keys()),
-                format_func=lambda x: format_location_label(x, st.session_state.lang),
-                index=7
-            )
-
-        full_route_sequence = theta_star_3d(st.session_state.start_node, st.session_state.dest_node)
-
-        # Pink background with white text banner for room-to-room navigation
-        if full_route_sequence:
-            route_display_str = " ➔ ".join([
-                f"<code>{format_location_label(loc, st.session_state.lang)}</code>"
-                for loc in full_route_sequence
-            ])
-
-            st.markdown(
-                f"""
-                <div class="pink-route-banner">
-                    <strong>{t['current_route_lbl']}:</strong> {route_display_str}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.warning(t["no_route"])
-
-    # --------------------------------------
-    # RENDER MAP VIEWS (NATIVE EVENT HANDLING)
-    # --------------------------------------
-    if view_type == t["view_2d"]:
-        selected_floor = st.slider("Select Floor Level", min_value=0, max_value=3, value=0, format="Floor %d")
+    if st.session_state.nav_mode == get_text("mode_poi"):
+        st.subheader("📍 Select Navigation Target")
+        poi_keys = list(MOCK_NODES.keys())
         
-        fig_2d = render_2d_cad_view(
-            floor_num=selected_floor,
-            route_nodes=full_route_sequence if t["route_mode"] in st.session_state.map_mode else None,
-            clicked_points=st.session_state.clicked_points if t["measure_mode"] in st.session_state.map_mode else None
+        st.session_state.start_poi = st.selectbox(
+            "Start Location:", 
+            poi_keys, 
+            index=poi_keys.index(st.session_state.start_poi),
+            format_func=lambda x: format_location_label(x, st.session_state.lang)
         )
-
-        # Native Streamlit Chart Render with Selection Event Listener
-        map_event = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-            key=f"native_map_floor_{selected_floor}"
+        
+        st.session_state.dest_poi = st.selectbox(
+            "Destination:", 
+            poi_keys, 
+            index=poi_keys.index(st.session_state.dest_poi),
+            format_func=lambda x: format_location_label(x, st.session_state.lang)
         )
-
-        # Extract selected coordinates in free measurement mode
-        if t["measure_mode"] in st.session_state.map_mode and map_event:
-            selection_data = map_event.get("selection", {}).get("points", [])
-            if selection_data:
-                pt_info = selection_data[0]
-                raw_x = pt_info.get("x")
-                raw_y = pt_info.get("y")
-
-                if raw_x is not None and raw_y is not None:
-                    new_pt = (round(raw_x, 2), round(raw_y, 2), selected_floor)
-                    if not st.session_state.clicked_points or st.session_state.clicked_points[-1] != new_pt:
-                        st.session_state.clicked_points.append(new_pt)
-                        if len(st.session_state.clicked_points) > 2:
-                            st.session_state.clicked_points = st.session_state.clicked_points[-2:]
-                        st.rerun()
-
     else:
-        # 3D Isometric View Render
-        fig_3d = render_3d_isometric_view(
-            route_nodes=full_route_sequence if t["route_mode"] in st.session_state.map_mode else None
-        )
-        st.plotly_chart(fig_3d, use_container_width=True)
-
-    # --------------------------------------
-    # FREE-CLICK DISTANCE RESULTS & PINK BANNER
-    # --------------------------------------
-    if t["measure_mode"] in st.session_state.map_mode:
-        st.write("---")
-        st.subheader(f"📏 {t['calc_dist_lbl']}")
+        st.subheader("📏 Free Distance Picking")
+        st.write("Click anywhere on the **2D CAD Map** to record precise coordinates without snapping to pre-defined store nodes.")
         
-        pts = st.session_state.clicked_points
-        if len(pts) == 1:
-            st.info(f"📍 **{t['p1_sel']}**: X={pts[0][0]}, Y={pts[0][1]} (Floor {pts[0][2]})")
-            st.warning(t["prompt_p2"])
-
-        elif len(pts) == 2:
-            p1, p2 = pts[0], pts[1]
-            
-            # Map distance (Euclidean in CAD units)
-            euclidean_dist = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2 + ((p2[2] - p1[2]) * 4)**2)
-            
-            # Real-world Geodesic calculation
-            geo_p1 = node_to_geo(p1[0], p1[1])
-            geo_p2 = node_to_geo(p2[0], p2[1])
-            dist_km = geodesic(geo_p1, geo_p2).kilometers
-            dist_mi = geodesic(geo_p1, geo_p2).miles
-
-            st.success(f"📏 **{t['dist_calc_success']}**")
-            
-            res_col1, res_col2, res_col3 = st.columns(3)
-            res_col1.metric(t["euclidean_unit"], f"{euclidean_dist:.2f} m")
-            res_col2.metric(t["km_unit"], f"{dist_km:.4f} km")
-            res_col3.metric(t["mi_unit"], f"{dist_mi:.4f} mi")
-
-            # Route Path Display overlay in Pink Banner (for exact clicked points)
-            click_route_str = f"<code>Point 1 (X:{p1[0]}, Y:{p1[1]})</code> ➔ <code>Point 2 (X:{p2[0]}, Y:{p2[1]})</code>"
-            st.markdown(
-                f"""
-                <div class="pink-route-banner">
-                    <strong>{t['current_route_lbl']}:</strong> {click_route_str}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        if st.button(t["clear_picks"]):
+        if st.button(get_text("reset_btn"), use_container_width=True):
             st.session_state.clicked_points = []
             st.rerun()
 
-# ------------------------------------------
-# TAB 3: DIRECTIONS & TURN-BY-TURN
-# ------------------------------------------
+# Dynamic Header
+st.title(get_text("title"))
+st.caption(get_text("subtitle"))
+
+# Main Tabs Setup
+tab_home, tab_map, tab_dir, tab_park = st.tabs([
+    "🏠 Overview Dashboard", 
+    "🗺️ Interactive Map & Pick", 
+    "📋 Turn-by-Turn Directions", 
+    "🅿️ Parking Guidance"
+])
+
+# ------------------------------------------------------------------------------
+# TAB 1: OVERVIEW DASHBOARD
+# ------------------------------------------------------------------------------
+with tab_home:
+    col1, col2, col3 = st.columns(3)
+    col1.metric(get_text("total_floors"), "4 Floors (GF - 3F)")
+    col2.metric(get_text("total_pois"), f"{len(MOCK_NODES)} Locations")
+    col3.metric(get_text("parking_spots"), "42 Available")
+    
+    st.markdown("---")
+    
+    st.markdown("""
+    <div class="orange-card">
+        <h4>💡 Map Usage Guide</h4>
+        <ul>
+            <li><b>Structured Navigation:</b> Pick start/end stores from the sidebar to calculate Dijkstra multi-floor paths.</li>
+            <li><b>Free Click Distance:</b> Switch mode in the sidebar, open the 2D CAD view, and click any 2 exact spots to measure direct Euclidean distance!</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.expander("🏬 View Full Store & POI Directory"):
+        df_pois = pd.DataFrame.from_dict(MOCK_NODES, orient="index")
+        st.dataframe(df_pois[["name", "category", "z", "x", "y"]], use_container_width=True)
+
+# ------------------------------------------------------------------------------
+# TAB 2: INTERACTIVE MAP & FREE CLICK DISTANCE
+# ------------------------------------------------------------------------------
+with tab_map:
+    # Compute standard route
+    full_route_sequence = dijkstra_shortest_path(st.session_state.start_poi, st.session_state.dest_poi)
+
+    # --------------------------------------------------------------------------
+    # PINK BANNER INTEGRATION
+    # --------------------------------------------------------------------------
+    if st.session_state.nav_mode == get_text("mode_poi"):
+        route_display_str = " ➔ ".join([
+            f"<code>{format_location_label(loc, st.session_state.lang)}</code>"
+            for loc in full_route_sequence
+        ])
+        
+        st.markdown(
+            f"""
+            <div class="custom-route-banner">
+                <strong>{get_text('current_route_lbl')}:</strong> {route_display_str}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        # Banner for Free-Click Mode
+        picks_str = " ➔ ".join([
+            f"<code>({p[0]:.1f}, {p[1]:.1f}, Floor {int(p[2])})</code>"
+            for p in st.session_state.clicked_points
+        ]) if st.session_state.clicked_points else "<i>None (Click on the 2D map below)</i>"
+
+        st.markdown(
+            f"""
+            <div class="custom-route-banner">
+                <strong>{get_text('free_click_lbl')}:</strong> {picks_str}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # Map Display Controls
+    col_view, col_floor = st.columns([1, 1])
+    with col_view:
+        view_mode = st.radio("Display Projection", [get_text("view_2d"), get_text("view_3d")], horizontal=True)
+    
+    if view_mode == get_text("view_2d"):
+        with col_floor:
+            active_floor = st.selectbox(get_text("active_floor"), [0, 1, 2, 3], format_func=lambda x: f"Floor {x}")
+
+        fig_2d = render_2d_cad_view(
+            active_floor, 
+            route_path=full_route_sequence if st.session_state.nav_mode == get_text("mode_poi") else None,
+            picked_points=st.session_state.clicked_points
+        )
+
+        # ----------------------------------------------------------------------
+        # STREAMLIT-PLOTLY-EVENTS INTEGRATION (Exact Click Distance Picker)
+        # ----------------------------------------------------------------------
+        if st.session_state.nav_mode == get_text("mode_free"):
+            selected_data = plotly_events(fig_2d, click_event=True, override_height=550, key=f"plotly_2d_f{active_floor}")
+
+            if selected_data:
+                click_info = selected_data[0]
+                click_x = click_info.get("x")
+                click_y = click_info.get("y")
+
+                if click_x is not None and click_y is not None:
+                    new_point = (round(click_x, 2), round(click_y, 2), float(active_floor))
+
+                    # Prevent duplicate sequential point registrations on rerenders
+                    if not st.session_state.clicked_points or st.session_state.clicked_points[-1] != new_point:
+                        st.session_state.clicked_points.append(new_point)
+                        
+                        # Restrict to last two exact points for point-to-point calculation
+                        if len(st.session_state.clicked_points) > 2:
+                            st.session_state.clicked_points = st.session_state.clicked_points[-2:]
+                        st.rerun()
+        else:
+            st.plotly_chart(fig_2d, use_container_width=True)
+
+    else:
+        fig_3d = render_3d_isometric_view(
+            route_path=full_route_sequence if st.session_state.nav_mode == get_text("mode_poi") else None
+        )
+        st.plotly_chart(fig_3d, use_container_width=True)
+
+    # --------------------------------------------------------------------------
+    # DISTANCE RESULTS DISPLAY
+    # --------------------------------------------------------------------------
+    st.markdown("---")
+    
+    if st.session_state.nav_mode == get_text("mode_free"):
+        if len(st.session_state.clicked_points) == 1:
+            st.info(f"📍 **Point 1 Picked**: {st.session_state.clicked_points[0]}. Click a second location on the map.")
+        elif len(st.session_state.clicked_points) == 2:
+            pt1, pt2 = st.session_state.clicked_points
+            calc_dist = euclidean_distance_3d(pt1, pt2)
+            
+            st.success("📏 **Exact Free-Click Distance Calculated!**")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Direct Line Distance", f"{calc_dist:.2f} meters")
+            m2.metric("Approx. Walk Steps", f"{int(calc_dist / 0.75)} steps")
+            m3.metric("Floor Difference", f"{abs(pt1[2] - pt2[2]):.0f} floor(s)")
+    else:
+        tot_dist, f_changes, steps = compute_route_summary(full_route_sequence)
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total Route Distance", f"{tot_dist} meters")
+        m2.metric("Estimated Walk Steps", f"{steps} steps")
+        m3.metric("Elevator/Escalator Transfers", f"{f_changes}")
+
+# ------------------------------------------------------------------------------
+# TAB 3: TURN-BY-TURN DIRECTIONS
+# ------------------------------------------------------------------------------
 with tab_dir:
     st.subheader("📋 Step-by-Step Directions")
+    full_route_sequence = dijkstra_shortest_path(st.session_state.start_poi, st.session_state.dest_poi)
     
-    if full_route_sequence and len(full_route_sequence) > 1:
-        for idx in range(len(full_route_sequence) - 1):
-            curr_n = full_route_sequence[idx]
-            next_n = full_route_sequence[idx + 1]
-            dist = compute_3d_distance(curr_n, next_n)
+    if full_route_sequence:
+        for idx, node_key in enumerate(full_route_sequence):
+            node_info = MOCK_NODES[node_key]
             
-            st.markdown(f"**Step {idx + 1}:** Proceed from **{format_location_label(curr_n, st.session_state.lang)}** to **{format_location_label(next_n, st.session_state.lang)}**")
-            st.caption(f"Segment distance: {dist:.1f} meters")
-            st.divider()
+            if idx == 0:
+                st.markdown(f"🚩 **Start at**: `{node_info['name']}` (Floor {node_info['z']})")
+            elif idx == len(full_route_sequence) - 1:
+                st.markdown(f"🏁 **Arrive at**: `{node_info['name']}` (Floor {node_info['z']})")
+            else:
+                prev_node = MOCK_NODES[full_route_sequence[idx - 1]]
+                if prev_node['z'] != node_info['z']:
+                    st.markdown(f"🛗 **Take elevator/escalator** from Floor {prev_node['z']} to Floor {node_info['z']} (`{node_info['name']}`)")
+                else:
+                    st.markdown(f"➡️ Walk towards `{node_info['name']}`")
     else:
-        st.info("Select a route in the Interactive Map tab to generate turn-by-turn directions.")
+        st.warning("No route selected.")
 
-# ------------------------------------------
+# ------------------------------------------------------------------------------
 # TAB 4: PARKING GUIDANCE
-# ------------------------------------------
+# ------------------------------------------------------------------------------
 with tab_park:
-    st.subheader("🅿️ Rooftop Parking Direct Navigation")
+    st.subheader("🅿️ Rooftop Parking Guidance System")
+    st.write("Navigate from the mall main entrance directly to available parking spaces.")
     
-    park_slot = st.selectbox(
-        "Select Target Parking Slot",
-        options=["R_SLOT_A1", "R_SLOT_B4"],
-        format_func=lambda x: format_location_label(x, st.session_state.lang)
-    )
-    
-    if st.button("Guide Me to Selected Slot"):
-        st.session_state.start_node = "GF_LOBBY"
-        st.session_state.dest_node = park_slot
-        st.session_state.map_mode = t["route_mode"]
-        st.success(f"Route set to {format_location_label(park_slot, st.session_state.lang)}! Switch to Interactive Map tab to view standard path.")
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        st.markdown("""
+        <div class="orange-card">
+            <h4>Slot P-12 Reserved</h4>
+            <p>Status: <b>AVAILABLE</b></p>
+            <p>Floor: Level 3 (Rooftop Deck)</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col_p2:
+        if st.button("Set Parking Slot P-12 as Destination", use_container_width=True):
+            st.session_state.dest_poi = "ROOFTOP_PARK"
+            st.session_state.nav_mode = get_text("mode_poi")
+            st.success("Destination set to Rooftop Parking!")
+            st.rerun()
 
-# ==========================================
-# 8. FOOTER METADATA
-# ==========================================
-st.write("---")
-st.caption("Indoor Navigation Engine v2.5 • Native Streamlit & Plotly Integration")
+# ==============================================================================
+# 8. FOOTER
+# ==============================================================================
+st.markdown("---")
+st.caption("Indoor Navigation & CAD Map Calculator App • Streamlit + Plotly Engine")
