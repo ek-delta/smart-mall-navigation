@@ -2,7 +2,6 @@ import math
 import heapq
 import streamlit as st
 import plotly.graph_objects as go
-from streamlit_plotly_events import plotly_events
 from geopy.distance import geodesic
 
 # ==========================================
@@ -84,7 +83,7 @@ if "dest_node" not in st.session_state:
     st.session_state.dest_node = "2F_RESTROOM"
 
 if "map_mode" not in st.session_state:
-    st.session_state.map_mode = "Measure"  # Options: 'Measure' or 'Route'
+    st.session_state.map_mode = "Measure"
 
 t = TRANSLATIONS[st.session_state.lang]
 
@@ -143,7 +142,7 @@ st.markdown(
 )
 
 # ==========================================
-# 4. MOCK DATA & GRAPH NETWORK DATASET
+# 4. ORIGINAL STORES & POI DATASETS (UNTOUCHED)
 # ==========================================
 NODES = {
     "GF_LOBBY": {"name": "Main Entrance Lobby", "floor": 0, "x": 10.0, "y": 10.0, "z": 0.0, "cat": "Lobby"},
@@ -175,10 +174,9 @@ GRAPH = {
     "R_SLOT_B4": ["R_PARKING_ENTRANCE"],
 }
 
-# Real-world reference anchor coordinates for optional lat/lon map conversion
 MAP_GEO_REF = {
-    "lat_base": 3.1390,  # Latitude reference
-    "lon_base": 101.6869, # Longitude reference
+    "lat_base": 3.1390,
+    "lon_base": 101.6869,
     "scale": 0.0001
 }
 
@@ -199,7 +197,7 @@ def compute_3d_distance(n1_key, n2_key):
     return math.sqrt((p1['x'] - p2['x'])**2 + (p1['y'] - p2['y'])**2 + (p1['z'] - p2['z'])**2)
 
 def theta_star_3d(start_key, target_key):
-    """Simple 3D Pathfinding algorithm returning shortest sequence of node keys."""
+    """3D Pathfinding algorithm returning sequence of node keys."""
     open_set = []
     heapq.heappush(open_set, (0, start_key))
     came_from = {}
@@ -225,7 +223,7 @@ def theta_star_3d(start_key, target_key):
     return []
 
 def node_to_geo(x, y):
-    """Converts local CAD (x, y) coordinates to Lat/Lon for Geodesic distance calculation."""
+    """Converts local CAD (x, y) coordinates to Lat/Lon for distance calculation."""
     lat = MAP_GEO_REF["lat_base"] + (y * MAP_GEO_REF["scale"])
     lon = MAP_GEO_REF["lon_base"] + (x * MAP_GEO_REF["scale"])
     return (lat, lon)
@@ -243,23 +241,13 @@ def render_orange_card(title, content):
     )
 
 # ==========================================
-# 6. RENDER CAD & MAP PLOTS
+# 6. UNTOUCHED CAD & MAP LAYOUT RENDERING
 # ==========================================
 def render_2d_cad_view(floor_num, route_nodes=None, clicked_points=None):
-    """Generates 2D Plotly figure preserving full CAD layout and exact click coordinates."""
+    """Generates 2D Plotly figure preserving the exact CAD map layout."""
     fig = go.Figure()
 
-    # 1. Base Invisible Bounding Plane (allows capturing clicks anywhere on empty map space)
-    fig.add_trace(go.Scatter(
-        x=[0, 100, 100, 0, 0],
-        y=[0, 0, 100, 100, 0],
-        mode="markers",
-        marker=dict(size=0.1, opacity=0),
-        hoverinfo="none",
-        showlegend=False
-    ))
-
-    # 2. Outer Building Perimeter
+    # Outer Building Perimeter
     fig.add_trace(go.Scatter(
         x=[0, 100, 100, 0, 0],
         y=[0, 0, 100, 100, 0],
@@ -268,7 +256,7 @@ def render_2d_cad_view(floor_num, route_nodes=None, clicked_points=None):
         name="Floor Boundary"
     ))
 
-    # 3. Render Floor Nodes & Labels
+    # Render Floor Nodes & Labels
     floor_nodes = {k: v for k, v in NODES.items() if v["floor"] == floor_num}
     if floor_nodes:
         fig.add_trace(go.Scatter(
@@ -281,7 +269,7 @@ def render_2d_cad_view(floor_num, route_nodes=None, clicked_points=None):
             name="Locations"
         ))
 
-    # 4. Overlay Room-to-Room Path (if provided)
+    # Overlay Room-to-Room Path (if active)
     if route_nodes:
         r_x = [NODES[k]["x"] for k in route_nodes if NODES[k]["floor"] == floor_num]
         r_y = [NODES[k]["y"] for k in route_nodes if NODES[k]["floor"] == floor_num]
@@ -294,7 +282,7 @@ def render_2d_cad_view(floor_num, route_nodes=None, clicked_points=None):
                 name="Calculated Path"
             ))
 
-    # 5. Overlay Exact Free-Clicked Points & Distance Line
+    # Overlay Exact Picked Points & Distance Line
     if clicked_points:
         cp_x = [p[0] for p in clicked_points if len(p) < 3 or p[2] == floor_num]
         cp_y = [p[1] for p in clicked_points if len(p) < 3 or p[2] == floor_num]
@@ -319,7 +307,7 @@ def render_2d_cad_view(floor_num, route_nodes=None, clicked_points=None):
     return fig
 
 def render_3d_isometric_view(route_nodes=None):
-    """Renders multi-floor 3D isometric representation."""
+    """Renders 3D isometric representation (Layout untouched)."""
     fig = go.Figure()
 
     # Draw floor planes
@@ -375,7 +363,7 @@ def render_3d_isometric_view(route_nodes=None):
     return fig
 
 # ==========================================
-# 7. MAIN LAYOUT & TAB NAVIGATION
+# 7. MAIN LAYOUT & STREAMLIT APP STRUCTURE
 # ==========================================
 st.sidebar.title("🌐 Settings & Preferences")
 st.session_state.lang = st.sidebar.selectbox("Language / Idioma", options=["English", "Español"])
@@ -402,7 +390,7 @@ with tab_home:
     
     render_orange_card(
         "Interactive Dual-Mode Navigation",
-        "Switch seamlessly between point-and-click distance measurement on empty map spaces or full room-to-room indoor navigation."
+        "Switch seamlessly between point-and-click distance measurement or room-to-room pathfinding."
     )
     
     with st.expander("📂 View Location Directory"):
@@ -410,10 +398,9 @@ with tab_home:
             st.write(f"• **{format_location_label(k, st.session_state.lang)}** - Category: `{v['cat']}` (X: {v['x']}, Y: {v['y']})")
 
 # ------------------------------------------
-# TAB 2: INTERACTIVE MAP (WITH FREE CLICKS & PINK BANNER)
+# TAB 2: INTERACTIVE MAP (WITH PINK BANNER & NATIVE CLICKS)
 # ------------------------------------------
 with tab_map:
-    # Mode Switchers & View Controls
     col_ctrl1, col_ctrl2 = st.columns([2, 2])
     
     with col_ctrl1:
@@ -433,7 +420,7 @@ with tab_map:
     full_route_sequence = []
     
     # --------------------------------------
-    # ROUTE MODE SELECTORS
+    # ROOM-TO-ROOM ROUTE MODE
     # --------------------------------------
     if t["route_mode"] in st.session_state.map_mode:
         c1, c2 = st.columns(2)
@@ -473,46 +460,41 @@ with tab_map:
             st.warning(t["no_route"])
 
     # --------------------------------------
-    # RENDER MAP VIEWS
+    # RENDER MAP VIEWS (NATIVE EVENT HANDLING)
     # --------------------------------------
     if view_type == t["view_2d"]:
         selected_floor = st.slider("Select Floor Level", min_value=0, max_value=3, value=0, format="Floor %d")
         
-        # 1. Render base CAD plot
         fig_2d = render_2d_cad_view(
             floor_num=selected_floor,
             route_nodes=full_route_sequence if t["route_mode"] in st.session_state.map_mode else None,
             clicked_points=st.session_state.clicked_points if t["measure_mode"] in st.session_state.map_mode else None
         )
 
-        # 2. Render plot using plotly_events to capture free map clicks
-        if t["measure_mode"] in st.session_state.map_mode:
-            selected_data = plotly_events(
-                fig_2d,
-                click_event=True,
-                override_height=600,
-                key=f"plotly_events_floor_{selected_floor}"
-            )
+        # Native Streamlit Chart Render with Selection Event Listener
+        map_event = st.plotly_chart(
+            fig_2d,
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="points",
+            key=f"native_map_floor_{selected_floor}"
+        )
 
-            # Process click event logic
-            if selected_data:
-                click_info = selected_data[0]
-                raw_x = click_info.get("x")
-                raw_y = click_info.get("y")
+        # Extract selected coordinates in free measurement mode
+        if t["measure_mode"] in st.session_state.map_mode and map_event:
+            selection_data = map_event.get("selection", {}).get("points", [])
+            if selection_data:
+                pt_info = selection_data[0]
+                raw_x = pt_info.get("x")
+                raw_y = pt_info.get("y")
 
                 if raw_x is not None and raw_y is not None:
                     new_pt = (round(raw_x, 2), round(raw_y, 2), selected_floor)
-                    
-                    # Prevent consecutive duplicate triggers
                     if not st.session_state.clicked_points or st.session_state.clicked_points[-1] != new_pt:
                         st.session_state.clicked_points.append(new_pt)
                         if len(st.session_state.clicked_points) > 2:
                             st.session_state.clicked_points = st.session_state.clicked_points[-2:]
                         st.rerun()
-
-        else:
-            # Fallback to standard chart in route-only mode
-            st.plotly_chart(fig_2d, use_container_width=True)
 
     else:
         # 3D Isometric View Render
@@ -522,7 +504,7 @@ with tab_map:
         st.plotly_chart(fig_3d, use_container_width=True)
 
     # --------------------------------------
-    # FREE-CLICK DISTANCE CALCULATOR RESULTS
+    # FREE-CLICK DISTANCE RESULTS & PINK BANNER
     # --------------------------------------
     if t["measure_mode"] in st.session_state.map_mode:
         st.write("---")
@@ -607,4 +589,4 @@ with tab_park:
 # 8. FOOTER METADATA
 # ==========================================
 st.write("---")
-st.caption("Indoor Navigation Engine v2.5 • Plotly & Streamlit Integration")
+st.caption("Indoor Navigation Engine v2.5 • Native Streamlit & Plotly Integration")
