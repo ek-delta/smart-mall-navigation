@@ -1111,9 +1111,13 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
 
     for room_id, geom in ROOM_POLYGONS.items():
         # Filter rooms by selected floor
-        if f"_L{floor}_" not in room_id:
-            continue
+        node_data = MULTI_CAD_NODES.get(room_id, {})
+        node_floor = node_data.get("floor")
 
+    # Compare floor integers directly
+        if node_floor is not None and int(node_floor) != int(floor):
+            continue
+        
         coords = geom.get("coords", [])
         if not coords:
             continue
