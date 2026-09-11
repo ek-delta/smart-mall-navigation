@@ -3,7 +3,6 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
-import numpy as np
 
 # ==============================================================================
 # 1. Translation table
@@ -1109,36 +1108,22 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
-    for room_id, geom in ROOM_POLYGONS.items():
-        # Filter rooms by selected floor
-        node_data = MULTI_CAD_NODES.get(room_id, {})
-        node_floor = node_data.get("floor")
+    for room_id, coords in floor_rooms.items():
+        x_coords = [c[0] for c in coords] + [coords[0][0]]
+        y_coords = [c[1] for c in coords] + [coords[0][1]]
+        room_info = ROOM_POLYGONS[room_id]
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
-    # Compare floor integers directly
-        if node_floor is not None and int(node_floor) != int(floor):
-            continue
-        
-        coords = geom.get("coords", [])
-        if not coords:
-            continue
-
-        # Close the polygon loop (connect last point back to first)
-        x_pts = [p[0] for p in coords] + [coords[0][0]]
-        y_pts = [p[1] for p in coords] + [coords[0][1]]
-
-        # Render room polygon as interactive Scatter trace
         fig.add_trace(
             go.Scatter(
-                x=x_pts,
-                y=y_pts,
-                fill="toself",  # Fills the interior of the polygon
-                fillcolor="#EFEFEF",
-                line=dict(color="#888888", width=1),
-                mode="lines",
-                name=room_id,
-                customdata=[room_id] * len(x_pts),  # Sends room_id on click
+                x=x_coords,
+                y=y_coords,
+                fill="toself",
+                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
+                line=dict(color="#4A5568", width=1.5),
                 hoverinfo="text",
-                text=format_location_label(room_id, current_lang),
+                text=translated_name,
+                customdata=[room_id] * len(x_coords),
                 showlegend=False,
             )
         )
@@ -1264,15 +1249,13 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
-        clickmode="event+select",
-        dragmode="pan",
         height=650,  
-        margin=dict(l=10, r=10, t=10, b=10),
+        margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
         plot_bgcolor="#FFB6C1",
         paper_bgcolor="#000000",
-        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000", visible=False),
-        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", visible=False, scaleanchor="x", scaleratio=1)
+        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
+        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
     )
 
     return fig
@@ -1371,8 +1354,7 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
             aspectmode="data"
         ),
         height=680,  
-        margin=dict(l=0, r=0, t=0, b=0),
-        clickmode="event+select"
+        margin=dict(l=0, r=0, t=0, b=0)
     )
     return fig
 
@@ -1721,36 +1703,6 @@ def format_location_label(room_id, lang):
 
     return f"[{floor_code}] {clean_name}"
 
-def get_nearest_room(click_x, click_y, active_floor=None):
-    """Finds the closest ROOM_POLYGON key to a given (x, y) coordinate."""
-    best_room = None
-    min_dist = float("inf")
-
-    for room_id, geom_data in ROOM_POLYGONS.items():
-        # Optional: Filter by active floor if room_id contains floor info (e.g., 'A_L0_Entrance')
-        if active_floor is not None and f"_L{active_floor}_" not in room_id:
-            continue
-
-        # Extract polygon coordinates to compute centroid
-        # Assumes geom_data is a list of [x, y] coordinates or similar structure
-        if "coords" in geom_data:
-            coords = np.array(geom_data["coords"])
-        elif isinstance(geom_data, (list, tuple)):
-            coords = np.array(geom_data)
-        else:
-            continue
-
-        centroid_x = np.mean(coords[:, 0])
-        centroid_y = np.mean(coords[:, 1])
-
-        # Calculate Euclidean distance
-        dist = np.hypot(click_x - centroid_x, click_y - centroid_y)
-        if dist < min_dist:
-            min_dist = dist
-            best_room = room_id
-
-    return best_room
-    
 # ==============================================================================
 # 6. UI configuration
 # ==============================================================================
@@ -2211,20 +2163,17 @@ with tab_map:
             selection_mode="points",
         )
 
-    # Extract selection/click event data
     if (
         st.session_state.map_pick_mode
         and selected_data
         and "selection" in selected_data
-        and selected_data["selection"].get("points")
+        and selected_data["selection"]["points"]
     ):
         point = selected_data["selection"]["points"][0]
         clicked_id = None
 
-        # Method A: Try direct room match via customdata or text
         if "customdata" in point and point["customdata"]:
-            c_data = point["customdata"]
-            clicked_id = c_data[0] if isinstance(c_data, (list, tuple)) else c_data
+            clicked_id = point["customdata"]
         elif "text" in point:
             raw_text = point["text"]
             for room_key in ROOM_POLYGONS.keys():
@@ -2235,33 +2184,6 @@ with tab_map:
                     clicked_id = room_key
                     break
 
-        # Method B: Fallback - Extract raw (X, Y) coordinates anywhere on the map
-        if not clicked_id or clicked_id not in ROOM_POLYGONS:
-            click_x = point.get("x")
-            click_y = point.get("y")
-
-            if click_x is not None and click_y is not None:
-                current_floor = floor_select if view_type == t["view_2d"] else None
-                
-                # Find nearest room ID to clicked (X, Y)
-                best_room = None
-                min_dist = float("inf")
-                
-                for r_id, node_data in MULTI_CAD_NODES.items():
-                    # Filter by floor in 2D view if node has floor info
-                    if current_floor is not None and node_data.get("floor") != current_floor:
-                        continue
-                    
-                    nx, ny = node_data.get("x", 0), node_data.get("y", 0)
-                    dist = ((click_x - nx) ** 2 + (click_y - ny) ** 2) ** 0.5
-                    
-                    if dist < min_dist:
-                        min_dist = dist
-                        best_room = r_id
-                
-                clicked_id = best_room
-
-        # Update Start / Waypoint / Destination state
         if clicked_id and clicked_id in ROOM_POLYGONS:
             if st.session_state.map_pick_step == "START":
                 st.session_state.selected_start = clicked_id
