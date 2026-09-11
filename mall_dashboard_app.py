@@ -1707,6 +1707,160 @@ def format_location_label(room_id, lang):
 # 6. UI configuration
 # ==============================================================================
 
+def find_nearest_node_id(x, y, floor_z, nodes_dict):
+    """Utility to find nearest graph node from raw click coordinates (x, y)."""
+    best_node = None
+    min_dist = float("inf")
+    for node_id, coords in nodes_dict.items():
+        # Filter nodes on the current floor (matching z coordinate)
+        if abs(coords[2] - floor_z) < 1.0:
+            dist = math.hypot(coords[0] - x, coords[1] - y)
+            if dist < min_dist:
+                min_dist = dist
+                best_node = node_id
+    return best_node
+
+
+def render_tab_map_interactive(fig_2d, current_floor_z, graph_nodes_dict):
+    """Complete tab_map interactive rendering block with click selection."""
+
+    # -------------------------------------------------------------
+    # 1. Action Controls & Status Banner
+    # -------------------------------------------------------------
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([2, 2, 1])
+
+    with col_ctrl1:
+        toggle_label = (
+            "🎯 Disable Pick Mode"
+            if st.session_state.map_pick_mode
+            else "🎯 Pick Locations on Map"
+        )
+        if st.button(toggle_label, use_container_width=True):
+            st.session_state.map_pick_mode = not st.session_state.map_pick_mode
+            st.session_state.map_pick_step = "START"
+            st.rerun()
+
+    with col_ctrl2:
+        if st.button("📏 Reset Ruler Points", use_container_width=True):
+            st.session_state.ruler_points = []
+            st.rerun()
+
+    # Dynamic status bar for map click mode (styled with pink background)
+    if st.session_state.map_pick_mode:
+        step_names = {
+            "START": "Click a store/node to set START location",
+            "WAYPOINT": "Click a store/node to add a WAYPOINT (or switch step)",
+            "DEST": "Click a store/node to set DESTINATION",
+        }
+        st.markdown(
+            f"""
+            <div style="background-color: #E91E63; color: #FFFFFF; padding: 10px 14px; 
+                        border-radius: 8px; font-weight: 500; margin-bottom: 12px;">
+                🎯 <strong>MAP PICK ACTIVE ({st.session_state.map_pick_step}):</strong> 
+                {step_names.get(st.session_state.map_pick_step, "")}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # -------------------------------------------------------------
+    # 2. Render Plotly Chart & Capture Native Selection Events
+    # -------------------------------------------------------------
+    # Native Streamlit click support (Streamlit >= 1.35)
+    event_data = st.plotly_chart(
+        fig_2d,
+        use_container_width=True,
+        on_select="rerun",
+        selection_mode="points",
+        key="interactive_floorplan_map",
+    )
+
+    # -------------------------------------------------------------
+    # 3. Process Map Click Events
+    # -------------------------------------------------------------
+    if (
+        event_data
+        and "selection" in event_data
+        and event_data["selection"]["points"]
+    ):
+        point_info = event_data["selection"]["points"][0]
+
+        # Extract point identity (customdata takes precedence over raw x/y coordinates)
+        clicked_customdata = point_info.get("customdata")
+        raw_x = point_info.get("x")
+        raw_y = point_info.get("y")
+
+        # Resolve node ID
+        node_id = None
+        if clicked_customdata:
+            # Handle standard single string or list/tuple customdata
+            node_id = (
+                clicked_customdata[0]
+                if isinstance(clicked_customdata, (list, tuple))
+                else clicked_customdata
+            )
+        elif raw_x is not None and raw_y is not None:
+            node_id = find_nearest_node_id(
+                raw_x, raw_y, current_floor_z, graph_nodes_dict
+            )
+
+        # Mode A: Route Location Picker Mode
+        if st.session_state.map_pick_mode and node_id:
+            if st.session_state.map_pick_step == "START":
+                st.session_state.selected_start = node_id
+                st.session_state.map_pick_step = "WAYPOINT"
+                st.toast(f"✅ Set Start to: {node_id}")
+                st.rerun()
+
+            elif st.session_state.map_pick_step == "WAYPOINT":
+                if node_id not in st.session_state.waypoints:
+                    st.session_state.waypoints.append(node_id)
+                    st.toast(f"📍 Added Waypoint: {node_id}")
+                st.rerun()
+
+            elif st.session_state.map_pick_step == "DEST":
+                st.session_state.selected_dest = node_id
+                st.session_state.map_pick_mode = False
+                st.session_state.map_pick_step = "START"
+                st.toast(f"🏁 Set Destination to: {node_id}")
+                st.rerun()
+
+        # Mode B: Tape Measure / Point-to-Point Ruler Mode (When Pick Mode is disabled)
+        elif not st.session_state.map_pick_mode and raw_x is not None and raw_y is not None:
+            new_ruler_pt = (raw_x, raw_y, current_floor_z)
+
+            # Prevent duplicate clicks on double render cycles
+            if (
+                not st.session_state.ruler_points
+                or st.session_state.ruler_points[-1] != new_ruler_pt
+            ):
+                st.session_state.ruler_points.append(new_ruler_pt)
+                if len(st.session_state.ruler_points) > 2:
+                    st.session_state.ruler_points = st.session_state.ruler_points[-2:]
+                st.rerun()
+
+    # -------------------------------------------------------------
+    # 4. Display Tape Measure Results Below Map
+    # -------------------------------------------------------------
+    if len(st.session_state.ruler_points) == 1:
+        pt1 = st.session_state.ruler_points[0]
+        st.info(f"📍 **Point 1 set**: `(X: {pt1[0]:.1f}m, Y: {pt1[1]:.1f}m)`. Click anywhere to set Point 2.")
+
+    elif len(st.session_state.ruler_points) == 2:
+        p1, p2 = st.session_state.ruler_points
+
+        # Calculate 2D/3D Euclidean Distance (meters)
+        straight_dist_m = math.dist(p1, p2)
+        node_a = find_nearest_node_id(p1[0], p1[1], p1[2], graph_nodes_dict)
+        node_b = find_nearest_node_id(p2[0], p2[1], p2[2], graph_nodes_dict)
+
+        st.subheader("📏 Measurement Details")
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Direct Air Distance", f"{straight_dist_m:.1f} m")
+        col_m2.metric("Nearest Node A", node_a if node_a else "N/A")
+        col_m3.metric("Nearest Node B", node_b if node_b else "N/A")
+        
+
 st.markdown(
     """
     <style>
