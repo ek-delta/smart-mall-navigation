@@ -882,6 +882,61 @@ def get_nearest_graph_node(x, y, z_floor, graph_nodes):
 
     return closest_node, min_dist
 
+# ==============================================================================
+# 3. Theta* pathfinding algorithm
+# ==============================================================================
+
+def extract_wall_segments(room_polygons):
+    walls_by_floor = {}
+    for room_info in room_polygons.values():
+        z = room_info["z"]
+        coords = room_info["coords"]
+        if z not in walls_by_floor:
+            walls_by_floor[z] = []
+        num_pts = len(coords)
+        for i in range(num_pts):
+            walls_by_floor[z].append((coords[i], coords[(i + 1) % num_pts]))
+    return walls_by_floor
+
+WALL_SEGMENTS_BY_FLOOR = extract_wall_segments(ROOM_POLYGONS)
+
+def line_segments_intersect(p1, p2, p3, p4):
+    def ccw(a, b, c):
+        return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
+    return (ccw(p1, p3, p4) != ccw(p2, p3, p4)) and (ccw(p1, p2, p3) != ccw(p1, p2, p4))
+
+def check_line_of_sight_2d(p1, p2, wall_segments):
+    """Checks if 2D line segment between p1 and p2 intersects any wall segment."""
+    for w1, w2 in wall_segments:
+        if p1 == w1 or p1 == w2 or p2 == w1 or p2 == w2:
+            continue
+        if line_segments_intersect(p1, p2, w1, w2):
+            return False
+    return True
+
+def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
+    x1, y1, z1 = node_coords[node_a]
+    x2, y2, z2 = node_coords[node_b]
+
+    if z1 != z2:
+        return False
+
+    p1, p2 = (x1, y1), (x2, y2)
+    floor_z = int(z1)
+
+    if floor_z in wall_segments:
+        for w1, w2 in wall_segments[floor_z]:
+            if p1 == w1 or p1 == w2 or p2 == w1 or p2 == w2:
+                continue
+            if line_segments_intersect(p1, p2, w1, w2):
+                return False
+    return True
+
+def euclidean_distance_3d(node_a, node_b, node_coords):
+    x1, y1, z1 = node_coords[node_a]
+    x2, y2, z2 = node_coords[node_b]
+    return math.sqrt((x1 - x2)**2 + (y1 - y2)**2 + ((z1 - z2) * 15.0)**2)
+
 def inject_temp_node(temp_id, coords, nodes_dict, graph_dict, walls_dict, max_connect_dist=30.0):
     """
     Injects a temporary node (X, Y, Z) into nodes_dict and dynamically links it
@@ -919,77 +974,32 @@ def cleanup_temp_node(temp_id, nodes_dict, graph_dict):
     for node_id in list(graph_dict.keys()):
         graph_dict[node_id] = [edge for edge in graph_dict[node_id] if edge[0] != temp_id]
 
-# ==============================================================================
-# 3. Theta* pathfinding algorithm
-# ==============================================================================
 
-def extract_wall_segments(room_polygons):
-    walls_by_floor = {}
-    for room_info in room_polygons.values():
-        z = room_info["z"]
-        coords = room_info["coords"]
-        if z not in walls_by_floor:
-            walls_by_floor[z] = []
-        num_pts = len(coords)
-        for i in range(num_pts):
-            walls_by_floor[z].append((coords[i], coords[(i + 1) % num_pts]))
-    return walls_by_floor
-
-WALL_SEGMENTS_BY_FLOOR = extract_wall_segments(ROOM_POLYGONS)
-
-def line_segments_intersect(p1, p2, p3, p4):
-    def ccw(a, b, c):
-        return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
-    return (ccw(p1, p3, p4) != ccw(p2, p3, p4)) and (ccw(p1, p2, p3) != ccw(p1, p2, p4))
-
-def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
-    x1, y1, z1 = node_coords[node_a]
-    x2, y2, z2 = node_coords[node_b]
-
-    if z1 != z2:
-        return False
-
-    p1, p2 = (x1, y1), (x2, y2)
-    floor_z = int(z1)
-
-    if floor_z in wall_segments:
-        for w1, w2 in wall_segments[floor_z]:
-            if p1 == w1 or p1 == w2 or p2 == w1 or p2 == w2:
-                continue
-            if line_segments_intersect(p1, p2, w1, w2):
-                return False
-    return True
-
-def euclidean_distance_3d(node_a, node_b, node_coords):
-    x1, y1, z1 = node_coords[node_a]
-    x2, y2, z2 = node_coords[node_b]
-    return math.sqrt((x1 - x2)**2 + (y1 - y2)**2 + ((z1 - z2) * 15.0)**2)
-
-def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
+def theta_star_3d(start, goal, graph, node_coords, wall_segments_by_floor=None, accessible_only=False):
     if start not in node_coords or goal not in node_coords:
-        return None
+        return None, float('inf')
+
+    if wall_segments_by_floor is None:
+        wall_segments_by_floor = {}
 
     open_set = []
     heapq.heappush(open_set, (0, start))
 
     parent = {start: start}
-    
     g_score = {node: float('inf') for node in node_coords}
     g_score[start] = 0.0
-
-    f_score = {node: float('inf') for node in node_coords}
-    f_score[start] = euclidean_distance_3d(start, goal, node_coords)
 
     while open_set:
         _, current = heapq.heappop(open_set)
 
         if current == goal:
             path = []
-            while current != parent[current]:
-                path.append(current)
-                current = parent[current]
+            curr = goal
+            while curr != parent[curr]:
+                path.append(curr)
+                curr = parent[curr]
             path.append(start)
-            return path[::-1]
+            return path[::-1], g_score[goal]
 
         for neighbor, weight in graph.get(current, {}).items():
             if neighbor not in node_coords:
@@ -1000,22 +1010,22 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
             p_curr = parent[current]
             same_floor = (node_coords[p_curr][2] == node_coords[neighbor][2])
             
-            if same_floor and has_line_of_sight_3d(p_curr, neighbor, node_coords, WALL_SEGMENTS_BY_FLOOR):
+            if same_floor and has_line_of_sight_3d(p_curr, neighbor, node_coords, wall_segments_by_floor):
                 candidate_g = g_score[p_curr] + euclidean_distance_3d(p_curr, neighbor, node_coords)
                 if candidate_g < g_score[neighbor]:
                     parent[neighbor] = p_curr
                     g_score[neighbor] = candidate_g
-                    f_score[neighbor] = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
-                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
+                    f_score = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
+                    heapq.heappush(open_set, (f_score, neighbor))
             else:
                 candidate_g = g_score[current] + weight
                 if candidate_g < g_score[neighbor]:
                     parent[neighbor] = current
                     g_score[neighbor] = candidate_g
-                    f_score[neighbor] = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
-                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
+                    f_score = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
+                    heapq.heappush(open_set, (f_score, neighbor))
 
-    return None
+    return None, float('inf')
 
 def compute_route_arbitrary(start_point, end_point, nodes_dict, graph_dict, walls_dict, accessible=False):
     """
@@ -1024,7 +1034,7 @@ def compute_route_arbitrary(start_point, end_point, nodes_dict, graph_dict, wall
     temp_nodes_created = []
     
     # Process Start Point
-    if isinstance(start_point, tuple): # e.g. (12.5, 45.3, 0)
+    if isinstance(start_point, tuple):
         start_id = "TEMP_START"
         inject_temp_node(start_id, start_point, nodes_dict, graph_dict, walls_dict)
         temp_nodes_created.append(start_id)
@@ -1032,20 +1042,20 @@ def compute_route_arbitrary(start_point, end_point, nodes_dict, graph_dict, wall
         start_id = start_point
         
     # Process End Point
-    if isinstance(end_point, tuple): # e.g. (88.1, 10.2, 1)
+    if isinstance(end_point, tuple):
         end_id = "TEMP_END"
         inject_temp_node(end_id, end_point, nodes_dict, graph_dict, walls_dict)
         temp_nodes_created.append(end_id)
     else:
         end_id = end_point
 
-    # Execute standard 3D Theta* pathfinding
+    # Execute standard 3D Theta* pathfinding with matched arguments
     path, total_dist = theta_star_3d(
-        start_node=start_id,
-        target_node=end_id,
-        nodes=nodes_dict,
+        start=start_id,
+        goal=end_id,
         graph=graph_dict,
-        walls=walls_dict,
+        node_coords=nodes_dict,
+        wall_segments_by_floor=walls_dict,
         accessible_only=accessible
     )
     
