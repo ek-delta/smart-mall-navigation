@@ -2102,6 +2102,12 @@ with tab_map:
 
         col_start, col_dest = st.columns(2)
 
+        # Helper to safely calculate selectbox index for standard rooms vs custom coordinates
+        def get_safe_index(val, default_idx=0):
+            if isinstance(val, str) and val in room_options:
+                return room_options.index(val)
+            return default_idx
+
         with col_start:
             start_node = st.selectbox(
                 t["start_loc"],
@@ -2109,11 +2115,7 @@ with tab_map:
                 format_func=lambda room_id: format_location_label(
                     room_id, st.session_state.lang
                 ),
-                index=(
-                    room_options.index(st.session_state.selected_start)
-                    if st.session_state.selected_start in room_options
-                    else 0
-                ),
+                index=get_safe_index(st.session_state.selected_start, 0),
             )
         with col_dest:
             dest_node = st.selectbox(
@@ -2122,15 +2124,14 @@ with tab_map:
                 format_func=lambda room_id: format_location_label(
                     room_id, st.session_state.lang
                 ),
-                index=(
-                    room_options.index(st.session_state.selected_dest)
-                    if st.session_state.selected_dest in room_options
-                    else len(room_options) - 1
-                ),
+                index=get_safe_index(st.session_state.selected_dest, len(room_options) - 1),
             )
 
-        st.session_state.selected_start = start_node
-        st.session_state.selected_dest = dest_node
+        # Preserve custom point tuples if selected via interactive pick
+        if isinstance(st.session_state.selected_start, str):
+            st.session_state.selected_start = start_node
+        if isinstance(st.session_state.selected_dest, str):
+            st.session_state.selected_dest = dest_node
 
         if st.session_state.waypoints:
             st.markdown(t["intermediate_stops"])
@@ -2138,12 +2139,7 @@ with tab_map:
             for idx, wp in enumerate(st.session_state.waypoints):
                 wp_col1, wp_col2 = st.columns([0.85, 0.15])
                 with wp_col1:
-                    # Allow selectbox or arbitrary tuple values
-                    wp_index = (
-                        room_options.index(wp)
-                        if isinstance(wp, str) and wp in room_options
-                        else (idx + 1) % len(room_options)
-                    )
+                    wp_index = get_safe_index(wp, (idx + 1) % len(room_options))
                     selected_wp = st.selectbox(
                         t["stop_lbl"].format(idx=idx + 1),
                         options=room_options,
@@ -2153,7 +2149,9 @@ with tab_map:
                         index=wp_index,
                         key=f"waypoint_select_{idx}",
                     )
-                    st.session_state.waypoints[idx] = selected_wp
+                    # Only overwrite if user manually selected a string option from UI
+                    if isinstance(st.session_state.waypoints[idx], str):
+                        st.session_state.waypoints[idx] = selected_wp
 
                 with wp_col2:
                     st.write("")
@@ -2211,7 +2209,7 @@ with tab_map:
             unsafe_allow_html=True,
         )
 
-    # Calculate full route sequence (supports predefined nodes & dynamic coordinate points)
+    # Path calculation with temporary node coordinate retention
     full_path = []
     temp_injected_ids = []
 
@@ -2219,7 +2217,6 @@ with tab_map:
         segment_start = full_route_sequence[i]
         segment_end = full_route_sequence[i + 1]
 
-        # Inject temporary node if start segment is an arbitrary (X, Y, Z) coordinate
         start_id = segment_start
         if isinstance(segment_start, tuple):
             start_id = f"TEMP_START_{i}"
@@ -2232,7 +2229,6 @@ with tab_map:
             )
             temp_injected_ids.append(start_id)
 
-        # Inject temporary node if end segment is an arbitrary (X, Y, Z) coordinate
         end_id = segment_end
         if isinstance(segment_end, tuple):
             end_id = f"TEMP_END_{i}"
@@ -2245,7 +2241,6 @@ with tab_map:
             )
             temp_injected_ids.append(end_id)
 
-        # Pathfinding between segment endpoints
         segment_path = theta_star_3d(
             start_id,
             end_id,
@@ -2263,9 +2258,11 @@ with tab_map:
             full_path = []
             break
 
-    # Clean up temporary dynamic nodes from graph memory
+    # NOTE: Retain coordinates in MULTI_CAD_NODES so render functions can draw the path,
+    # but cleanup graph edge connections.
     for temp_id in temp_injected_ids:
-        cleanup_temp_node(temp_id, MULTI_CAD_NODES, MULTI_CAD_GRAPH)
+        if temp_id in MULTI_CAD_GRAPH:
+            del MULTI_CAD_GRAPH[temp_id]
 
     path = full_path
 
@@ -2287,7 +2284,7 @@ with tab_map:
 
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
-        if not st.session_state.map_pick_mode:
+        if not st.session_state.get("map_pick_mode", False):
             if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
                 st.session_state.map_pick_mode = True
                 st.session_state.map_pick_step = "START"
@@ -2304,9 +2301,10 @@ with tab_map:
             st.session_state.map_pick_mode = False
             st.session_state.selected_start = "A_L0_Entrance"
             st.session_state.selected_dest = "A_L0_Lobby"
+            st.session_state.last_processed_click = None
             st.rerun()
 
-    if st.session_state.map_pick_mode:
+    if st.session_state.get("map_pick_mode", False):
         curr_start_label = render_loc_label(st.session_state.selected_start)
         curr_dest_label = render_loc_label(st.session_state.selected_dest)
 
@@ -2374,52 +2372,59 @@ with tab_map:
             selection_mode="points",
         )
 
+    # Process interactive map click with click deduplication
     if (
-        st.session_state.map_pick_mode
+        st.session_state.get("map_pick_mode", False)
         and selected_data
         and "selection" in selected_data
         and selected_data["selection"]["points"]
     ):
         point = selected_data["selection"]["points"][0]
-        clicked_id = None
-        clicked_coords = None
+        
+        # Deduplication check: ignore if this exact point was already processed
+        point_signature = (point.get("x"), point.get("y"), point.get("pointIndex"))
+        if st.session_state.get("last_processed_click") != point_signature:
+            st.session_state.last_processed_click = point_signature
 
-        # 1. Check customdata or hover text for pre-defined room match
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(
-                    st.session_state.lang, {}
-                ).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
+            clicked_id = None
+            clicked_coords = None
 
-        # 2. If click point is not inside a named room, fallback to arbitrary coordinate pin
-        if not clicked_id and "x" in point and "y" in point:
-            target_z = floor_select if view_type == t["view_2d"] else point.get("z", 0)
-            clicked_coords = (float(point["x"]), float(point["y"]), int(target_z))
+            # 1. Check customdata or hover text for pre-defined room match
+            if "customdata" in point and point["customdata"]:
+                clicked_id = point["customdata"]
+            elif "text" in point:
+                raw_text = point["text"]
+                for room_key in ROOM_POLYGONS.keys():
+                    t_name = POI_TRANSLATIONS.get(
+                        st.session_state.lang, {}
+                    ).get(room_key, room_key)
+                    if t_name == raw_text or room_key == raw_text:
+                        clicked_id = room_key
+                        break
 
-        chosen_point = clicked_id if clicked_id else clicked_coords
+            # 2. If click point is not inside a named room, fallback to arbitrary coordinate pin
+            if not clicked_id and "x" in point and "y" in point:
+                target_z = floor_select if view_type == t["view_2d"] else point.get("z", 0)
+                clicked_coords = (float(point["x"]), float(point["y"]), int(target_z))
 
-        if chosen_point:
-            if st.session_state.map_pick_step == "START":
-                st.session_state.selected_start = chosen_point
-                st.session_state.map_pick_step = "WAYPOINT"
-                st.rerun()
+            chosen_point = clicked_id if clicked_id else clicked_coords
 
-            elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(chosen_point)
-                st.rerun()
+            if chosen_point:
+                if st.session_state.map_pick_step == "START":
+                    st.session_state.selected_start = chosen_point
+                    st.session_state.map_pick_step = "WAYPOINT"
+                    st.rerun()
 
-            elif st.session_state.map_pick_step == "DEST":
-                st.session_state.selected_dest = chosen_point
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
+                elif st.session_state.map_pick_step == "WAYPOINT":
+                    st.session_state.waypoints.append(chosen_point)
+                    st.rerun()
 
+                elif st.session_state.map_pick_step == "DEST":
+                    st.session_state.selected_dest = chosen_point
+                    st.session_state.map_pick_mode = False
+                    st.session_state.map_pick_step = "START"
+                    st.rerun()
+                    
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
