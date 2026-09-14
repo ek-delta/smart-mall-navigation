@@ -1215,10 +1215,7 @@ def _2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     path_coords: list = None,
     lang: str = "en",
     **kwargs  # Prevents crash if extra keyword args are passed
-) -> go.Figure:
-    """
-    Renders 2D CAD floorplan layout with optional highlighted 3D path coordinates.
-    """
+
     if path_coords is None:
         path_coords = []
         
