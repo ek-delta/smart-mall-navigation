@@ -1,6 +1,4 @@
 import math
-import random
-import time
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -26,8 +24,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Session State Initialization
-if "points" not in st.session_state:
-    st.session_state.points = []
 if "origin" not in st.session_state:
     st.session_state.origin = "Entrance Ground Floor"
 if "destination" not in st.session_state:
@@ -69,15 +65,24 @@ PARKING_SLOTS = {
     "P-104 (Handicap)": (30, 45, 2, "Available"),
 }
 
-# Flat list of all locations
 ALL_LOCATIONS = {}
 for floor, nodes in STORES.items():
     for name, coords in nodes.items():
         ALL_LOCATIONS[name] = coords
 
-# Distance Matrix Helper (3D Euclidean for Indoor Routing)
 def calculate_3d_distance(p1, p2):
     return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + ((p1[2] - p2[2]) * 8)**2)
+
+# Find nearest store node when clicking anywhere on the floor grid
+def find_nearest_store(click_x, click_y, floor_stores):
+    min_dist = float("inf")
+    closest_store = None
+    for store_name, (sx, sy, _) in floor_stores.items():
+        dist = math.hypot(click_x - sx, click_y - sy)
+        if dist < min_dist:
+            min_dist = dist
+            closest_store = store_name
+    return closest_store
 
 # ==========================================
 # 3. SIDEBAR NAVIGATION CONTROLS
@@ -90,7 +95,6 @@ selected_floor = st.sidebar.selectbox("Select View Floor", list(STORES.keys()))
 st.sidebar.divider()
 st.sidebar.subheader("Route Planner")
 
-# Selection Mode
 selection_target = st.sidebar.radio("Map Click Assigns To:", ["Origin", "Destination"])
 
 origin_loc = st.sidebar.selectbox(
@@ -109,11 +113,6 @@ dest_loc = st.sidebar.selectbox(
 st.session_state.origin = origin_loc
 st.session_state.destination = dest_loc
 
-# Clear points button
-if st.sidebar.button("Clear Click Selections"):
-    st.session_state.points = []
-    st.rerun()
-
 # ==========================================
 # 4. MAIN APP TABS
 # ==========================================
@@ -122,19 +121,27 @@ st.markdown("<div class='sub-header'>Interactive 3D Indoor Pathfinding & Parking
 
 tab_map, tab_dir, tab_park = st.tabs(["🗺️ Interactive Mall Map", "🚶 Turn-by-Turn Directions", "🅿️ Smart Parking Integration"])
 
-# ------------------------------------------
-# TAB 1: INTERACTIVE MAP (WITH CLICK EVENT CAPTURE)
-# ------------------------------------------
 with tab_map:
     col_map, col_info = st.columns([3, 1])
 
     with col_map:
-        # Build 2D Floor Plan with Clickable Nodes
         floor_stores = STORES[selected_floor]
-        
         fig = go.Figure()
 
-        # 1. Add Floor CAD Outer Boundary Lines
+        # 1. Background Interactive Click Mesh (50x50 Invisible Node Array)
+        # This makes ANY point clicked on the floor surface trigger an event
+        gx, gy = np.meshgrid(np.linspace(0, 50, 26), np.linspace(0, 50, 26))
+        fig.add_trace(go.Scatter(
+            x=gx.flatten(),
+            y=gy.flatten(),
+            mode="markers",
+            marker=dict(size=12, color="rgba(0,0,0,0)"),
+            name="Floor Click Mesh",
+            hoverinfo="none",
+            showlegend=False
+        ))
+
+        # 2. Add Floor CAD Outer Boundary Lines
         fig.add_trace(go.Scatter(
             x=[0, 50, 50, 0, 0],
             y=[0, 0, 50, 50, 0],
@@ -145,7 +152,7 @@ with tab_map:
             hoverinfo="none"
         ))
 
-        # 2. Plot Clickable Store/Node Points
+        # 3. Plot Store/Node Points
         store_xs = [coord[0] for coord in floor_stores.values()]
         store_ys = [coord[1] for coord in floor_stores.values()]
         store_names = list(floor_stores.keys())
@@ -154,19 +161,18 @@ with tab_map:
             x=store_xs,
             y=store_ys,
             mode="markers+text",
-            marker=dict(size=18, color="#1E88E5", symbol="square"),
+            marker=dict(size=24, color="#1E88E5", symbol="circle"),
             text=store_names,
             textposition="top center",
-            name="Locations",
+            name="Stores & Hubs",
             customdata=store_names,
             hoverinfo="text"
         ))
 
-        # 3. Render Route Line if Origin & Destination are calculated
+        # 4. Render Route Line if Origin & Destination are calculated
         p1 = ALL_LOCATIONS[st.session_state.origin]
         p2 = ALL_LOCATIONS[st.session_state.destination]
         
-        # Current floor level indicator
         fl_index = list(STORES.keys()).index(selected_floor)
         if p1[2] == fl_index or p2[2] == fl_index:
             rx = [p1[0], p2[0]] if p1[2] == fl_index and p2[2] == fl_index else ([p1[0], 25] if p1[2] == fl_index else [25, p2[0]])
@@ -177,20 +183,20 @@ with tab_map:
                 y=ry,
                 mode="lines+markers",
                 line=dict(color="#FF4B4B", width=4, dash="dash"),
-                marker=dict(size=10, color="#FF4B4B"),
-                name="Nav Route"
+                marker=dict(size=12, color="#FF4B4B"),
+                name="Route Path"
             ))
 
         fig.update_layout(
-            title=f"Floor Layout — {selected_floor}",
+            title=f"Floor Layout — {selected_floor} (Click anywhere to select)",
             xaxis=dict(range=[-5, 55], showgrid=False, zeroline=False),
             yaxis=dict(range=[-5, 55], showgrid=False, zeroline=False),
-            height=500,
+            height=520,
             margin=dict(l=10, r=10, t=40, b=10),
             clickmode="event+select"
         )
 
-        # STREAMLIT NATIVE INTERACTIVE CLICK EVENT CAPTURE
+        # Event Capture
         selected_data = st.plotly_chart(
             fig,
             use_container_width=True,
@@ -198,21 +204,27 @@ with tab_map:
             selection_mode="points"
         )
 
-        # Handle Map Click Events to update Origin / Destination
+        # Handle Robust Point & Grid Mesh Clicks
         if selected_data and "selection" in selected_data:
             points_data = selected_data["selection"].get("points", [])
             if points_data:
                 clicked_pt = points_data[0]
-                point_index = clicked_pt.get("point_index")
+                clicked_x = clicked_pt.get("x")
+                clicked_y = clicked_pt.get("y")
                 
-                if point_index is not None and point_index < len(store_names):
-                    clicked_location_name = store_names[point_index]
+                # Check if direct store marker or background mesh was clicked
+                clicked_store = None
+                if "customdata" in clicked_pt:
+                    clicked_store = clicked_pt["customdata"]
+                elif clicked_x is not None and clicked_y is not None:
+                    clicked_store = find_nearest_store(clicked_x, clicked_y, floor_stores)
 
-                    if selection_target == "Origin" and st.session_state.origin != clicked_location_name:
-                        st.session_state.origin = clicked_location_name
+                if clicked_store:
+                    if selection_target == "Origin" and st.session_state.origin != clicked_store:
+                        st.session_state.origin = clicked_store
                         st.rerun()
-                    elif selection_target == "Destination" and st.session_state.destination != clicked_location_name:
-                        st.session_state.destination = clicked_location_name
+                    elif selection_target == "Destination" and st.session_state.destination != clicked_store:
+                        st.session_state.destination = clicked_store
                         st.rerun()
 
     with col_info:
