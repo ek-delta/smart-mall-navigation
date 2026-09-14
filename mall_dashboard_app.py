@@ -1175,27 +1175,43 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def add_clickable_background_grid(fig, min_x=0, max_x=100, min_y=0, max_y=100, step=2.0):
-    """
-    Adds a grid of invisible scatter points across the entire floor plan.
-    This guarantees that clicking anywhere on the map registers a Plotly click event.
+def add_clickable_background_grid(
+    fig, min_x=0, max_x=100, min_y=0, max_y=100, step=1.0
+):
+    """Adds a grid of near-invisible scatter points across the floor.
+
+    Uses rgba(0,0,0,0.001) so Plotly registers the exact (X, Y) coordinates of
+    clicks instead of snapping to existing room nodes or room centers.
     """
     x_grid, y_grid = np.mgrid[min_x:max_x:step, min_y:max_y:step]
-    
+
     fig.add_trace(
         go.Scatter(
             x=x_grid.flatten(),
             y=y_grid.flatten(),
             mode="markers",
-            marker=dict(size=10, opacity=0), # Invisible markers
+            marker=dict(
+                size=12,
+                color="rgba(0, 0, 0, 0.001)",  # Near-zero opacity keeps click hitboxes active
+            ),
             hoverinfo="none",
             showlegend=False,
-            name="background_click_layer"
+            name="background_click_layer",
         )
     )
 
+
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
+
+    # 1. ADD CLICKABLE BACKGROUND GRID FIRST
+    # Calculate exact floor bounds so grid covers the whole floor
+    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
+
+    # Use step=1.0 for high coordinate precision when clicking arbitrary spots
+    add_clickable_background_grid(
+        fig, min_x=min_x, max_x=max_x, min_y=min_y, max_y=max_y, step=1.0
+    )
 
     floor_rooms = {
         r_id: poly["coords"]
@@ -1203,11 +1219,14 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
+    # 2. DRAW ROOM POLYGONS
     for room_id, coords in floor_rooms.items():
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
         room_info = ROOM_POLYGONS[room_id]
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(
+            room_id, room_id
+        )
 
         fig.add_trace(
             go.Scatter(
@@ -1223,8 +1242,15 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             )
         )
 
+    # 3. DRAW ROUTE PATH & ANNOTATIONS IF AVAILABLE
     if route_path:
-        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
+        floor_path = [
+            node
+            for node in route_path
+            if isinstance(node, str)
+            and node in MULTI_CAD_NODES
+            and MULTI_CAD_NODES[node][2] == active_floor_z
+        ]
 
         if len(floor_path) > 1:
             path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
@@ -1238,7 +1264,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     line=dict(color="#FF0000", width=4, dash="solid"),
                     marker=dict(size=8, color="#8B0000"),
                     name="Route Path",
-                    showlegend=False
+                    showlegend=False,
                 )
             )
 
@@ -1262,65 +1288,100 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     arrowhead=2,
                     arrowsize=1.5,
                     arrowwidth=2.5,
-                    arrowcolor="#CC0000"
+                    arrowcolor="#CC0000",
                 )
 
-        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
+        lang_dict = LOCALIZATION.get(
+            current_lang, LOCALIZATION.get("English", {})
+        )
         start_lbl = lang_dict.get("marker_start", " Start")
         dest_lbl = lang_dict.get("marker_dest", " Destination")
+
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
-        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
+        # Draw Start Marker
+        if (
+            isinstance(start_node_id, str)
+            and start_node_id in MULTI_CAD_NODES
+            and MULTI_CAD_NODES[start_node_id][2] == active_floor_z
+        ):
             start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
             fig.add_trace(
                 go.Scatter(
                     x=[start_x],
                     y=[start_y],
                     mode="markers+text",
-                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
+                    marker=dict(
+                        size=14,
+                        color="#FF0000",
+                        symbol="circle",
+                        line=dict(color="#8B0000", width=2),
+                    ),
                     text=[start_lbl],
                     textposition="top right",
-                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
+                    textfont=dict(
+                        color="#FF0000", size=12, family="Arial Black"
+                    ),
                     name="Start Location",
-                    showlegend=False
+                    showlegend=False,
                 )
             )
 
-        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
+        # Draw Destination Marker
+        if (
+            isinstance(dest_node_id, str)
+            and dest_node_id in MULTI_CAD_NODES
+            and MULTI_CAD_NODES[dest_node_id][2] == active_floor_z
+        ):
             dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
             fig.add_trace(
                 go.Scatter(
                     x=[dest_x],
                     y=[dest_y],
                     mode="markers+text",
-                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
+                    marker=dict(
+                        size=14,
+                        color="#00FF00",
+                        symbol="circle",
+                        line=dict(color="#006600", width=2),
+                    ),
                     text=[dest_lbl],
                     textposition="top right",
-                    textfont=dict(color="#00FF00", size=12, family="Arial Black"),
+                    textfont=dict(
+                        color="#00FF00", size=12, family="Arial Black"
+                    ),
                     name="Destination",
-                    showlegend=False
+                    showlegend=False,
                 )
             )
 
+    # 4. DRAW ROOM TEXT LABELS
+    # Set hoverinfo="skip" so text centroids don't override point coordinates on click
     for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(
+            room_id, room_id
+        )
 
         xs = [p[0] for p in coords]
         ys = [p[1] for p in coords]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
+        min_r_x, max_r_x = min(xs), max(xs)
+        min_r_y, max_r_y = min(ys), max(ys)
 
-        cx = (min_x + max_x) / 2.0
-        cy = (min_y + max_y) / 2.0
-        bbox_w = max_x - min_x
-        bbox_h = max_y - min_y
+        cx = (min_r_x + max_r_x) / 2.0
+        cy = (min_r_y + max_r_y) / 2.0
+        bbox_w = max_r_x - min_r_x
+        bbox_h = max_r_y - min_r_y
 
         if bbox_w < 0.6 or bbox_h < 0.6:
             continue
 
-        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
-        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
+        font_size, max_chars = calculate_optimal_font_size(
+            bbox_w, bbox_h, translated_name
+        )
+        wrapped_label = wrap_text_to_fit(
+            translated_name, max_chars_per_line=max_chars
+        )
 
         fig.add_trace(
             go.Scatter(
@@ -1330,30 +1391,35 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 mode="text",
                 textposition="middle center",
                 textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
+                    color="#000000", size=12, family="Arial Black, sans-serif"
                 ),
-                customdata=[room_id],
-                hoverinfo="text",
-                hovertext=[translated_name],
-                showlegend=False
+                hoverinfo="skip",  # Prevent label trace from stealing click selection
+                showlegend=False,
             )
         )
 
-    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
-    add_clickable_background_grid(fig, min_x=0, max_x=100, min_y=0, max_y=100, step=2.0)
-
+    # 5. LAYOUT CONFIGURATION
     fig.update_layout(
-        clickmode='event+select',
-        dragmode='pan',
-        height=650,  
+        clickmode="event+select",
+        dragmode="pan",
+        height=650,
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
         plot_bgcolor="#FFB6C1",
         paper_bgcolor="#000000",
-        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
-        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
+        xaxis=dict(
+            range=[min_x - 5, max_x + 5],
+            showgrid=False,
+            zeroline=False,
+            gridcolor="#000000",
+        ),
+        yaxis=dict(
+            range=[min_y - 5, max_y + 5],
+            showgrid=False,
+            zeroline=False,
+            gridcolor="#000000",
+            scaleanchor="x",
+        ),
     )
 
     return fig
