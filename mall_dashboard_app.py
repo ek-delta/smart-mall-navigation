@@ -1201,39 +1201,39 @@ def render_2d_cad_view(
 
         if route_path:
         # Filter path nodes for the active floor level
-        floor_path_nodes = [
-            node for node in route_path 
-            if node in MULTI_CAD_NODES and MULTI_CAD_NODES[node][2] == floor_level
-        ]
+            floor_path_nodes = [
+                node for node in route_path 
+                if node in MULTI_CAD_NODES and MULTI_CAD_NODES[node][2] == floor_level
+            ]
+ 
+            if len(floor_path_nodes) >= 2:
+                path_x = [MULTI_CAD_NODES[n][0] for n in floor_path_nodes]
+                path_y = [MULTI_CAD_NODES[n][1] for n in floor_path_nodes]
 
-        if len(floor_path_nodes) >= 2:
-            path_x = [MULTI_CAD_NODES[n][0] for n in floor_path_nodes]
-            path_y = [MULTI_CAD_NODES[n][1] for n in floor_path_nodes]
-
-            fig.add_trace(
-                go.Scatter(
-                    x=path_x,
-                    y=path_y,
-                    mode="lines+markers",
-                    line=dict(color="#D32F2F", width=5),
-                    marker=dict(size=8, color="#D32F2F"),
-                    name="Navigation Path",
-                    hoverinfo="none",
+                fig.add_trace(
+                    go.Scatter(
+                        x=path_x,
+                        y=path_y,
+                        mode="lines+markers",
+                        line=dict(color="#D32F2F", width=5),
+                        marker=dict(size=8, color="#D32F2F"),
+                        name="Navigation Path",
+                        hoverinfo="none",
+                    )
                 )
-            )
 
     # --- 3. Draw Icons & Location Markers ---
     # [Your icon overlay code here...]
 
-    fig.update_layout(
-        xaxis=dict(showgrid=False, zeroline=False, visible=False),
-        yaxis=dict(showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1),
-        plot_bgcolor="#F5F5F5",
-        paper_bgcolor="#FFFFFF",
-        margin=dict(l=10, r=10, t=10, b=10),
-        showlegend=False,
-    )
-    return fig
+        fig.update_layout(
+            xaxis=dict(showgrid=False, zeroline=False, visible=False),
+            yaxis=dict(showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1),
+            plot_bgcolor="#F5F5F5",
+            paper_bgcolor="#FFFFFF",
+            margin=dict(l=10, r=10, t=10, b=10),
+            showlegend=False,
+        )
+        return fig
 
     
 def render_3d_isometric_view(route_path=None, current_lang="English"):
