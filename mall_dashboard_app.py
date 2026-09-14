@@ -881,43 +881,6 @@ def get_nearest_graph_node(x, y, z_floor, graph_nodes):
 
     return closest_node, min_dist
 
-def inject_temp_node(temp_id, coords, nodes_dict, graph_dict, walls_dict, max_connect_dist=30.0):
-    """
-    Injects a temporary node (X, Y, Z) into nodes_dict and dynamically links it
-    to surrounding visible graph nodes on the same floor.
-    """
-    x_temp, y_temp, z_temp = coords
-    
-    # 1. Add temporary coordinate to nodes dictionary
-    nodes_dict[temp_id] = (x_temp, y_temp, z_temp)
-    graph_dict[temp_id] = []
-    
-    # 2. Find nearby nodes on the same floor
-    for node_id, (nx, ny, nz) in list(nodes_dict.items()):
-        if node_id == temp_id or nz != z_temp:
-            continue
-            
-        # Distance check
-        dist = math.hypot(x_temp - nx, y_temp - ny)
-        if dist <= max_connect_dist:
-            # Line-of-sight check against wall obstacles
-            floor_walls = walls_dict.get(z_temp, [])
-            if check_line_of_sight_2d((x_temp, y_temp), (nx, ny), floor_walls):
-                # Add bidirectional temporary edges
-                graph_dict[temp_id].append((node_id, dist))
-                graph_dict[node_id].append((temp_id, dist))
-
-def cleanup_temp_node(temp_id, nodes_dict, graph_dict):
-    """Removes temporary node and its connections after route calculation."""
-    if temp_id in nodes_dict:
-        del nodes_dict[temp_id]
-    if temp_id in graph_dict:
-        del graph_dict[temp_id]
-    
-    # Clean references from neighbor edge lists
-    for node_id in list(graph_dict.keys()):
-        graph_dict[node_id] = [edge for edge in graph_dict[node_id] if edge[0] != temp_id]
-
 # ==============================================================================
 # 3. Theta* pathfinding algorithm
 # ==============================================================================
@@ -1015,44 +978,6 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
     return None
-
-def compute_route_arbitrary(start_point, end_point, nodes_dict, graph_dict, walls_dict, accessible=False):
-    """
-    Computes route between standard node IDs OR arbitrary (X, Y, Z) tuple points.
-    """
-    temp_nodes_created = []
-    
-    # Process Start Point
-    if isinstance(start_point, tuple): # e.g. (12.5, 45.3, 0)
-        start_id = "TEMP_START"
-        inject_temp_node(start_id, start_point, nodes_dict, graph_dict, walls_dict)
-        temp_nodes_created.append(start_id)
-    else:
-        start_id = start_point
-        
-    # Process End Point
-    if isinstance(end_point, tuple): # e.g. (88.1, 10.2, 1)
-        end_id = "TEMP_END"
-        inject_temp_node(end_id, end_point, nodes_dict, graph_dict, walls_dict)
-        temp_nodes_created.append(end_id)
-    else:
-        end_id = end_point
-
-    # Execute standard 3D Theta* pathfinding
-    path, total_dist = theta_star_3d(
-        start_node=start_id,
-        target_node=end_id,
-        nodes=nodes_dict,
-        graph=graph_dict,
-        walls=walls_dict,
-        accessible_only=accessible
-    )
-    
-    # Clean up temporary injected nodes from memory
-    for temp_id in temp_nodes_created:
-        cleanup_temp_node(temp_id, nodes_dict, graph_dict)
-        
-    return path, total_dist
     
 # ==============================================================================
 # 4. Map generation with Plotly
@@ -1324,8 +1249,6 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
-        clickmode='event+select',
-        dragmode='pan',
         height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
@@ -2051,19 +1974,17 @@ with tab_map:
             for idx, wp in enumerate(st.session_state.waypoints):
                 wp_col1, wp_col2 = st.columns([0.85, 0.15])
                 with wp_col1:
-                    # Allow selectbox or arbitrary tuple values
-                    wp_index = (
-                        room_options.index(wp)
-                        if isinstance(wp, str) and wp in room_options
-                        else (idx + 1) % len(room_options)
-                    )
                     selected_wp = st.selectbox(
                         t["stop_lbl"].format(idx=idx + 1),
                         options=room_options,
                         format_func=lambda r_id: format_location_label(
                             r_id, st.session_state.lang
                         ),
-                        index=wp_index,
+                        index=(
+                            room_options.index(wp)
+                            if wp in room_options
+                            else (idx + 1) % len(room_options)
+                        ),
                         key=f"waypoint_select_{idx}",
                     )
                     st.session_state.waypoints[idx] = selected_wp
@@ -2095,17 +2016,11 @@ with tab_map:
             + [st.session_state.selected_dest]
         )
 
-        # Helper to format display label for standard nodes or arbitrary (X, Y, Z) points
-        def render_loc_label(loc):
-            if isinstance(loc, tuple) and len(loc) == 3:
-                return f"Point ({loc[0]:.1f}, {loc[1]:.1f}) [L{loc[2]}]"
-            elif isinstance(loc, str) and loc.startswith("TEMP_"):
-                coords = MULTI_CAD_NODES.get(loc, (0, 0, 0))
-                return f"Custom Pin ({coords[0]:.1f}, {coords[1]:.1f})"
-            return format_location_label(loc, st.session_state.lang)
-
         route_display_str = " ➔ ".join(
-            [f"`{render_loc_label(loc)}`" for loc in full_route_sequence]
+            [
+                f"`{format_location_label(loc, st.session_state.lang)}`"
+                for loc in full_route_sequence
+            ]
         )
         st.markdown(
             f"""
@@ -2124,44 +2039,14 @@ with tab_map:
             unsafe_allow_html=True,
         )
 
-    # Calculate full route sequence (supports predefined nodes & dynamic coordinate points)
     full_path = []
-    temp_injected_ids = []
-
     for i in range(len(full_route_sequence) - 1):
         segment_start = full_route_sequence[i]
         segment_end = full_route_sequence[i + 1]
 
-        # Inject temporary node if start segment is an arbitrary (X, Y, Z) coordinate
-        start_id = segment_start
-        if isinstance(segment_start, tuple):
-            start_id = f"TEMP_START_{i}"
-            inject_temp_node(
-                start_id,
-                segment_start,
-                MULTI_CAD_NODES,
-                MULTI_CAD_GRAPH,
-                WALL_POLYGONS,
-            )
-            temp_injected_ids.append(start_id)
-
-        # Inject temporary node if end segment is an arbitrary (X, Y, Z) coordinate
-        end_id = segment_end
-        if isinstance(segment_end, tuple):
-            end_id = f"TEMP_END_{i}"
-            inject_temp_node(
-                end_id,
-                segment_end,
-                MULTI_CAD_NODES,
-                MULTI_CAD_GRAPH,
-                WALL_POLYGONS,
-            )
-            temp_injected_ids.append(end_id)
-
-        # Pathfinding between segment endpoints
         segment_path = theta_star_3d(
-            start_id,
-            end_id,
+            segment_start,
+            segment_end,
             MULTI_CAD_GRAPH,
             MULTI_CAD_NODES,
             accessible_only=accessible_flag,
@@ -2175,10 +2060,6 @@ with tab_map:
         else:
             full_path = []
             break
-
-    # Clean up temporary dynamic nodes from graph memory
-    for temp_id in temp_injected_ids:
-        cleanup_temp_node(temp_id, MULTI_CAD_NODES, MULTI_CAD_GRAPH)
 
     path = full_path
 
@@ -2220,8 +2101,8 @@ with tab_map:
             st.rerun()
 
     if st.session_state.map_pick_mode:
-        curr_start_label = render_loc_label(st.session_state.selected_start)
-        curr_dest_label = render_loc_label(st.session_state.selected_dest)
+        curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
+        curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
 
         if st.session_state.map_pick_step == "START":
             col_msg, col_skip = st.columns([0.72, 0.28])
@@ -2265,19 +2146,13 @@ with tab_map:
             floor_select, route_path=path, current_lang=st.session_state.lang
         )
 
-        # UPDATED: Set selection_mode to ("points", "box") and add config options
         selected_data = st.plotly_chart(
             fig_2d,
             use_container_width=True,
             on_select="rerun",
-            selection_mode=("points", "box"),
-            config={
-                "displayModeBar": True,
-                "scrollZoom": True,
-            },
+            selection_mode="points",
         )
     else:
-        floor_select = 0
         fig_3d = render_3d_isometric_view(
             route_path=path, current_lang=st.session_state.lang
         )
@@ -2296,9 +2171,7 @@ with tab_map:
     ):
         point = selected_data["selection"]["points"][0]
         clicked_id = None
-        clicked_coords = None
 
-        # 1. Check customdata or hover text for pre-defined room match
         if "customdata" in point and point["customdata"]:
             clicked_id = point["customdata"]
         elif "text" in point:
@@ -2311,28 +2184,68 @@ with tab_map:
                     clicked_id = room_key
                     break
 
-        # 2. If click point is not inside a named room, fallback to arbitrary coordinate pin
-        if not clicked_id and "x" in point and "y" in point:
-            target_z = floor_select if view_type == t["view_2d"] else point.get("z", 0)
-            clicked_coords = (float(point["x"]), float(point["y"]), int(target_z))
-
-        chosen_point = clicked_id if clicked_id else clicked_coords
-
-        if chosen_point:
+        if clicked_id and clicked_id in ROOM_POLYGONS:
             if st.session_state.map_pick_step == "START":
-                st.session_state.selected_start = chosen_point
+                st.session_state.selected_start = clicked_id
                 st.session_state.map_pick_step = "WAYPOINT"
                 st.rerun()
 
             elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(chosen_point)
+                st.session_state.waypoints.append(clicked_id)
                 st.rerun()
 
             elif st.session_state.map_pick_step == "DEST":
-                st.session_state.selected_dest = chosen_point
+                st.session_state.selected_dest = clicked_id
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
+
+# Directions tab
+with tab_dir:
+    st.subheader(t["route_summary"])
+
+    if "path" not in locals():
+        full_route_sequence = (
+            [st.session_state.selected_start]
+            + st.session_state.waypoints
+            + [st.session_state.selected_dest]
+        )
+        path = []
+        for i in range(len(full_route_sequence) - 1):
+            s_path = theta_star_3d(
+                full_route_sequence[i],
+                full_route_sequence[i + 1],
+                MULTI_CAD_GRAPH,
+                MULTI_CAD_NODES,
+            )
+            if s_path:
+                path.extend(s_path[1:] if path else s_path)
+
+    if path:
+        summary = compute_route_summary(path)
+        m_col1, m_col2, m_col3 = st.columns(3)
+        m_col1.metric(t["total_dist"], f"{summary['total_distance']} m")
+        m_col2.metric(t["floors_crossed"], summary["floors_crossed"])
+        m_col3.metric(t["total_steps"], summary["steps"])
+
+        st.markdown("---")
+        st.subheader(t["turn_by_turn"])
+
+        detailed_steps = generate_detailed_directions(
+            path, MULTI_CAD_NODES, lang=st.session_state.lang
+        )
+
+        for step_info in detailed_steps:
+            col_icon, col_text = st.columns([0.1, 0.9])
+            with col_icon:
+                st.markdown(f"### {step_info['icon']}")
+            with col_text:
+                st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
+                st.markdown(step_info["text"])
+            st.divider()
+    else:
+        st.warning(t["no_route"])
+
 # Parking tab
 with tab_park:
     st.subheader(t["parking_sec"])
