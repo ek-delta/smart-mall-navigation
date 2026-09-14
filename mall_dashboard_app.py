@@ -3,6 +3,8 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
+from scipy.spatial import KDTree
+import numpy as np
 
 # ==============================================================================
 # 1. Translation table
@@ -1099,166 +1101,188 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
+def render_2d_cad_view(G, current_floor, path_nodes=None, origin_node=None, dest_node=None):
+    """
+    Renders 2D CAD floor layout with an invisible background click-catcher grid
+    and spatial KDTree node resolution.
+    """
+    # 1. Filter floor graph nodes
+    floor_nodes = [
+        n for n, d in G.nodes(data=True) 
+        if d.get("floor") == current_floor or d.get("pos", [0,0,0])[2] == current_floor
+    ]
+    
+    if not floor_nodes:
+        st.warning(f"No map data available for Floor {current_floor}.")
+        return None, None
+
+    # Extract positions (X, Y) for current floor
+    node_coords = np.array([G.nodes[n]["pos"][:2] for n in floor_nodes])
+    node_keys = list(floor_nodes)
+    
+    # Build KDTree for sub-millisecond nearest-node resolution
+    spatial_tree = KDTree(node_coords)
+
+    # Calculate spatial bounds with 10% padding
+    x_min, y_min = node_coords.min(axis=0)
+    x_max, y_max = node_coords.max(axis=0)
+    x_pad = max((x_max - x_min) * 0.1, 5)
+    y_pad = max((y_max - y_min) * 0.1, 5)
+    
+    x_range = [x_min - x_pad, x_max + x_pad]
+    y_range = [y_min - y_pad, y_max + y_pad]
+
     fig = go.Figure()
 
-    floor_rooms = {
-        r_id: poly["coords"]
-        for r_id, poly in ROOM_POLYGONS.items()
-        if poly["z"] == active_floor_z
-    }
-
-    for room_id, coords in floor_rooms.items():
-        x_coords = [c[0] for c in coords] + [coords[0][0]]
-        y_coords = [c[1] for c in coords] + [coords[0][1]]
-        room_info = ROOM_POLYGONS[room_id]
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-
-        fig.add_trace(
-            go.Scatter(
-                x=x_coords,
-                y=y_coords,
-                fill="toself",
-                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
-                line=dict(color="#4A5568", width=1.5),
-                hoverinfo="text",
-                text=translated_name,
-                customdata=[room_id] * len(x_coords),
-                showlegend=False,
-            )
-        )
-
-    if route_path:
-        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
-
-        if len(floor_path) > 1:
-            path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
-            path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
-
-            fig.add_trace(
-                go.Scatter(
-                    x=path_x,
-                    y=path_y,
-                    mode="lines+markers",
-                    line=dict(color="#FF0000", width=4, dash="solid"),
-                    marker=dict(size=8, color="#8B0000"),
-                    name="Route Path",
-                    showlegend=False
-                )
-            )
-
-            for i in range(len(floor_path) - 1):
-                x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
-                x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
-
-                x_mid = x_start + 0.6 * (x_end - x_start)
-                y_mid = y_start + 0.6 * (y_end - y_start)
-
-                fig.add_annotation(
-                    x=x_mid,
-                    y=y_mid,
-                    ax=x_start,
-                    ay=y_start,
-                    xref="x",
-                    yref="y",
-                    axref="x",
-                    ayref="y",
-                    showarrow=True,
-                    arrowhead=2,
-                    arrowsize=1.5,
-                    arrowwidth=2.5,
-                    arrowcolor="#CC0000"
-                )
-
-        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
-        start_lbl = lang_dict.get("marker_start", " Start")
-        dest_lbl = lang_dict.get("marker_dest", " Destination")
-        start_node_id = route_path[0]
-        dest_node_id = route_path[-1]
-
-        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
-            start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
-            fig.add_trace(
-                go.Scatter(
-                    x=[start_x],
-                    y=[start_y],
-                    mode="markers+text",
-                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
-                    text=[start_lbl],
-                    textposition="top right",
-                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
-                    name="Start Location",
-                    showlegend=False
-                )
-            )
-
-        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
-            dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
-            fig.add_trace(
-                go.Scatter(
-                    x=[dest_x],
-                    y=[dest_y],
-                    mode="markers+text",
-                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
-                    text=[dest_lbl],
-                    textposition="top right",
-                    textfont=dict(color="#00FF00", size=12, family="Arial Black"),
-                    name="Destination",
-                    showlegend=False
-                )
-            )
-
-    for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-
-        xs = [p[0] for p in coords]
-        ys = [p[1] for p in coords]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-
-        cx = (min_x + max_x) / 2.0
-        cy = (min_y + max_y) / 2.0
-        bbox_w = max_x - min_x
-        bbox_h = max_y - min_y
-
-        if bbox_w < 0.6 or bbox_h < 0.6:
-            continue
-
-        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
-        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
-
-        fig.add_trace(
-            go.Scatter(
-                x=[cx],
-                y=[cy],
-                text=[wrapped_label],
-                mode="text",
-                textposition="middle center",
-                textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
-                ),
-                customdata=[room_id],
-                hoverinfo="text",
-                hovertext=[translated_name],
-                showlegend=False
-            )
-        )
-
-    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
-
-    fig.update_layout(
-        height=650,  
-        margin=dict(l=15, r=15, t=30, b=15),
+    # 2. Add Invisible Click-Catcher Grid (50x50 resolution over canvas bounds)
+    grid_x, grid_y = np.meshgrid(
+        np.linspace(x_range[0], x_range[1], 50),
+        np.linspace(y_range[0], y_range[1], 50)
+    )
+    
+    bg_click_trace = go.Scatter(
+        x=grid_x.flatten(),
+        y=grid_y.flatten(),
+        mode="markers",
+        marker=dict(size=12, color="rgba(0,0,0,0)"),  # Fully transparent
+        hoverinfo="none",
         showlegend=False,
-        plot_bgcolor="#FFB6C1",
-        paper_bgcolor="#000000",
-        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
-        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
+        name="bg_canvas_clicker"
+    )
+    fig.add_trace(bg_click_trace)
+
+    # 3. Add Edges/Corridors
+    edge_x, edge_y = [], []
+    for u, v in G.edges():
+        u_data, v_data = G.nodes[u], G.nodes[v]
+        if u_data.get("floor") == current_floor and v_data.get("floor") == current_floor:
+            edge_x.extend([u_data["pos"][0], v_data["pos"][0], None])
+            edge_y.extend([u_data["pos"][1], v_data["pos"][1], None])
+
+    fig.add_trace(go.Scatter(
+        x=edge_x, y=edge_y,
+        mode="lines",
+        line=dict(color="#CBD5E1", width=2),
+        hoverinfo="none",
+        showlegend=False
+    ))
+
+    # 4. Add Navigable Nodes
+    node_x = node_coords[:, 0]
+    node_y = node_coords[:, 1]
+    node_labels = [G.nodes[n].get("label", n) for n in floor_nodes]
+
+    fig.add_trace(go.Scatter(
+        x=node_x, y=node_y,
+        mode="markers+text",
+        marker=dict(size=8, color="#64748B", line=dict(width=1, color="#334155")),
+        text=node_labels,
+        textposition="top center",
+        hoverinfo="text",
+        name="Nodes"
+    ))
+
+    # 5. Add Path Overlay (if active path exists)
+    if path_nodes:
+        path_on_floor = [n for n in path_nodes if G.nodes[n].get("floor") == current_floor]
+        if len(path_on_floor) > 1:
+            px = [G.nodes[n]["pos"][0] for n in path_on_floor]
+            py = [G.nodes[n]["pos"][1] for n in path_on_floor]
+            fig.add_trace(go.Scatter(
+                x=px, y=py,
+                mode="lines+markers",
+                line=dict(color="#2563EB", width=5),
+                marker=dict(size=10, color="#1D4ED8"),
+                name="Calculated Route"
+            ))
+
+    # 6. Highlight Origin & Destination
+    for n, color, label in [(origin_node, "#16A34A", "Start"), (dest_node, "#DC2626", "Destination")]:
+        if n and G.nodes[n].get("floor") == current_floor:
+            pos = G.nodes[n]["pos"]
+            fig.add_trace(go.Scatter(
+                x=[pos[0]], y=[pos[1]],
+                mode="markers+text",
+                marker=dict(size=16, color=color, symbol="star"),
+                text=[f"  <b>{label}</b>"],
+                textposition="middle right",
+                showlegend=False
+            ))
+
+    # 7. Axis & Layout Formatting
+    fig.update_layout(
+        xaxis=dict(range=x_range, showgrid=True, zeroline=False, fixedrange=True),
+        yaxis=dict(range=y_range, showgrid=True, zeroline=False, fixedrange=True, scaleanchor="x", scaleratio=1),
+        margin=dict(l=10, r=10, t=30, b=10),
+        hovermode="closest",
+        plot_bgcolor="#F8FAFC",
+        clickmode="event+select"
     )
 
-    return fig
+    return fig, (spatial_tree, node_keys)
+
+
+def render_tab_map(G):
+    """
+    Renders Map Tab view with full-surface click capture and nearest-node resolution.
+    """
+    st.header("Interactive Mall Map & Pathfinder")
+
+    floors = sorted(list({d.get("floor", 0) for _, d in G.nodes(data=True)}))
+    selected_floor = st.selectbox("Select Floor View", options=floors, index=0)
+
+    # Session states for click interaction tracking
+    if "selected_origin" not in st.session_state:
+        st.session_state["selected_origin"] = None
+    if "selected_dest" not in st.session_state:
+        st.session_state["selected_dest"] = None
+    if "click_mode" not in st.session_state:
+        st.session_state["click_mode"] = "Set Origin"
+
+    # Radio toggle for click target
+    click_target = st.radio(
+        "Map Click Assignment Target:", 
+        options=["Set Origin", "Set Destination"],
+        horizontal=True
+    )
+
+    # Render CAD View
+    fig, spatial_index = render_2d_cad_view(
+        G, 
+        current_floor=selected_floor,
+        origin_node=st.session_state["selected_origin"],
+        dest_node=st.session_state["selected_dest"]
+    )
+
+    if fig and spatial_index:
+        spatial_tree, node_keys = spatial_index
+        
+        # Capture selection/click events using native Streamlit selection
+        event_data = st.plotly_chart(
+            fig, 
+            use_container_width=True, 
+            on_select="rerun", 
+            selection_mode="points"
+        )
+
+        # Process spatial lookup on click
+        if event_data and "selection" in event_data and event_data["selection"]["points"]:
+            point = event_data["selection"]["points"][0]
+            click_x, click_y = point["x"], point["y"]
+
+            # Query SciPy KDTree for nearest node
+            _, nearest_idx = spatial_tree.query([click_x, click_y])
+            resolved_node = node_keys[nearest_idx]
+
+            # Update session state according to active mode
+            if click_target == "Set Origin":
+                st.session_state["selected_origin"] = resolved_node
+                st.toast(f"Origin set to: **{G.nodes[resolved_node].get('label', resolved_node)}**", icon="📍")
+            else:
+                st.session_state["selected_dest"] = resolved_node
+                st.toast(f"Destination set to: **{G.nodes[resolved_node].get('label', resolved_node)}**", icon="🎯")
+            
+            st.rerun()
 
 def render_3d_isometric_view(route_path=None, current_lang="English"):
     fig = go.Figure()
