@@ -1174,6 +1174,24 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
+def add_clickable_background_grid(fig, min_x=0, max_x=100, min_y=0, max_y=100, step=2.0):
+    x_grid, y_grid = np.mgrid[min_x:max_x:step, min_y:max_y:step]
+    
+    fig.add_trace(
+        go.Scatter(
+            x=x_grid.flatten(),
+            y=y_grid.flatten(),
+            mode="markers",
+            marker=dict(
+                size=14,
+                color="rgba(0,0,0,0.1)" # Near-zero opacity keeps click hitboxes active
+            ),
+            hoverinfo="none",
+            showlegend=False,
+            name="background_click_layer"
+        )
+    )
+
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
@@ -1322,19 +1340,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         )
 
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
-    x_grid, y_grid = np.mgrid[min_x:max_x:step, min_y:max_y:step]
-    
-    fig.add_trace(
-        go.Scatter(
-            x=x_grid.flatten(),
-            y=y_grid.flatten(),
-            mode="markers",
-            marker=dict(size=10, opacity=1), # Invisible markers
-            hoverinfo="none",
-            showlegend=False,
-            name="background_click_layer"
-        )
-    )
+    add_clickable_background_grid(fig, min_x=0, max_x=100, min_y=0, max_y=100, step=2.0)
 
     fig.update_layout(
         clickmode='event+select',  
