@@ -1199,46 +1199,42 @@ def render_2d_cad_view(
                 name='Calculated Route'
             ))
 
-   if route_path:
-        # Filter path coordinates for current floor
-        # (Assuming MULTI_CAD_NODES or graph nodes are filtered by floor_select)
-        floor_route_x, floor_route_y = [], []
-        
-        for node in route_path:
-            if node in MULTI_CAD_NODES:
-                pos = MULTI_CAD_NODES[node].get("pos", (0, 0, 0))
-                if pos[2] == floor_select:
-                    floor_route_x.append(pos[0])
-                    floor_route_y.append(pos[1])
-                elif len(floor_route_x) > 0 and floor_route_x[-1] is not None:
-                    # Break line segment if route moves to another floor
-                    floor_route_x.append(None)
-                    floor_route_y.append(None)
+        if route_path:
+        # Filter path nodes for the active floor level
+        floor_path_nodes = [
+            node for node in route_path 
+            if node in MULTI_CAD_NODES and MULTI_CAD_NODES[node][2] == floor_level
+        ]
 
-        if len(floor_route_x) > 1:
-            fig.add_trace(go.Scatter(
-                x=floor_route_x,
-                y=floor_route_y,
-                mode='lines+markers',
-                line=dict(color='#E91E63', width=4),
-                marker=dict(size=8, color='#E91E63'),
-                name='Active Route'
-            ))
+        if len(floor_path_nodes) >= 2:
+            path_x = [MULTI_CAD_NODES[n][0] for n in floor_path_nodes]
+            path_y = [MULTI_CAD_NODES[n][1] for n in floor_path_nodes]
 
-    # ----------------------------------------------------
-    # 4. LAYOUT & AXIS CONSTRAINTS
-    # ----------------------------------------------------
+            fig.add_trace(
+                go.Scatter(
+                    x=path_x,
+                    y=path_y,
+                    mode="lines+markers",
+                    line=dict(color="#D32F2F", width=5),
+                    marker=dict(size=8, color="#D32F2F"),
+                    name="Navigation Path",
+                    hoverinfo="none",
+                )
+            )
+
+    # --- 3. Draw Icons & Location Markers ---
+    # [Your icon overlay code here...]
+
     fig.update_layout(
-        xaxis=dict(range=[min_x - 2, max_x + 2], fixedrange=True, showgrid=True, zeroline=False),
-        yaxis=dict(range=[min_y - 2, max_y + 2], fixedrange=True, showgrid=True, zeroline=False, scaleanchor="x", scaleratio=1),
-        plot_bgcolor='#FFFFFF',
-        paper_bgcolor='#FFFFFF',
-        margin=dict(l=10, r=10, t=30, b=10),
-        clickmode='event+select',
-        dragmode=False
+        xaxis=dict(showgrid=False, zeroline=False, visible=False),
+        yaxis=dict(showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1),
+        plot_bgcolor="#F5F5F5",
+        paper_bgcolor="#FFFFFF",
+        margin=dict(l=10, r=10, t=10, b=10),
+        showlegend=False,
     )
-
     return fig
+
     
 def render_3d_isometric_view(route_path=None, current_lang="English"):
     fig = go.Figure()
@@ -1911,7 +1907,6 @@ with tab_home:
         st.info("No store categories defined.")
 
 
-# Mall map tab
 # Mall map tab
 with tab_map:
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
