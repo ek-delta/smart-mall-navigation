@@ -869,19 +869,29 @@ def find_room_by_coordinate(x, y, z_floor):
     return None
 
 
-def get_nearest_graph_node(x, y, z_floor, graph_nodes):
-    """Finds the closest node in MULTI_CAD_NODES on the same floor to connect arbitrary click coordinates to the pathfinder graph."""
-    closest_node = None
-    min_dist = float("inf")
-
-    for node_id, (nx, ny, nz) in graph_nodes.items():
-        if int(nz) == int(z_floor):
-            dist = math.hypot(x - nx, y - ny)
-            if dist < min_dist:
-                min_dist = dist
-                closest_node = node_id
-
-    return closest_node, min_dist
+def get_nearest_node(click_x: float, click_y: float, floor_id: int, graph_data: dict) -> str:
+    """
+    Finds the nearest graph node to an arbitrary (X, Y) coordinate on a specific floor.
+    `graph_data` is assumed to store node info formatted as:
+    graph_data[node_id] = {'pos': (x, y, z), 'floor': floor_id, ...}
+    """
+    floor_nodes = [
+        (node_id, data['pos']) 
+        for node_id, data in graph_data.items() 
+        if data.get('floor') == floor_id or data['pos'][2] == floor_id
+    ]
+    
+    if not floor_nodes:
+        return None
+        
+    node_ids, coords = zip(*floor_nodes)
+    coords_2d = np.array([(pos[0], pos[1]) for pos in coords])
+    
+    # Build KDTree for quick O(log N) spatial lookup
+    tree = spatial.KDTree(coords_2d)
+    _, index = tree.query([click_x, click_y])
+    
+    return node_ids[index]
 
 # ==============================================================================
 # 3. Theta* pathfinding algorithm
@@ -1101,189 +1111,104 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def render_2d_cad_view(G, current_floor, path_nodes=None, origin_node=None, dest_node=None):
+def render_2d_cad_view(floor_id: int, graph_data: dict, current_route: list = None, map_bounds: tuple = (0, 0, 100, 100)) -> go.Figure:
     """
-    Renders 2D CAD floor layout with an invisible background click-catcher grid
-    and spatial KDTree node resolution.
+    Renders a 2D CAD floor plan with floor layout walls, node networks, active route overlays,
+    and a dense background invisible click grid.
     """
-    # 1. Filter floor graph nodes
-    floor_nodes = [
-        n for n, d in G.nodes(data=True) 
-        if d.get("floor") == current_floor or d.get("pos", [0,0,0])[2] == current_floor
-    ]
-    
-    if not floor_nodes:
-        st.warning(f"No map data available for Floor {current_floor}.")
-        return None, None
-
-    # Extract positions (X, Y) for current floor
-    node_coords = np.array([G.nodes[n]["pos"][:2] for n in floor_nodes])
-    node_keys = list(floor_nodes)
-    
-    # Build KDTree for sub-millisecond nearest-node resolution
-    spatial_tree = KDTree(node_coords)
-
-    # Calculate spatial bounds with 10% padding
-    x_min, y_min = node_coords.min(axis=0)
-    x_max, y_max = node_coords.max(axis=0)
-    x_pad = max((x_max - x_min) * 0.1, 5)
-    y_pad = max((y_max - y_min) * 0.1, 5)
-    
-    x_range = [x_min - x_pad, x_max + x_pad]
-    y_range = [y_min - y_pad, y_max + y_pad]
-
+    min_x, min_y, max_x, max_y = map_bounds
     fig = go.Figure()
 
-    # 2. Add Invisible Click-Catcher Grid (50x50 resolution over canvas bounds)
+    # ----------------------------------------------------
+    # A. INVISIBLE CLICK GRID (Full Canvas Click Target)
+    # ----------------------------------------------------
+    grid_res = 50  # 50x50 resolution over canvas
     grid_x, grid_y = np.meshgrid(
-        np.linspace(x_range[0], x_range[1], 50),
-        np.linspace(y_range[0], y_range[1], 50)
+        np.linspace(min_x, max_x, grid_res),
+        np.linspace(min_y, max_y, grid_res)
     )
     
     bg_click_trace = go.Scatter(
         x=grid_x.flatten(),
         y=grid_y.flatten(),
-        mode="markers",
-        marker=dict(size=12, color="rgba(0,0,0,0)"),  # Fully transparent
-        hoverinfo="none",
+        mode='markers',
+        marker=dict(size=18, color='rgba(0,0,0,0)'),  # Fully transparent, large hitboxes
+        hoverinfo='none',
         showlegend=False,
-        name="bg_canvas_clicker"
+        name="bg_click_grid"
     )
     fig.add_trace(bg_click_trace)
 
-    # 3. Add Edges/Corridors
+    # ----------------------------------------------------
+    # B. NAVIGABLE GRAPH NODES & EDGES (CAD Style)
+    # ----------------------------------------------------
+    floor_nodes = {
+        n: data for n, data in graph_data.items() 
+        if data.get('floor') == floor_id or data['pos'][2] == floor_id
+    }
+    
+    # Render Walkway Edges
     edge_x, edge_y = [], []
-    for u, v in G.edges():
-        u_data, v_data = G.nodes[u], G.nodes[v]
-        if u_data.get("floor") == current_floor and v_data.get("floor") == current_floor:
-            edge_x.extend([u_data["pos"][0], v_data["pos"][0], None])
-            edge_y.extend([u_data["pos"][1], v_data["pos"][1], None])
+    for node_id, data in floor_nodes.items():
+        for neighbor in data.get('neighbors', []):
+            if neighbor in floor_nodes:
+                edge_x.extend([data['pos'][0], floor_nodes[neighbor]['pos'][0], None])
+                edge_y.extend([data['pos'][1], floor_nodes[neighbor]['pos'][1], None])
 
     fig.add_trace(go.Scatter(
         x=edge_x, y=edge_y,
-        mode="lines",
-        line=dict(color="#CBD5E1", width=2),
-        hoverinfo="none",
+        mode='lines',
+        line=dict(color='#E0E0E0', width=1.5, dash='dot'),
+        hoverinfo='none',
         showlegend=False
     ))
 
-    # 4. Add Navigable Nodes
-    node_x = node_coords[:, 0]
-    node_y = node_coords[:, 1]
-    node_labels = [G.nodes[n].get("label", n) for n in floor_nodes]
+    # Render Node Markers
+    node_x = [d['pos'][0] for d in floor_nodes.values()]
+    node_y = [d['pos'][1] for d in floor_nodes.values()]
+    node_text = [f"Node: {n}" for n in floor_nodes.keys()]
 
     fig.add_trace(go.Scatter(
         x=node_x, y=node_y,
-        mode="markers+text",
-        marker=dict(size=8, color="#64748B", line=dict(width=1, color="#334155")),
-        text=node_labels,
-        textposition="top center",
-        hoverinfo="text",
-        name="Nodes"
+        mode='markers',
+        marker=dict(size=8, color='#4A90E2', symbol='circle', line=dict(width=1, color='#1B365D')),
+        text=node_text,
+        hoverinfo='text',
+        name='Nodes'
     ))
 
-    # 5. Add Path Overlay (if active path exists)
-    if path_nodes:
-        path_on_floor = [n for n in path_nodes if G.nodes[n].get("floor") == current_floor]
-        if len(path_on_floor) > 1:
-            px = [G.nodes[n]["pos"][0] for n in path_on_floor]
-            py = [G.nodes[n]["pos"][1] for n in path_on_floor]
-            fig.add_trace(go.Scatter(
-                x=px, y=py,
-                mode="lines+markers",
-                line=dict(color="#2563EB", width=5),
-                marker=dict(size=10, color="#1D4ED8"),
-                name="Calculated Route"
-            ))
-
-    # 6. Highlight Origin & Destination
-    for n, color, label in [(origin_node, "#16A34A", "Start"), (dest_node, "#DC2626", "Destination")]:
-        if n and G.nodes[n].get("floor") == current_floor:
-            pos = G.nodes[n]["pos"]
-            fig.add_trace(go.Scatter(
-                x=[pos[0]], y=[pos[1]],
-                mode="markers+text",
-                marker=dict(size=16, color=color, symbol="star"),
-                text=[f"  <b>{label}</b>"],
-                textposition="middle right",
-                showlegend=False
-            ))
-
-    # 7. Axis & Layout Formatting
-    fig.update_layout(
-        xaxis=dict(range=x_range, showgrid=True, zeroline=False, fixedrange=True),
-        yaxis=dict(range=y_range, showgrid=True, zeroline=False, fixedrange=True, scaleanchor="x", scaleratio=1),
-        margin=dict(l=10, r=10, t=30, b=10),
-        hovermode="closest",
-        plot_bgcolor="#F8FAFC",
-        clickmode="event+select"
-    )
-
-    return fig, (spatial_tree, node_keys)
-
-
-def render_tab_map(G):
-    """
-    Renders Map Tab view with full-surface click capture and nearest-node resolution.
-    """
-    st.header("Interactive Mall Map & Pathfinder")
-
-    floors = sorted(list({d.get("floor", 0) for _, d in G.nodes(data=True)}))
-    selected_floor = st.selectbox("Select Floor View", options=floors, index=0)
-
-    # Session states for click interaction tracking
-    if "selected_origin" not in st.session_state:
-        st.session_state["selected_origin"] = None
-    if "selected_dest" not in st.session_state:
-        st.session_state["selected_dest"] = None
-    if "click_mode" not in st.session_state:
-        st.session_state["click_mode"] = "Set Origin"
-
-    # Radio toggle for click target
-    click_target = st.radio(
-        "Map Click Assignment Target:", 
-        options=["Set Origin", "Set Destination"],
-        horizontal=True
-    )
-
-    # Render CAD View
-    fig, spatial_index = render_2d_cad_view(
-        G, 
-        current_floor=selected_floor,
-        origin_node=st.session_state["selected_origin"],
-        dest_node=st.session_state["selected_dest"]
-    )
-
-    if fig and spatial_index:
-        spatial_tree, node_keys = spatial_index
-        
-        # Capture selection/click events using native Streamlit selection
-        event_data = st.plotly_chart(
-            fig, 
-            use_container_width=True, 
-            on_select="rerun", 
-            selection_mode="points"
-        )
-
-        # Process spatial lookup on click
-        if event_data and "selection" in event_data and event_data["selection"]["points"]:
-            point = event_data["selection"]["points"][0]
-            click_x, click_y = point["x"], point["y"]
-
-            # Query SciPy KDTree for nearest node
-            _, nearest_idx = spatial_tree.query([click_x, click_y])
-            resolved_node = node_keys[nearest_idx]
-
-            # Update session state according to active mode
-            if click_target == "Set Origin":
-                st.session_state["selected_origin"] = resolved_node
-                st.toast(f"Origin set to: **{G.nodes[resolved_node].get('label', resolved_node)}**", icon="📍")
-            else:
-                st.session_state["selected_dest"] = resolved_node
-                st.toast(f"Destination set to: **{G.nodes[resolved_node].get('label', resolved_node)}**", icon="🎯")
+    # ----------------------------------------------------
+    # C. ROUTE OVERLAY (If Active)
+    # ----------------------------------------------------
+    if current_route:
+        route_nodes = [n for n in current_route if n in floor_nodes]
+        if len(route_nodes) > 1:
+            rx = [floor_nodes[n]['pos'][0] for n in route_nodes]
+            ry = [floor_nodes[n]['pos'][1] for n in route_nodes]
             
-            st.rerun()
+            fig.add_trace(go.Scatter(
+                x=rx, y=ry,
+                mode='lines+markers',
+                line=dict(color='#FF3B30', width=4),
+                marker=dict(size=10, color='#FF3B30'),
+                name='Calculated Route'
+            ))
 
+    # ----------------------------------------------------
+    # D. CAD LAYOUT & AXIS STYLING
+    # ----------------------------------------------------
+    fig.update_layout(
+        xaxis=dict(range=[min_x - 2, max_x + 2], fixedrange=True, showgrid=True, gridcolor='#F0F0F0', zeroline=False),
+        yaxis=dict(range=[min_y - 2, max_y + 2], fixedrange=True, showgrid=True, gridcolor='#F0F0F0', zeroline=False, scaleanchor="x", scaleratio=1),
+        plot_bgcolor='#FFFFFF',
+        paper_bgcolor='#FFFFFF',
+        margin=dict(l=10, r=10, t=30, b=10),
+        clickmode='event+select',
+        dragmode=False
+    )
+
+    return fig
+    
 def render_3d_isometric_view(route_path=None, current_lang="English"):
     fig = go.Figure()
 
@@ -1956,274 +1881,67 @@ with tab_home:
 
 
 # Mall map tab
-with tab_map:
-    with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
-        room_options = list(ROOM_POLYGONS.keys())
+def render_tab_map(graph_data: dict):
+    st.header("Interactive CAD Floor Map")
+    
+    # Initialize Selection States
+    if "selected_origin" not in st.session_state:
+        st.session_state["selected_origin"] = None
+    if "selected_destination" not in st.session_state:
+        st.session_state["selected_destination"] = None
 
-        col_start, col_dest = st.columns(2)
-
-        with col_start:
-            start_node = st.selectbox(
-                t["start_loc"],
-                options=room_options,
-                format_func=lambda room_id: format_location_label(
-                    room_id, st.session_state.lang
-                ),
-                index=(
-                    room_options.index(st.session_state.selected_start)
-                    if st.session_state.selected_start in room_options
-                    else 0
-                ),
-            )
-        with col_dest:
-            dest_node = st.selectbox(
-                t["dest_loc"],
-                options=room_options,
-                format_func=lambda room_id: format_location_label(
-                    room_id, st.session_state.lang
-                ),
-                index=(
-                    room_options.index(st.session_state.selected_dest)
-                    if st.session_state.selected_dest in room_options
-                    else len(room_options) - 1
-                ),
-            )
-
-        st.session_state.selected_start = start_node
-        st.session_state.selected_dest = dest_node
-
-        if st.session_state.waypoints:
-            st.markdown(t["intermediate_stops"])
-
-            for idx, wp in enumerate(st.session_state.waypoints):
-                wp_col1, wp_col2 = st.columns([0.85, 0.15])
-                with wp_col1:
-                    selected_wp = st.selectbox(
-                        t["stop_lbl"].format(idx=idx + 1),
-                        options=room_options,
-                        format_func=lambda r_id: format_location_label(
-                            r_id, st.session_state.lang
-                        ),
-                        index=(
-                            room_options.index(wp)
-                            if wp in room_options
-                            else (idx + 1) % len(room_options)
-                        ),
-                        key=f"waypoint_select_{idx}",
-                    )
-                    st.session_state.waypoints[idx] = selected_wp
-
-                with wp_col2:
-                    st.write("")
-                    st.write("")
-                    if st.button("❌", key=f"remove_wp_{idx}"):
-                        st.session_state.waypoints.pop(idx)
-                        st.rerun()
-
-        if st.button(t["btn_add_stop_manual"], type="primary", key="add_waypoint"):
-            default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
-            st.session_state.waypoints.append(default_wp)
+    # Sidebar / Header Controls
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([1, 1, 1])
+    with col_ctrl1:
+        selected_floor = st.selectbox("Select Floor", options=[0, 1, 2], index=0)
+    with col_ctrl2:
+        selection_mode = st.radio("Click Target Mode", ["Set Origin", "Set Destination"], horizontal=True)
+    with col_ctrl3:
+        if st.button("Reset Selection"):
+            st.session_state["selected_origin"] = None
+            st.session_state["selected_destination"] = None
             st.rerun()
 
-        st.markdown("---")
-
-        route_pref = st.radio(
-            t["route_type"],
-            options=[t["shortest"], t["accessible"]],
-            horizontal=True,
-        )
-        accessible_flag = route_pref == t["accessible"]
-
-        full_route_sequence = (
-            [st.session_state.selected_start]
-            + st.session_state.waypoints
-            + [st.session_state.selected_dest]
-        )
-
-        route_display_str = " ➔ ".join(
-            [
-                f"`{format_location_label(loc, st.session_state.lang)}`"
-                for loc in full_route_sequence
-            ]
-        )
-        st.markdown(
-            f"""
-            <div style="
-                background-color: #E91E63;
-                color: #FFFFFF;
-                padding: 12px 16px;
-                border-radius: 8px;
-                font-size: 0.95rem;
-                margin-top: 10px;
-                margin-bottom: 10px;
-            ">
-                <strong>{t['current_route_lbl']}:</strong> {route_display_str}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    full_path = []
-    for i in range(len(full_route_sequence) - 1):
-        segment_start = full_route_sequence[i]
-        segment_end = full_route_sequence[i + 1]
-
-        segment_path = theta_star_3d(
-            segment_start,
-            segment_end,
-            MULTI_CAD_GRAPH,
-            MULTI_CAD_NODES,
-            accessible_only=accessible_flag,
-        )
-
-        if segment_path:
-            if full_path:
-                full_path.extend(segment_path[1:])
-            else:
-                full_path.extend(segment_path)
-        else:
-            full_path = []
-            break
-
-    path = full_path
-
-    assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
-        "P_L3_Driveway_Entrance",
-        MULTI_CAD_GRAPH,
-        MULTI_CAD_NODES,
-        accessible_only=accessible_flag,
-    )
-    st.session_state.assigned_parking = assigned_slot_id
-    st.session_state.entry_path = entry_path
-    st.session_state.exit_path = exit_path
-
-    view_type = st.radio(
-        t["view_mode"],
-        options=[t["view_2d"], t["view_3d"]],
-        horizontal=True,
+    # Render 2D CAD View with invisible grid
+    fig = render_2d_cad_view(
+        floor_id=selected_floor,
+        graph_data=graph_data,
+        current_route=st.session_state.get("active_route", None)
     )
 
-    col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
-    with col_btn_pick:
-        if not st.session_state.map_pick_mode:
-            if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
-                st.session_state.map_pick_mode = True
-                st.session_state.map_pick_step = "START"
-                st.rerun()
-        else:
-            if st.button(t["btn_cancel_interactive"], use_container_width=True):
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
+    # Capture Clicks anywhere on the chart
+    event_data = st.plotly_chart(
+        fig, 
+        use_container_width=True, 
+        on_select="rerun", 
+        selection_mode="points"
+    )
 
-    with col_btn_clear:
-        if st.button(t["btn_reset_all"], use_container_width=True):
-            st.session_state.waypoints = []
-            st.session_state.map_pick_mode = False
-            st.session_state.selected_start = "A_L0_Entrance"
-            st.session_state.selected_dest = "A_L0_Lobby"
-            st.rerun()
+    # Process Spatial Snap Lookup upon Map Click
+    if event_data and "selection" in event_data and event_data["selection"]["points"]:
+        clicked_point = event_data["selection"]["points"][0]
+        click_x = clicked_point.get("x")
+        click_y = clicked_point.get("y")
 
-    if st.session_state.map_pick_mode:
-        curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
-        curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
-
-        if st.session_state.map_pick_step == "START":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.info(f"{t['pick_step_1']} ({t['lbl_current']}: **{curr_start_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_start"], use_container_width=True):
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "WAYPOINT":
-            col_msg, col_done = st.columns([0.72, 0.28])
-            with col_msg:
-                st.warning(t["pick_step_2"])
-            with col_done:
-                if st.button(t["btn_done_adding_stops"], type="primary", use_container_width=True):
-                    st.session_state.map_pick_step = "DEST"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "DEST":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.success(f"{t['pick_step_3']} ({t['lbl_current']}: **{curr_dest_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_dest"], use_container_width=True):
-                    st.session_state.map_pick_mode = False
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-
-    selected_data = None
-
-    if view_type == t["view_2d"]:
-        floor_select = st.selectbox(
-            t["active_floor"],
-            options=[0, 1, 2, 3],
-            format_func=lambda x: get_translated_floor_name(
-                x, lang=st.session_state.lang
-            ),
-        )
-        fig_2d = render_2d_cad_view(
-            floor_select, route_path=path, current_lang=st.session_state.lang
-        )
-
-        selected_data = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
-    else:
-        fig_3d = render_3d_isometric_view(
-            route_path=path, current_lang=st.session_state.lang
-        )
-        selected_data = st.plotly_chart(
-            fig_3d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
-
-    if (
-        st.session_state.map_pick_mode
-        and selected_data
-        and "selection" in selected_data
-        and selected_data["selection"]["points"]
-    ):
-        point = selected_data["selection"]["points"][0]
-        clicked_id = None
-
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(
-                    st.session_state.lang, {}
-                ).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
-
-        if clicked_id and clicked_id in ROOM_POLYGONS:
-            if st.session_state.map_pick_step == "START":
-                st.session_state.selected_start = clicked_id
-                st.session_state.map_pick_step = "WAYPOINT"
+        if click_x is not None and click_y is not None:
+            # Snap arbitrary click coordinates to nearest navigable node
+            nearest_node = get_nearest_node(click_x, click_y, selected_floor, graph_data)
+            
+            if nearest_node:
+                if selection_mode == "Set Origin":
+                    st.session_state["selected_origin"] = nearest_node
+                else:
+                    st.session_state["selected_destination"] = nearest_node
                 st.rerun()
 
-            elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(clicked_id)
-                st.rerun()
-
-            elif st.session_state.map_pick_step == "DEST":
-                st.session_state.selected_dest = clicked_id
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
-
+    # Display Current Selection Status
+    st.markdown("---")
+    col_status1, col_status2 = st.columns(2)
+    with col_status1:
+        st.info(f"**Origin Node:** {st.session_state['selected_origin'] or 'Click map to set'}")
+    with col_status2:
+        st.success(f"**Destination Node:** {st.session_state['selected_destination'] or 'Click map to set'}")
+        
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
