@@ -2043,96 +2043,195 @@ with tab_home:
 
 
 # Mall map tab
+# ==============================================================================
+# TAB MAP: INTERACTIVE MAP & WAYPOINT NAVIGATION
+# ==============================================================================
 with tab_map:
-    with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
-        room_options = list(ROOM_POLYGONS.keys())
+    st.subheader("🗺️ Interactive Map & Precise Path Selection")
 
-        col_start, col_dest = st.columns(2)
+    # --------------------------------------------------------------------------
+    # 1. State Initializations
+    # --------------------------------------------------------------------------
+    st.session_state.setdefault("active_floor", "GF")
+    st.session_state.setdefault("map_view_mode", "2D CAD")
+    st.session_state.setdefault("waypoint_selection_mode", "start")
+    st.session_state.setdefault("route_start_pt", None)
+    st.session_state.setdefault("route_end_pt", None)
+    st.session_state.setdefault("route_stops", [])
+    st.session_state.setdefault("accessible_only", False)
 
-        with col_start:
-            start_node = st.selectbox(
-                t["start_loc"],
-                options=room_options,
-                format_func=lambda room_id: format_location_label(
-                    room_id, st.session_state.lang
-                ),
-                index=(
-                    room_options.index(st.session_state.selected_start)
-                    if st.session_state.selected_start in room_options
-                    else 0
-                ),
-            )
-        with col_dest:
-            dest_node = st.selectbox(
-                t["dest_loc"],
-                options=room_options,
-                format_func=lambda room_id: format_location_label(
-                    room_id, st.session_state.lang
-                ),
-                index=(
-                    room_options.index(st.session_state.selected_dest)
-                    if st.session_state.selected_dest in room_options
-                    else len(room_options) - 1
-                ),
-            )
+    # --------------------------------------------------------------------------
+    # 2. Map View & Routing Control Panel
+    # --------------------------------------------------------------------------
+    col_ctrl1, col_ctrl2, col_ctrl3, col_ctrl4 = st.columns([2, 2, 2, 2])
 
-        st.session_state.selected_start = start_node
-        st.session_state.selected_dest = dest_node
+    with col_ctrl1:
+        st.session_state["active_floor"] = st.selectbox(
+            "Select Floor Level",
+            options=["GF", "1F", "2F", "R"],
+            index=["GF", "1F", "2F", "R"].index(st.session_state["active_floor"]),
+            key="floor_selector"
+        )
 
-        if st.session_state.waypoints:
-            st.markdown(t["intermediate_stops"])
-
-            for idx, wp in enumerate(st.session_state.waypoints):
-                wp_col1, wp_col2 = st.columns([0.85, 0.15])
-                with wp_col1:
-                    selected_wp = st.selectbox(
-                        t["stop_lbl"].format(idx=idx + 1),
-                        options=room_options,
-                        format_func=lambda r_id: format_location_label(
-                            r_id, st.session_state.lang
-                        ),
-                        index=(
-                            room_options.index(wp)
-                            if wp in room_options
-                            else (idx + 1) % len(room_options)
-                        ),
-                        key=f"waypoint_select_{idx}",
-                    )
-                    st.session_state.waypoints[idx] = selected_wp
-
-                with wp_col2:
-                    st.write("")
-                    st.write("")
-                    if st.button("❌", key=f"remove_wp_{idx}"):
-                        st.session_state.waypoints.pop(idx)
-                        st.rerun()
-
-        if st.button(t["btn_add_stop_manual"], type="primary", key="add_waypoint"):
-            default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
-            st.session_state.waypoints.append(default_wp)
-            st.rerun()
-
-        st.markdown("---")
-
-        route_pref = st.radio(
-            t["route_type"],
-            options=[t["shortest"], t["accessible"]],
+    with col_ctrl2:
+        st.session_state["map_view_mode"] = st.radio(
+            "Visualization Mode",
+            options=["2D CAD", "3D Isometric"],
             horizontal=True,
-        )
-        accessible_flag = route_pref == t["accessible"]
-
-        full_route_sequence = (
-            [st.session_state.selected_start]
-            + st.session_state.waypoints
-            + [st.session_state.selected_dest]
+            key="view_mode_selector"
         )
 
-        route_display_str = " ➔ ".join(
-            [
-                f"`{format_location_label(loc, st.session_state.lang)}`"
-                for loc in full_route_sequence
-            ]
+    with col_ctrl3:
+        st.session_state["waypoint_selection_mode"] = st.radio(
+            "Map Click Action",
+            options=["start", "destination", "stopover"],
+            format_func=lambda x: {
+                "start": "📍 Set Start",
+                "destination": "🏁 Set Destination",
+                "stopover": "➕ Add Stop"
+            }[x],
+            horizontal=True,
+            key="click_mode_selector"
         )
+
+    with col_ctrl4:
+        st.session_state["accessible_only"] = st.checkbox(
+            "♿ Step-Free Access Only",
+            value=st.session_state["accessible_only"],
+            key="accessible_chk"
+        )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------------------------
+    # 3. Dynamic Path Computation Engine Integration
+    # --------------------------------------------------------------------------
+    waypoints = []
+    if st.session_state["route_start_pt"]:
+        waypoints.append(st.session_state["route_start_pt"])
+
+    waypoints.extend(st.session_state["route_stops"])
+
+    if st.session_state["route_end_pt"]:
+        waypoints.append(st.session_state["route_end_pt"])
+
+    path_coords = []
+    exact_distance = 0.0
+    node_trace = []
+
+    if len(waypoints) >= 2:
+        path_coords, exact_distance, node_trace = compute_exact_coordinate_route(
+            waypoints=waypoints,
+            base_nodes=MULTI_CAD_NODES,
+            base_graph=MULTI_CAD_GRAPH,
+            accessible_only=st.session_state["accessible_only"]
+        )
+
+        st.session_state["current_path_coords"] = path_coords
+        st.session_state["current_total_dist"] = exact_distance
+        st.session_state["current_node_trace"] = node_trace
+
+    # --------------------------------------------------------------------------
+    # 4. Render Selected Map View (2D CAD or 3D Isometric)
+    # --------------------------------------------------------------------------
+    current_floor = st.session_state["active_floor"]
+
+    if st.session_state["map_view_mode"] == "2D CAD":
+        # Generate standard 2D CAD figure
+        fig_map = render_2d_cad_view(
+            floor_code=current_floor,
+            path_coords=path_coords,
+            lang=st.session_state.get("lang", "en")
+        )
+
+        # Plot exact clicked custom pins directly onto 2D canvas
+        pin_colors = {"start": "#4CAF50", "destination": "#F44336", "stopover": "#FF9800"}
+        
+        for wpt in waypoints:
+            if wpt.get("floor") == current_floor:
+                wpt_type = "start" if wpt == st.session_state["route_start_pt"] else (
+                    "destination" if wpt == st.session_state["route_end_pt"] else "stopover"
+                )
+                
+                fig_map.add_trace(
+                    go.Scatter(
+                        x=[wpt["x"]],
+                        y=[wpt["y"]],
+                        mode="markers+text",
+                        marker=dict(
+                            size=14,
+                            color=pin_colors[wpt_type],
+                            symbol="pin",
+                            line=dict(color="#FFFFFF", width=2)
+                        ),
+                        text=[f" <b>{wpt['label']}</b>"],
+                        textposition="top center",
+                        name=f"Pin ({wpt['label']})",
+                        showlegend=False
+                    )
+                )
+
+        # Capture interactive user click events on Plotly 2D canvas
+        selected_data = st.plotly_chart(
+            fig_map,
+            use_container_width=True,
+            on_select="rerun",
+            key="interactive_2d_map"
+        )
+
+        # Handle continuous click coordinates
+        if selected_data and "selection" in selected_data:
+            points = selected_data["selection"].get("points", [])
+            if points:
+                clicked_pt = points[0]
+                exact_x = float(clicked_pt.get("x", 0.0))
+                exact_y = float(clicked_pt.get("y", 0.0))
+
+                # Identify room label or display exact coordinate
+                room_name = find_room_by_coordinate(exact_x, exact_y, current_floor)
+                display_label = room_name if room_name else f"Point ({exact_x:.1f}, {exact_y:.1f})"
+
+                selection_mode = st.session_state["waypoint_selection_mode"]
+                custom_waypoint = {
+                    "id": f"CUSTOM_{len(st.session_state['route_stops']) + 1}_{exact_x:.1f}_{exact_y:.1f}",
+                    "label": display_label,
+                    "x": exact_x,
+                    "y": exact_y,
+                    "floor": current_floor,
+                    "is_custom": True
+                }
+
+                if selection_mode == "start":
+                    st.session_state["route_start_pt"] = custom_waypoint
+                elif selection_mode == "destination":
+                    st.session_state["route_end_pt"] = custom_waypoint
+                elif selection_mode == "stopover":
+                    st.session_state["route_stops"].append(custom_waypoint)
+
+                st.rerun()
+
+    else:
+        # Render Multi-Layer 3D Isometric View
+        fig_3d = render_3d_isometric_view(
+            path_coords=path_coords,
+            lang=st.session_state.get("lang", "en")
+        )
+        st.plotly_chart(fig_3d, use_container_width=True, key="isometric_3d_map")
+
+    # --------------------------------------------------------------------------
+    # 5. Route Summary & Pink Highlight Banner
+    # --------------------------------------------------------------------------
+    if waypoints:
+        route_str_elements = []
+        for wpt in waypoints:
+            fl_prefix = f"[{wpt['floor']}]"
+            label = wpt["label"]
+            coords_badge = f"({wpt['x']:.1f}, {wpt['y']:.1f})" if wpt.get("is_custom") else ""
+            route_str_elements.append(f"<code>{fl_prefix} {label} {coords_badge}</code>")
+
+        full_route_sequence_str = " ➔ ".join(route_str_elements)
+
+        # Pink route status banner
         st.markdown(
             f"""
             <div style="
@@ -2144,171 +2243,34 @@ with tab_map:
                 margin-top: 10px;
                 margin-bottom: 10px;
             ">
-                <strong>{t['current_route_lbl']}:</strong> {route_display_str}
+                <strong>Current Active Route:</strong> {full_route_sequence_str}
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    full_path = []
-    for i in range(len(full_route_sequence) - 1):
-        segment_start = full_route_sequence[i]
-        segment_end = full_route_sequence[i + 1]
+    # --------------------------------------------------------------------------
+    # 6. Waypoint Details & Controls Toolbar
+    # --------------------------------------------------------------------------
+    if len(waypoints) >= 2:
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+            st.metric("Exact Calculated Distance", f"{exact_distance:.2f} m")
+        with col_m2:
+            st.metric("Total Waypoint Legs", f"{len(waypoints) - 1}")
+        with col_m3:
+            st.metric("Estimated Walk Time", f"{math.ceil(exact_distance / 1.2)} min")
 
-        segment_path = theta_star_3d(
-            segment_start,
-            segment_end,
-            MULTI_CAD_GRAPH,
-            MULTI_CAD_NODES,
-            accessible_only=accessible_flag,
-        )
-
-        if segment_path:
-            if full_path:
-                full_path.extend(segment_path[1:])
-            else:
-                full_path.extend(segment_path)
-        else:
-            full_path = []
-            break
-
-    path = full_path
-
-    assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
-        "P_L3_Driveway_Entrance",
-        MULTI_CAD_GRAPH,
-        MULTI_CAD_NODES,
-        accessible_only=accessible_flag,
-    )
-    st.session_state.assigned_parking = assigned_slot_id
-    st.session_state.entry_path = entry_path
-    st.session_state.exit_path = exit_path
-
-    view_type = st.radio(
-        t["view_mode"],
-        options=[t["view_2d"], t["view_3d"]],
-        horizontal=True,
-    )
-
-    col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
-    with col_btn_pick:
-        if not st.session_state.map_pick_mode:
-            if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
-                st.session_state.map_pick_mode = True
-                st.session_state.map_pick_step = "START"
-                st.rerun()
-        else:
-            if st.button(t["btn_cancel_interactive"], use_container_width=True):
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
-
-    with col_btn_clear:
-        if st.button(t["btn_reset_all"], use_container_width=True):
-            st.session_state.waypoints = []
-            st.session_state.map_pick_mode = False
-            st.session_state.selected_start = "A_L0_Entrance"
-            st.session_state.selected_dest = "A_L0_Lobby"
+    col_btn1, col_btn2 = st.columns([1, 4])
+    with col_btn1:
+        if st.button("🗑️ Clear Waypoints", use_container_width=True):
+            st.session_state["route_start_pt"] = None
+            st.session_state["route_end_pt"] = None
+            st.session_state["route_stops"] = []
+            st.session_state["current_path_coords"] = []
+            st.session_state["current_total_dist"] = 0.0
+            st.session_state["current_node_trace"] = []
             st.rerun()
-
-    if st.session_state.map_pick_mode:
-        curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
-        curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
-
-        if st.session_state.map_pick_step == "START":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.info(f"{t['pick_step_1']} ({t['lbl_current']}: **{curr_start_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_start"], use_container_width=True):
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "WAYPOINT":
-            col_msg, col_done = st.columns([0.72, 0.28])
-            with col_msg:
-                st.warning(t["pick_step_2"])
-            with col_done:
-                if st.button(t["btn_done_adding_stops"], type="primary", use_container_width=True):
-                    st.session_state.map_pick_step = "DEST"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "DEST":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.success(f"{t['pick_step_3']} ({t['lbl_current']}: **{curr_dest_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_dest"], use_container_width=True):
-                    st.session_state.map_pick_mode = False
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-
-    selected_data = None
-
-    if view_type == t["view_2d"]:
-        floor_select = st.selectbox(
-            t["active_floor"],
-            options=[0, 1, 2, 3],
-            format_func=lambda x: get_translated_floor_name(
-                x, lang=st.session_state.lang
-            ),
-        )
-        fig_2d = render_2d_cad_view(
-            floor_select, route_path=path, current_lang=st.session_state.lang
-        )
-
-        selected_data = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
-    else:
-        fig_3d = render_3d_isometric_view(
-            route_path=path, current_lang=st.session_state.lang
-        )
-        selected_data = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            on_select="rerun",
-            key="interactive_2d_map"
-        )
-
-# Process clicked coordinates
-if selected_data and "selection" in selected_data:
-    points = selected_data["selection"].get("points", [])
-    if points:
-        clicked_pt = points[0]
-        
-        # Extract exact continuous clicked coordinates
-        exact_x = float(clicked_pt.get("x", 0.0))
-        exact_y = float(clicked_pt.get("y", 0.0))
-        current_floor = st.session_state.get("active_floor", "GF")
-
-        # Determine if click occurred inside a named room for visual feedback label
-        room_name = find_room_by_coordinate(exact_x, exact_y, current_floor)
-        display_label = room_name if room_name else f"Point ({exact_x:.1f}, {exact_y:.1f})"
-
-        # Check interaction mode state (e.g., setting Start, Destination, or Stopover)
-        selection_mode = st.session_state.get("waypoint_selection_mode", "start")
-        
-        custom_waypoint = {
-            "id": f"CUSTOM_{len(st.session_state.get('custom_waypoints', [])) + 1}",
-            "label": display_label,
-            "x": exact_x,
-            "y": exact_y,
-            "floor": current_floor,
-            "is_custom": True
-        }
-
-        if selection_mode == "start":
-            st.session_state["route_start_pt"] = custom_waypoint
-        elif selection_mode == "destination":
-            st.session_state["route_end_pt"] = custom_waypoint
-        elif selection_mode == "stopover":
-            st.session_state.setdefault("route_stops", []).append(custom_waypoint)
-            
-        st.rerun()
 
 # Directions tab
 with tab_dir:
