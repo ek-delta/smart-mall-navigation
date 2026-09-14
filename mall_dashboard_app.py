@@ -1346,7 +1346,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
 
     fig.update_layout(
         clickmode='event+select',
-        dragmode='select',
+        dragmode='pan',
         height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
@@ -2290,10 +2290,9 @@ with tab_map:
             fig_2d,
             use_container_width=True,
             on_select="rerun",
-            selection_mode="points",
+            selection_mode=("points", "box"),
             config={
                 "displayModeBar": True,
-                "modeBarButtonsToAdd": ["drawrect", "eraseshape"],
                 "scrollZoom": True,
             }
         )
