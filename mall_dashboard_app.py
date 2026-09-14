@@ -1210,14 +1210,7 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def _2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
-    floor_code: str = "GF",
-    path_coords: list = None,
-    lang: str = "en"
-
-    if path_coords is None:
-        path_coords = []
-        
+def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
     floor_rooms = {
