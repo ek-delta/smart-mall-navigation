@@ -3,3 +3,4 @@ plotly
 streamlit-plotly-events
 geopy
 streamlit-folium
+scipy
