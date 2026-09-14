@@ -15,16 +15,20 @@ if st.button("Clear Selected Points"):
     st.session_state.points = []
     st.rerun()
 
+# Dynamic function lookup for Plotly 6.0+ (scatter_map) vs 5.x (scatter_mapbox)
+scatter_func = getattr(px, "scatter_map", getattr(px, "scatter_mapbox", None))
+line_func = getattr(px, "line_map", getattr(px, "line_mapbox", None))
+
 # 2. Build map dataframe from stored points
 if st.session_state.points:
     df_points = pd.DataFrame(st.session_state.points, columns=["lat", "lon"])
     df_points["label"] = [f"Point {i+1}" for i in range(len(df_points))]
 else:
-    # Empty default frame centered globally
+    # Dummy row to initialize canvas view center
     df_points = pd.DataFrame([{"lat": 20.0, "lon": 0.0, "label": "Center"}])
 
-# 3. Create Scatter Map using Plotly Express (Auto-handles Mapbox vs Map backends)
-fig = px.scatter_mapbox(
+# 3. Render base Map figure
+fig = scatter_func(
     df_points if st.session_state.points else df_points.head(0),
     lat="lat",
     lon="lon",
@@ -34,21 +38,29 @@ fig = px.scatter_mapbox(
 )
 
 # Connect points with a line if 2 points are selected
-if len(st.session_state.points) == 2:
+if len(st.session_state.points) == 2 and line_func:
     fig.add_trace(
-        px.line_mapbox(
+        line_func(
             df_points, 
             lat="lat", 
             lon="lon"
         ).data[0]
     )
 
-fig.update_layout(
-    mapbox_style="open-street-map",
-    margin=dict(l=0, r=0, t=0, b=0),
-    height=550,
-    clickmode="event+select"
-)
+# Compatible layout setup
+layout_updates = {
+    "margin": dict(l=0, r=0, t=0, b=0),
+    "height": 550,
+    "clickmode": "event+select"
+}
+
+# Apply map style safely depending on engine version
+if hasattr(px, "scatter_map"):
+    layout_updates["map_style"] = "open-street-map"
+else:
+    layout_updates["mapbox_style"] = "open-street-map"
+
+fig.update_layout(**layout_updates)
 
 # 4. Streamlit interactive event capture
 selected_data = st.plotly_chart(
