@@ -1213,8 +1213,7 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
 def _2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     floor_code: str = "GF",
     path_coords: list = None,
-    lang: str = "en",
-    **kwargs  # Prevents crash if extra keyword args are passed
+    lang: str = "en"
 
     if path_coords is None:
         path_coords = []
