@@ -3,7 +3,6 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
-import numpy as np
 
 # ==============================================================================
 # 1. Translation table
@@ -905,15 +904,6 @@ def line_segments_intersect(p1, p2, p3, p4):
         return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
     return (ccw(p1, p3, p4) != ccw(p2, p3, p4)) and (ccw(p1, p2, p3) != ccw(p1, p2, p4))
 
-def check_line_of_sight_2d(p1, p2, wall_segments):
-    """Checks if 2D line segment between p1 and p2 intersects any wall segment."""
-    for w1, w2 in wall_segments:
-        if p1 == w1 or p1 == w2 or p2 == w1 or p2 == w2:
-            continue
-        if line_segments_intersect(p1, p2, w1, w2):
-            return False
-    return True
-
 def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
     x1, y1, z1 = node_coords[node_a]
     x2, y2, z2 = node_coords[node_b]
@@ -974,32 +964,31 @@ def cleanup_temp_node(temp_id, nodes_dict, graph_dict):
     for node_id in list(graph_dict.keys()):
         graph_dict[node_id] = [edge for edge in graph_dict[node_id] if edge[0] != temp_id]
 
-
-def theta_star_3d(start, goal, graph, node_coords, wall_segments_by_floor=None, accessible_only=False):
+def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
     if start not in node_coords or goal not in node_coords:
-        return None, float('inf')
-
-    if wall_segments_by_floor is None:
-        wall_segments_by_floor = {}
+        return None
 
     open_set = []
     heapq.heappush(open_set, (0, start))
 
     parent = {start: start}
+    
     g_score = {node: float('inf') for node in node_coords}
     g_score[start] = 0.0
+
+    f_score = {node: float('inf') for node in node_coords}
+    f_score[start] = euclidean_distance_3d(start, goal, node_coords)
 
     while open_set:
         _, current = heapq.heappop(open_set)
 
         if current == goal:
             path = []
-            curr = goal
-            while curr != parent[curr]:
-                path.append(curr)
-                curr = parent[curr]
+            while current != parent[current]:
+                path.append(current)
+                current = parent[current]
             path.append(start)
-            return path[::-1], g_score[goal]
+            return path[::-1]
 
         for neighbor, weight in graph.get(current, {}).items():
             if neighbor not in node_coords:
@@ -1010,22 +999,22 @@ def theta_star_3d(start, goal, graph, node_coords, wall_segments_by_floor=None, 
             p_curr = parent[current]
             same_floor = (node_coords[p_curr][2] == node_coords[neighbor][2])
             
-            if same_floor and has_line_of_sight_3d(p_curr, neighbor, node_coords, wall_segments_by_floor):
+            if same_floor and has_line_of_sight_3d(p_curr, neighbor, node_coords, WALL_SEGMENTS_BY_FLOOR):
                 candidate_g = g_score[p_curr] + euclidean_distance_3d(p_curr, neighbor, node_coords)
                 if candidate_g < g_score[neighbor]:
                     parent[neighbor] = p_curr
                     g_score[neighbor] = candidate_g
-                    f_score = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
-                    heapq.heappush(open_set, (f_score, neighbor))
+                    f_score[neighbor] = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
+                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
             else:
                 candidate_g = g_score[current] + weight
                 if candidate_g < g_score[neighbor]:
                     parent[neighbor] = current
                     g_score[neighbor] = candidate_g
-                    f_score = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
-                    heapq.heappush(open_set, (f_score, neighbor))
+                    f_score[neighbor] = candidate_g + euclidean_distance_3d(neighbor, goal, node_coords)
+                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
-    return None, float('inf')
+    return None
 
 def compute_route_arbitrary(start_point, end_point, nodes_dict, graph_dict, walls_dict, accessible=False):
     """
@@ -1034,7 +1023,7 @@ def compute_route_arbitrary(start_point, end_point, nodes_dict, graph_dict, wall
     temp_nodes_created = []
     
     # Process Start Point
-    if isinstance(start_point, tuple):
+    if isinstance(start_point, tuple): # e.g. (12.5, 45.3, 0)
         start_id = "TEMP_START"
         inject_temp_node(start_id, start_point, nodes_dict, graph_dict, walls_dict)
         temp_nodes_created.append(start_id)
@@ -1042,20 +1031,20 @@ def compute_route_arbitrary(start_point, end_point, nodes_dict, graph_dict, wall
         start_id = start_point
         
     # Process End Point
-    if isinstance(end_point, tuple):
+    if isinstance(end_point, tuple): # e.g. (88.1, 10.2, 1)
         end_id = "TEMP_END"
         inject_temp_node(end_id, end_point, nodes_dict, graph_dict, walls_dict)
         temp_nodes_created.append(end_id)
     else:
         end_id = end_point
 
-    # Execute standard 3D Theta* pathfinding with matched arguments
+    # Execute standard 3D Theta* pathfinding
     path, total_dist = theta_star_3d(
-        start=start_id,
-        goal=end_id,
+        start_node=start_id,
+        target_node=end_id,
+        nodes=nodes_dict,
         graph=graph_dict,
-        node_coords=nodes_dict,
-        wall_segments_by_floor=walls_dict,
+        walls=walls_dict,
         accessible_only=accessible
     )
     
@@ -1185,43 +1174,8 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def add_clickable_background_grid(
-    fig, min_x=0, max_x=100, min_y=0, max_y=100, step=1.0
-):
-    """Adds a grid of near-invisible scatter points across the floor.
-
-    Uses rgba(0,0,0,0.001) so Plotly registers the exact (X, Y) coordinates of
-    clicks instead of snapping to existing room nodes or room centers.
-    """
-    x_grid, y_grid = np.mgrid[min_x:max_x:step, min_y:max_y:step]
-
-    fig.add_trace(
-        go.Scatter(
-            x=x_grid.flatten(),
-            y=y_grid.flatten(),
-            mode="markers",
-            marker=dict(
-                size=12,
-                color="rgba(0, 0, 0, 0.001)",  # Near-zero opacity keeps click hitboxes active
-            ),
-            hoverinfo="none",
-            showlegend=False,
-            name="background_click_layer",
-        )
-    )
-
-
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
-
-    # 1. ADD CLICKABLE BACKGROUND GRID FIRST
-    # Calculate exact floor bounds so grid covers the whole floor
-    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
-
-    # Use step=1.0 for high coordinate precision when clicking arbitrary spots
-    add_clickable_background_grid(
-        fig, min_x=min_x, max_x=max_x, min_y=min_y, max_y=max_y, step=1.0
-    )
 
     floor_rooms = {
         r_id: poly["coords"]
@@ -1229,14 +1183,11 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
-    # 2. DRAW ROOM POLYGONS
     for room_id, coords in floor_rooms.items():
         x_coords = [c[0] for c in coords] + [coords[0][0]]
         y_coords = [c[1] for c in coords] + [coords[0][1]]
         room_info = ROOM_POLYGONS[room_id]
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(
-            room_id, room_id
-        )
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
         fig.add_trace(
             go.Scatter(
@@ -1252,15 +1203,8 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
             )
         )
 
-    # 3. DRAW ROUTE PATH & ANNOTATIONS IF AVAILABLE
     if route_path:
-        floor_path = [
-            node
-            for node in route_path
-            if isinstance(node, str)
-            and node in MULTI_CAD_NODES
-            and MULTI_CAD_NODES[node][2] == active_floor_z
-        ]
+        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
         if len(floor_path) > 1:
             path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
@@ -1274,7 +1218,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     line=dict(color="#FF0000", width=4, dash="solid"),
                     marker=dict(size=8, color="#8B0000"),
                     name="Route Path",
-                    showlegend=False,
+                    showlegend=False
                 )
             )
 
@@ -1298,100 +1242,65 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                     arrowhead=2,
                     arrowsize=1.5,
                     arrowwidth=2.5,
-                    arrowcolor="#CC0000",
+                    arrowcolor="#CC0000"
                 )
 
-        lang_dict = LOCALIZATION.get(
-            current_lang, LOCALIZATION.get("English", {})
-        )
+        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
         start_lbl = lang_dict.get("marker_start", " Start")
         dest_lbl = lang_dict.get("marker_dest", " Destination")
-
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
-        # Draw Start Marker
-        if (
-            isinstance(start_node_id, str)
-            and start_node_id in MULTI_CAD_NODES
-            and MULTI_CAD_NODES[start_node_id][2] == active_floor_z
-        ):
+        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
             start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
             fig.add_trace(
                 go.Scatter(
                     x=[start_x],
                     y=[start_y],
                     mode="markers+text",
-                    marker=dict(
-                        size=14,
-                        color="#FF0000",
-                        symbol="circle",
-                        line=dict(color="#8B0000", width=2),
-                    ),
+                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
                     text=[start_lbl],
                     textposition="top right",
-                    textfont=dict(
-                        color="#FF0000", size=12, family="Arial Black"
-                    ),
+                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
                     name="Start Location",
-                    showlegend=False,
+                    showlegend=False
                 )
             )
 
-        # Draw Destination Marker
-        if (
-            isinstance(dest_node_id, str)
-            and dest_node_id in MULTI_CAD_NODES
-            and MULTI_CAD_NODES[dest_node_id][2] == active_floor_z
-        ):
+        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
             dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
             fig.add_trace(
                 go.Scatter(
                     x=[dest_x],
                     y=[dest_y],
                     mode="markers+text",
-                    marker=dict(
-                        size=14,
-                        color="#00FF00",
-                        symbol="circle",
-                        line=dict(color="#006600", width=2),
-                    ),
+                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
                     text=[dest_lbl],
                     textposition="top right",
-                    textfont=dict(
-                        color="#00FF00", size=12, family="Arial Black"
-                    ),
+                    textfont=dict(color="#00FF00", size=12, family="Arial Black"),
                     name="Destination",
-                    showlegend=False,
+                    showlegend=False
                 )
             )
 
-    # 4. DRAW ROOM TEXT LABELS
-    # Set hoverinfo="skip" so text centroids don't override point coordinates on click
     for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(
-            room_id, room_id
-        )
+        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
 
         xs = [p[0] for p in coords]
         ys = [p[1] for p in coords]
-        min_r_x, max_r_x = min(xs), max(xs)
-        min_r_y, max_r_y = min(ys), max(ys)
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
 
-        cx = (min_r_x + max_r_x) / 2.0
-        cy = (min_r_y + max_r_y) / 2.0
-        bbox_w = max_r_x - min_r_x
-        bbox_h = max_r_y - min_r_y
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
+        bbox_w = max_x - min_x
+        bbox_h = max_y - min_y
 
         if bbox_w < 0.6 or bbox_h < 0.6:
             continue
 
-        font_size, max_chars = calculate_optimal_font_size(
-            bbox_w, bbox_h, translated_name
-        )
-        wrapped_label = wrap_text_to_fit(
-            translated_name, max_chars_per_line=max_chars
-        )
+        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
+        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
 
         fig.add_trace(
             go.Scatter(
@@ -1401,35 +1310,42 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 mode="text",
                 textposition="middle center",
                 textfont=dict(
-                    color="#000000", size=12, family="Arial Black, sans-serif"
+                    color="#000000",
+                    size=12,
+                    family="Arial Black, sans-serif"
                 ),
-                hoverinfo="skip",  # Prevent label trace from stealing click selection
-                showlegend=False,
+                customdata=[room_id],
+                hoverinfo="text",
+                hovertext=[translated_name],
+                showlegend=False
             )
         )
 
-    # 5. LAYOUT CONFIGURATION
+    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
+    x_grid, y_grid = np.mgrid[min_x:max_x:step, min_y:max_y:step]
+    
+    fig.add_trace(
+        go.Scatter(
+            x=x_grid.flatten(),
+            y=y_grid.flatten(),
+            mode="markers",
+            marker=dict(size=10, opacity=1), # Invisible markers
+            hoverinfo="none",
+            showlegend=False,
+            name="background_click_layer"
+        )
+    )
+
     fig.update_layout(
-        clickmode="event+select",
-        dragmode="pan",
-        height=650,
+        clickmode='event+select',  
+        dragmode='pan',
+        height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
         plot_bgcolor="#FFB6C1",
         paper_bgcolor="#000000",
-        xaxis=dict(
-            range=[min_x - 5, max_x + 5],
-            showgrid=False,
-            zeroline=False,
-            gridcolor="#000000",
-        ),
-        yaxis=dict(
-            range=[min_y - 5, max_y + 5],
-            showgrid=False,
-            zeroline=False,
-            gridcolor="#000000",
-            scaleanchor="x",
-        ),
+        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
+        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
     )
 
     return fig
@@ -1658,48 +1574,46 @@ def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang
 # 5. Step-by-step directions and smart parking
 # ==============================================================================
 
-def find_nearest_available_parking(entrance_node, graph, nodes, accessible_only=False):
-    """
-    Finds the nearest available parking slot from entrance_node.
-    Returns: (assigned_slot_id, entry_path, exit_path)
-    """
-    best_slot = None
-    min_dist = float('inf')
+def find_nearest_available_parking(start_node, graph, node_coords, accessible_only=False):
+    entrance_node = "P_L3_Driveway_Entrance"
+    exit_node = "P_L3_Driveway_Exit"
+
+    if entrance_node not in node_coords or exit_node not in node_coords:
+        return None, [], []
+
+    available_slots = [
+        slot_id for slot_id, details in PARKING_SLOTS.items()
+        if not details.get("occupied", False) and slot_id in node_coords
+    ]
+
+    if not available_slots:
+        return None, [], []
+
+    nearest_slot = None
     best_entry_path = []
     best_exit_path = []
-
-    # Get available parking slots from state or static registry
-    available_slots = st.session_state.get("available_parking_slots", ["P_L3_Slot_101", "P_L3_Slot_102"])
+    min_total_dist = float("inf")
 
     for slot_id in available_slots:
-        if slot_id not in nodes:
+        entry_path = theta_star_3d(entrance_node, slot_id, graph, node_coords, accessible_only=accessible_only)
+        if not entry_path:
             continue
 
-        # Compute path from entrance to parking slot
-        entry_path, entry_dist = theta_star_3d(
-            entrance_node,
-            slot_id,
-            graph,
-            nodes,
-            accessible_only=accessible_only
-        )
+        exit_path = theta_star_3d(slot_id, exit_node, graph, node_coords, accessible_only=accessible_only)
+        if not exit_path:
+            continue
 
-        if entry_path and entry_dist < min_dist:
-            min_dist = entry_dist
-            best_slot = slot_id
+        entry_dist = compute_route_summary(entry_path)["total_distance"]
+        exit_dist = compute_route_summary(exit_path)["total_distance"]
+        total_dist = entry_dist + exit_dist
+
+        if total_dist < min_total_dist:
+            min_total_dist = total_dist
+            nearest_slot = slot_id
             best_entry_path = entry_path
+            best_exit_path = exit_path
 
-            # Compute exit path from slot to mall entrance
-            exit_path, _ = theta_star_3d(
-                slot_id,
-                "A_L0_Entrance",
-                graph,
-                nodes,
-                accessible_only=accessible_only
-            )
-            best_exit_path = exit_path if exit_path else []
-
-    return best_slot, best_entry_path, best_exit_path
+    return nearest_slot, best_entry_path, best_exit_path
 
 def calculate_heading_angle(node_a, node_b, node_coords):
     x1, y1, _ = node_coords[node_a]
@@ -1841,42 +1755,28 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     return directions
 
-def get_node_coords(node, nodes_dict):
-    """Safely retrieves (x, y, z) coordinates for a node ID or raw coordinate tuple."""
-    if isinstance(node, (tuple, list)) and len(node) == 3:
-        return node
-    if node in nodes_dict:
-        return nodes_dict[node]
-    return (0.0, 0.0, 0)
+def compute_route_summary(path):
+    if not path or len(path) < 2: return {"total_distance": 0, "floors_crossed": 0, "steps": 0}
 
-def compute_route_summary(path, nodes_dict=MULTI_CAD_NODES):
-    if not path or len(path) < 2:
-        return {"total_distance": 0.0, "floor_changes": 0}
-
-    total_dist = 0.0
-    floor_changes = 0
+    total_dist = 0
+    floors_visited = set()
 
     for i in range(len(path) - 1):
-        curr_node = path[i]
-        nxt_node = path[i + 1]
+        curr_node, nxt_node = path[i], path[i+1]
+        z1, z2 = MULTI_CAD_NODES[curr_node][2], MULTI_CAD_NODES[nxt_node][2]
 
-        # Use safe coordinate resolution
-        c1 = get_node_coords(curr_node, nodes_dict)
-        c2 = get_node_coords(nxt_node, nodes_dict)
+        floors_visited.add(z1)
+        floors_visited.add(z2)
 
-        x1, y1, z1 = c1
-        x2, y2, z2 = c2
-
-        # 3D Euclidean distance segment calculation
-        segment_dist = math.sqrt((x1 - x2)**2 + (y1 - y2)**2 + ((z1 - z2) * 15.0)**2)
-        total_dist += segment_dist
-
-        if z1 != z2:
-            floor_changes += 1
+        if z1 == z2:
+            total_dist += euclidean_distance_3d(curr_node, nxt_node, MULTI_CAD_NODES)
+        else:
+            total_dist += 15.0
 
     return {
-        "total_distance": total_dist,
-        "floor_changes": floor_changes
+        "total_distance": round(total_dist, 1),
+        "floors_crossed": max(0, len(floors_visited) - 1),
+        "steps": len(path) - 1
     }
     
 def format_location_label(room_id, lang):
@@ -2122,17 +2022,12 @@ with tab_home:
 
 
 # Mall map tab
+# Mall map tab
 with tab_map:
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
 
         col_start, col_dest = st.columns(2)
-
-        # Helper to safely calculate selectbox index for standard rooms vs custom coordinates
-        def get_safe_index(val, default_idx=0):
-            if isinstance(val, str) and val in room_options:
-                return room_options.index(val)
-            return default_idx
 
         with col_start:
             start_node = st.selectbox(
@@ -2141,7 +2036,11 @@ with tab_map:
                 format_func=lambda room_id: format_location_label(
                     room_id, st.session_state.lang
                 ),
-                index=get_safe_index(st.session_state.selected_start, 0),
+                index=(
+                    room_options.index(st.session_state.selected_start)
+                    if st.session_state.selected_start in room_options
+                    else 0
+                ),
             )
         with col_dest:
             dest_node = st.selectbox(
@@ -2150,14 +2049,15 @@ with tab_map:
                 format_func=lambda room_id: format_location_label(
                     room_id, st.session_state.lang
                 ),
-                index=get_safe_index(st.session_state.selected_dest, len(room_options) - 1),
+                index=(
+                    room_options.index(st.session_state.selected_dest)
+                    if st.session_state.selected_dest in room_options
+                    else len(room_options) - 1
+                ),
             )
 
-        # Preserve custom point tuples if selected via interactive pick
-        if isinstance(st.session_state.selected_start, str):
-            st.session_state.selected_start = start_node
-        if isinstance(st.session_state.selected_dest, str):
-            st.session_state.selected_dest = dest_node
+        st.session_state.selected_start = start_node
+        st.session_state.selected_dest = dest_node
 
         if st.session_state.waypoints:
             st.markdown(t["intermediate_stops"])
@@ -2165,7 +2065,12 @@ with tab_map:
             for idx, wp in enumerate(st.session_state.waypoints):
                 wp_col1, wp_col2 = st.columns([0.85, 0.15])
                 with wp_col1:
-                    wp_index = get_safe_index(wp, (idx + 1) % len(room_options))
+                    # Allow selectbox or arbitrary tuple values
+                    wp_index = (
+                        room_options.index(wp)
+                        if isinstance(wp, str) and wp in room_options
+                        else (idx + 1) % len(room_options)
+                    )
                     selected_wp = st.selectbox(
                         t["stop_lbl"].format(idx=idx + 1),
                         options=room_options,
@@ -2175,9 +2080,7 @@ with tab_map:
                         index=wp_index,
                         key=f"waypoint_select_{idx}",
                     )
-                    # Only overwrite if user manually selected a string option from UI
-                    if isinstance(st.session_state.waypoints[idx], str):
-                        st.session_state.waypoints[idx] = selected_wp
+                    st.session_state.waypoints[idx] = selected_wp
 
                 with wp_col2:
                     st.write("")
@@ -2235,7 +2138,7 @@ with tab_map:
             unsafe_allow_html=True,
         )
 
-    # Path calculation with temporary node coordinate retention
+    # Calculate full route sequence (supports predefined nodes & dynamic coordinate points)
     full_path = []
     temp_injected_ids = []
 
@@ -2243,6 +2146,7 @@ with tab_map:
         segment_start = full_route_sequence[i]
         segment_end = full_route_sequence[i + 1]
 
+        # Inject temporary node if start segment is an arbitrary (X, Y, Z) coordinate
         start_id = segment_start
         if isinstance(segment_start, tuple):
             start_id = f"TEMP_START_{i}"
@@ -2255,6 +2159,7 @@ with tab_map:
             )
             temp_injected_ids.append(start_id)
 
+        # Inject temporary node if end segment is an arbitrary (X, Y, Z) coordinate
         end_id = segment_end
         if isinstance(segment_end, tuple):
             end_id = f"TEMP_END_{i}"
@@ -2267,6 +2172,7 @@ with tab_map:
             )
             temp_injected_ids.append(end_id)
 
+        # Pathfinding between segment endpoints
         segment_path = theta_star_3d(
             start_id,
             end_id,
@@ -2284,11 +2190,9 @@ with tab_map:
             full_path = []
             break
 
-    # NOTE: Retain coordinates in MULTI_CAD_NODES so render functions can draw the path,
-    # but cleanup graph edge connections.
+    # Clean up temporary dynamic nodes from graph memory
     for temp_id in temp_injected_ids:
-        if temp_id in MULTI_CAD_GRAPH:
-            del MULTI_CAD_GRAPH[temp_id]
+        cleanup_temp_node(temp_id, MULTI_CAD_NODES, MULTI_CAD_GRAPH)
 
     path = full_path
 
@@ -2310,7 +2214,7 @@ with tab_map:
 
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
-        if not st.session_state.get("map_pick_mode", False):
+        if not st.session_state.map_pick_mode:
             if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
                 st.session_state.map_pick_mode = True
                 st.session_state.map_pick_step = "START"
@@ -2327,10 +2231,9 @@ with tab_map:
             st.session_state.map_pick_mode = False
             st.session_state.selected_start = "A_L0_Entrance"
             st.session_state.selected_dest = "A_L0_Lobby"
-            st.session_state.last_processed_click = None
             st.rerun()
 
-    if st.session_state.get("map_pick_mode", False):
+    if st.session_state.map_pick_mode:
         curr_start_label = render_loc_label(st.session_state.selected_start)
         curr_dest_label = render_loc_label(st.session_state.selected_dest)
 
@@ -2376,6 +2279,7 @@ with tab_map:
             floor_select, route_path=path, current_lang=st.session_state.lang
         )
 
+        # UPDATED: Set selection_mode to ("points", "box") and add config options
         selected_data = st.plotly_chart(
             fig_2d,
             use_container_width=True,
@@ -2384,7 +2288,7 @@ with tab_map:
             config={
                 "displayModeBar": True,
                 "scrollZoom": True,
-            }
+            },
         )
     else:
         floor_select = 0
@@ -2398,59 +2302,52 @@ with tab_map:
             selection_mode="points",
         )
 
-    # Process interactive map click with click deduplication
     if (
-        st.session_state.get("map_pick_mode", False)
+        st.session_state.map_pick_mode
         and selected_data
         and "selection" in selected_data
         and selected_data["selection"]["points"]
     ):
         point = selected_data["selection"]["points"][0]
-        
-        # Deduplication check: ignore if this exact point was already processed
-        point_signature = (point.get("x"), point.get("y"), point.get("pointIndex"))
-        if st.session_state.get("last_processed_click") != point_signature:
-            st.session_state.last_processed_click = point_signature
+        clicked_id = None
+        clicked_coords = None
 
-            clicked_id = None
-            clicked_coords = None
+        # 1. Check customdata or hover text for pre-defined room match
+        if "customdata" in point and point["customdata"]:
+            clicked_id = point["customdata"]
+        elif "text" in point:
+            raw_text = point["text"]
+            for room_key in ROOM_POLYGONS.keys():
+                t_name = POI_TRANSLATIONS.get(
+                    st.session_state.lang, {}
+                ).get(room_key, room_key)
+                if t_name == raw_text or room_key == raw_text:
+                    clicked_id = room_key
+                    break
 
-            # 1. Check customdata or hover text for pre-defined room match
-            if "customdata" in point and point["customdata"]:
-                clicked_id = point["customdata"]
-            elif "text" in point:
-                raw_text = point["text"]
-                for room_key in ROOM_POLYGONS.keys():
-                    t_name = POI_TRANSLATIONS.get(
-                        st.session_state.lang, {}
-                    ).get(room_key, room_key)
-                    if t_name == raw_text or room_key == raw_text:
-                        clicked_id = room_key
-                        break
+        # 2. If click point is not inside a named room, fallback to arbitrary coordinate pin
+        if not clicked_id and "x" in point and "y" in point:
+            target_z = floor_select if view_type == t["view_2d"] else point.get("z", 0)
+            clicked_coords = (float(point["x"]), float(point["y"]), int(target_z))
 
-            # 2. If click point is not inside a named room, fallback to arbitrary coordinate pin
-            if not clicked_id and "x" in point and "y" in point:
-                target_z = floor_select if view_type == t["view_2d"] else point.get("z", 0)
-                clicked_coords = (float(point["x"]), float(point["y"]), int(target_z))
+        chosen_point = clicked_id if clicked_id else clicked_coords
 
-            chosen_point = clicked_id if clicked_id else clicked_coords
+        if chosen_point:
+            if st.session_state.map_pick_step == "START":
+                st.session_state.selected_start = chosen_point
+                st.session_state.map_pick_step = "WAYPOINT"
+                st.rerun()
 
-            if chosen_point:
-                if st.session_state.map_pick_step == "START":
-                    st.session_state.selected_start = chosen_point
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
+            elif st.session_state.map_pick_step == "WAYPOINT":
+                st.session_state.waypoints.append(chosen_point)
+                st.rerun()
 
-                elif st.session_state.map_pick_step == "WAYPOINT":
-                    st.session_state.waypoints.append(chosen_point)
-                    st.rerun()
+            elif st.session_state.map_pick_step == "DEST":
+                st.session_state.selected_dest = chosen_point
+                st.session_state.map_pick_mode = False
+                st.session_state.map_pick_step = "START"
+                st.rerun()
 
-                elif st.session_state.map_pick_step == "DEST":
-                    st.session_state.selected_dest = chosen_point
-                    st.session_state.map_pick_mode = False
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-                    
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
