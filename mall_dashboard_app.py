@@ -1997,15 +1997,15 @@ with tab_map:
                             if wp in room_options
                             else (idx + 1) % len(room_options)
                         ),
-                        key=f"waypoint_select_{lang_code}_{idx}",
+                        key=f"waypoint_select_{st.session_state.lang}_{idx}",
                     )
                     updated_waypoints[idx] = selected_wp
 
                 with wp_col2:
                     st.write("")
                     st.write("")
-                    if st.button("❌", key=f"remove_wp_{lang_code}_{idx}"):
-                        st.session_state.waypoints.pop(idx)
+                    if st.button("❌", key=f"remove_wp_{lang_code}_{}"):
+                        st.session_state.waypoints.pop()
                         st.rerun()
 
             st.session_state.waypoints = updated_waypoints
