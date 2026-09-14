@@ -1658,46 +1658,48 @@ def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang
 # 5. Step-by-step directions and smart parking
 # ==============================================================================
 
-def find_nearest_available_parking(start_node, graph, node_coords, accessible_only=False):
-    entrance_node = "P_L3_Driveway_Entrance"
-    exit_node = "P_L3_Driveway_Exit"
-
-    if entrance_node not in node_coords or exit_node not in node_coords:
-        return None, [], []
-
-    available_slots = [
-        slot_id for slot_id, details in PARKING_SLOTS.items()
-        if not details.get("occupied", False) and slot_id in node_coords
-    ]
-
-    if not available_slots:
-        return None, [], []
-
-    nearest_slot = None
+def find_nearest_available_parking(entrance_node, graph, nodes, accessible_only=False):
+    """
+    Finds the nearest available parking slot from entrance_node.
+    Returns: (assigned_slot_id, entry_path, exit_path)
+    """
+    best_slot = None
+    min_dist = float('inf')
     best_entry_path = []
     best_exit_path = []
-    min_total_dist = float("inf")
+
+    # Get available parking slots from state or static registry
+    available_slots = st.session_state.get("available_parking_slots", ["P_L3_Slot_101", "P_L3_Slot_102"])
 
     for slot_id in available_slots:
-        entry_path = theta_star_3d(entrance_node, slot_id, graph, node_coords, accessible_only=accessible_only)
-        if not entry_path:
+        if slot_id not in nodes:
             continue
 
-        exit_path = theta_star_3d(slot_id, exit_node, graph, node_coords, accessible_only=accessible_only)
-        if not exit_path:
-            continue
+        # Compute path from entrance to parking slot
+        entry_path, entry_dist = theta_star_3d(
+            entrance_node,
+            slot_id,
+            graph,
+            nodes,
+            accessible_only=accessible_only
+        )
 
-        entry_dist = compute_route_summary(entry_path)["total_distance"]
-        exit_dist = compute_route_summary(exit_path)["total_distance"]
-        total_dist = entry_dist + exit_dist
-
-        if total_dist < min_total_dist:
-            min_total_dist = total_dist
-            nearest_slot = slot_id
+        if entry_path and entry_dist < min_dist:
+            min_dist = entry_dist
+            best_slot = slot_id
             best_entry_path = entry_path
-            best_exit_path = exit_path
 
-    return nearest_slot, best_entry_path, best_exit_path
+            # Compute exit path from slot to mall entrance
+            exit_path, _ = theta_star_3d(
+                slot_id,
+                "A_L0_Entrance",
+                graph,
+                nodes,
+                accessible_only=accessible_only
+            )
+            best_exit_path = exit_path if exit_path else []
+
+    return best_slot, best_entry_path, best_exit_path
 
 def calculate_heading_angle(node_a, node_b, node_coords):
     x1, y1, _ = node_coords[node_a]
@@ -1839,28 +1841,42 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     return directions
 
-def compute_route_summary(path):
-    if not path or len(path) < 2: return {"total_distance": 0, "floors_crossed": 0, "steps": 0}
+def get_node_coords(node, nodes_dict):
+    """Safely retrieves (x, y, z) coordinates for a node ID or raw coordinate tuple."""
+    if isinstance(node, (tuple, list)) and len(node) == 3:
+        return node
+    if node in nodes_dict:
+        return nodes_dict[node]
+    return (0.0, 0.0, 0)
 
-    total_dist = 0
-    floors_visited = set()
+def compute_route_summary(path, nodes_dict=MULTI_CAD_NODES):
+    if not path or len(path) < 2:
+        return {"total_distance": 0.0, "floor_changes": 0}
+
+    total_dist = 0.0
+    floor_changes = 0
 
     for i in range(len(path) - 1):
-        curr_node, nxt_node = path[i], path[i+1]
-        z1, z2 = MULTI_CAD_NODES[curr_node][2], MULTI_CAD_NODES[nxt_node][2]
+        curr_node = path[i]
+        nxt_node = path[i + 1]
 
-        floors_visited.add(z1)
-        floors_visited.add(z2)
+        # Use safe coordinate resolution
+        c1 = get_node_coords(curr_node, nodes_dict)
+        c2 = get_node_coords(nxt_node, nodes_dict)
 
-        if z1 == z2:
-            total_dist += euclidean_distance_3d(curr_node, nxt_node, MULTI_CAD_NODES)
-        else:
-            total_dist += 15.0
+        x1, y1, z1 = c1
+        x2, y2, z2 = c2
+
+        # 3D Euclidean distance segment calculation
+        segment_dist = math.sqrt((x1 - x2)**2 + (y1 - y2)**2 + ((z1 - z2) * 15.0)**2)
+        total_dist += segment_dist
+
+        if z1 != z2:
+            floor_changes += 1
 
     return {
-        "total_distance": round(total_dist, 1),
-        "floors_crossed": max(0, len(floors_visited) - 1),
-        "steps": len(path) - 1
+        "total_distance": total_dist,
+        "floor_changes": floor_changes
     }
     
 def format_location_label(room_id, lang):
