@@ -1111,28 +1111,33 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def render_2d_cad_view(floor_id: int, graph_data: dict, current_route: list = None, map_bounds: tuple = (0, 0, 100, 100)) -> go.Figure:
+def render_2d_cad_view(
+    floor_select: int, 
+    route_path: list = None, 
+    current_lang: str = "en",
+    map_bounds: tuple = (0, 0, 100, 100)
+) -> go.Figure:
     """
-    Renders a 2D CAD floor plan with floor layout walls, node networks, active route overlays,
-    and a dense background invisible click grid.
+    Renders 2D CAD floor view with active route overlays and an 
+    invisible background click grid for map-wide selection.
     """
-    min_x, min_y, max_x, max_y = map_bounds
     fig = go.Figure()
+    min_x, min_y, max_x, max_y = map_bounds
 
     # ----------------------------------------------------
-    # A. INVISIBLE CLICK GRID (Full Canvas Click Target)
+    # 1. INVISIBLE CLICK GRID (Full Canvas Click Catcher)
     # ----------------------------------------------------
-    grid_res = 50  # 50x50 resolution over canvas
+    grid_res = 50  # 50x50 click target density across floor grid
     grid_x, grid_y = np.meshgrid(
         np.linspace(min_x, max_x, grid_res),
         np.linspace(min_y, max_y, grid_res)
     )
-    
+
     bg_click_trace = go.Scatter(
         x=grid_x.flatten(),
         y=grid_y.flatten(),
         mode='markers',
-        marker=dict(size=18, color='rgba(0,0,0,0)'),  # Fully transparent, large hitboxes
+        marker=dict(size=18, color='rgba(0,0,0,0)'),  # Fully transparent
         hoverinfo='none',
         showlegend=False,
         name="bg_click_grid"
