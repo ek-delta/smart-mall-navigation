@@ -1978,16 +1978,24 @@ with tab_map:
         st.session_state.selected_dest = dest_node
 
         if st.session_state.waypoints:
-            st.markdown(t["intermediate_stops"])
+            st.markdown(t.get("intermediate_stops", "Intermediate Stops"))
+
             updated_waypoints = list(st.session_state.waypoints)
+            lang_code = st.session_state.lang
 
             for idx, wp in enumerate(st.session_state.waypoints):
                 wp_col1, wp_col2 = st.columns([0.85, 0.15])
         
                 with wp_col1:
-                    lang_code = st.session_state.lang
+                    raw_label_template = t.get("stop_lbl", "Stop {idx}")
+            
+                    try:
+                        label_str = raw_label_template.format(idx=idx + 1)
+                    except (KeyError, ValueError):
+                        label_str = f"Stop {idx + 1}"
+
                     selected_wp = st.selectbox(
-                        t["stop_lbl"].format(idx=idx + 1),
+                        label_str,
                         options=room_options,
                         format_func=lambda r_id: format_location_label(
                             r_id, st.session_state.lang
@@ -1997,18 +2005,18 @@ with tab_map:
                             if wp in room_options
                             else (idx + 1) % len(room_options)
                         ),
-                        key=f"waypoint_select_{st.session_state.lang}_{idx}",
+                        key=f"waypoint_select_{lang_code}_{idx}",
                     )
                     updated_waypoints[idx] = selected_wp
 
-                with wp_col2:
-                    st.write("")
-                    st.write("")
-                    if st.button("❌", key=f"remove_wp_{lang_code}_{}"):
-                        st.session_state.waypoints.pop()
-                        st.rerun()
+        with wp_col2:
+            st.write("")
+            st.write("")
+            if st.button("❌", key=f"remove_wp_{lang_code}_{idx}"):
+                st.session_state.waypoints.pop(idx)
+                st.rerun()
 
-            st.session_state.waypoints = updated_waypoints
+    st.session_state.waypoints = updated_waypoints
     
         if st.button(t["btn_add_stop_manual"], type="primary", key="add_waypoint"):
             default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
