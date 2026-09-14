@@ -1210,7 +1210,18 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
+def _2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
+    floor_code: str = "GF",
+    path_coords: list = None,
+    lang: str = "en",
+    **kwargs  # Prevents crash if extra keyword args are passed
+) -> go.Figure:
+    """
+    Renders 2D CAD floorplan layout with optional highlighted 3D path coordinates.
+    """
+    if path_coords is None:
+        path_coords = []
+        
     fig = go.Figure()
 
     floor_rooms = {
@@ -1356,6 +1367,28 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
                 showlegend=False
             )
         )
+
+    if path_coords:
+        # Filter path coordinates to only show points matching the active floor elevation
+        floor_z_map = {"GF": 0.0, "1F": 4.0, "2F": 8.0, "R": 12.0}
+        target_z = floor_z_map.get(floor_code, 0.0)
+
+        # Segment path coords for current floor display
+        path_x = [pt[0] for pt in path_coords if abs(pt[2] - target_z) < 0.5]
+        path_y = [pt[1] for pt in path_coords if abs(pt[2] - target_z) < 0.5]
+
+        if path_x and path_y:
+            fig.add_trace(
+                go.Scatter(
+                    x=path_x,
+                    y=path_y,
+                    mode="lines+markers",
+                    line=dict(color="#D32F2F", width=4),
+                    marker=dict(size=6, color="#D32F2F"),
+                    name="Calculated Route",
+                    showlegend=False
+                )
+            )
 
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
