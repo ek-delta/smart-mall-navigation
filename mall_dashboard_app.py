@@ -460,6 +460,8 @@ if "exit_path" not in st.session_state:
     st.session_state.exit_path = []
 if "clicked_location" not in st.session_state:
     st.session_state.clicked_location = None
+if "last_clicked_coords" not in st.session_state: 
+    st.session_state.last_clicked_coords = []
 
 DATASET_PATHS = ["/content/drive/MyDrive/FYP Smart Navigation/train-00", "./train-01", "./test-00"]
 
@@ -853,16 +855,11 @@ def point_in_polygon(x, y, polygon):
         p1x, p1y = p2x, p2y
     return inside
 
-
 def find_room_by_coordinate(x, y, z_floor):
-    """Finds which ROOM_POLYGONS room ID contains the given (x, y) coordinate on floor z_floor."""
     for room_id, poly_info in ROOM_POLYGONS.items():
-        room_z = int(MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2])
-        if room_z != z_floor:
+        if poly_info["z"] != z_floor: 
             continue
-
-        coords = poly_info.get("coordinates", [])
-        if coords and point_in_polygon(x, y, coords):
+        if point_in_polygon(x, y, poly_info["coords"]): 
             return room_id
     return None
 
