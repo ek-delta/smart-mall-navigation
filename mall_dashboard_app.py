@@ -3,6 +3,7 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
+import numpy as np
 
 # ==============================================================================
 # 1. Translation table
@@ -1174,6 +1175,25 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
+def add_clickable_background_grid(fig, min_x=0, max_x=100, min_y=0, max_y=100, step=2.0):
+    """
+    Adds a grid of invisible scatter points across the entire floor plan.
+    This guarantees that clicking anywhere on the map registers a Plotly click event.
+    """
+    x_grid, y_grid = np.mgrid[min_x:max_x:step, min_y:max_y:step]
+    
+    fig.add_trace(
+        go.Scatter(
+            x=x_grid.flatten(),
+            y=y_grid.flatten(),
+            mode="markers",
+            marker=dict(size=10, opacity=0), # Invisible markers
+            hoverinfo="none",
+            showlegend=False,
+            name="background_click_layer"
+        )
+    )
+
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
@@ -1322,9 +1342,11 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         )
 
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
+    add_clickable_background_grid(fig, min_x=0, max_x=100, min_y=0, max_y=100, step=2.0)
 
     fig.update_layout(
         clickmode='event+select',
+        dragmode='select',
         height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
@@ -2269,6 +2291,11 @@ with tab_map:
             use_container_width=True,
             on_select="rerun",
             selection_mode="points",
+            config={
+                "displayModeBar": True,
+                "modeBarButtonsToAdd": ["drawrect", "eraseshape"],
+                "scrollZoom": True,
+            }
         )
     else:
         floor_select = 0
