@@ -1,6 +1,7 @@
 import math
 import streamlit as st
-import plotly.graph_objects as go
+import plotly.express as px
+import pandas as pd
 
 st.set_page_config(page_title="Map Distance Calculator", layout="wide")
 st.title("Map Coordinate Distance Calculator")
@@ -14,50 +15,42 @@ if st.button("Clear Selected Points"):
     st.session_state.points = []
     st.rerun()
 
-# 2. Render base Mapbox map figure
-fig = go.Figure()
-
+# 2. Build map dataframe from stored points
 if st.session_state.points:
-    lats = [pt[0] for pt in st.session_state.points]
-    lons = [pt[1] for pt in st.session_state.points]
-    labels = [f"Point {i+1}" for i in range(len(st.session_state.points))]
-    
-    if len(st.session_state.points) == 2:
-        fig.add_trace(
-            go.Scattermapbox(
-                lat=lats,
-                lon=lons,
-                mode="lines",
-                line=dict(width=3, color="red"),
-                hoverinfo="none",
-                showlegend=False
-            )
-        )
+    df_points = pd.DataFrame(st.session_state.points, columns=["lat", "lon"])
+    df_points["label"] = [f"Point {i+1}" for i in range(len(df_points))]
+else:
+    # Empty default frame centered globally
+    df_points = pd.DataFrame([{"lat": 20.0, "lon": 0.0, "label": "Center"}])
 
+# 3. Create Scatter Map using Plotly Express (Auto-handles Mapbox vs Map backends)
+fig = px.scatter_mapbox(
+    df_points if st.session_state.points else df_points.head(0),
+    lat="lat",
+    lon="lon",
+    hover_name="label" if st.session_state.points else None,
+    zoom=2,
+    size_max=15
+)
+
+# Connect points with a line if 2 points are selected
+if len(st.session_state.points) == 2:
     fig.add_trace(
-        go.Scattermapbox(
-            lat=lats,
-            lon=lons,
-            mode="markers+text",
-            marker=dict(size=14, color=["#00FF00", "#FF0000"][:len(lats)]),
-            text=labels,
-            textposition="top center",
-            hoverinfo="text",
-            showlegend=False
-        )
+        px.line_mapbox(
+            df_points, 
+            lat="lat", 
+            lon="lon"
+        ).data[0]
     )
 
-# Fixed Map Layout configuration
 fig.update_layout(
     mapbox_style="open-street-map",
-    mapbox_zoom=2,
-    mapbox_center=dict(lat=20, lon=0),
     margin=dict(l=0, r=0, t=0, b=0),
     height=550,
     clickmode="event+select"
 )
 
-# 3. Streamlit interactive event capture
+# 4. Streamlit interactive event capture
 selected_data = st.plotly_chart(
     fig,
     use_container_width=True,
@@ -65,7 +58,7 @@ selected_data = st.plotly_chart(
     selection_mode="points"
 )
 
-# 4. Handle point clicks
+# 5. Handle point clicks
 if selected_data and "selection" in selected_data:
     points_data = selected_data["selection"].get("points", [])
     if points_data:
@@ -83,7 +76,7 @@ if selected_data and "selection" in selected_data:
                     st.session_state.points.append(new_pt)
                 st.rerun()
 
-# 5. Calculation
+# 6. Haversine Calculation
 st.divider()
 if len(st.session_state.points) == 1:
     st.info(f"📍 **Point 1 selected:** {st.session_state.points[0]}. Click anywhere on the map for Point 2.")
