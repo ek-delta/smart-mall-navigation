@@ -1977,46 +1977,51 @@ with tab_map:
         st.session_state.selected_start = start_node
         st.session_state.selected_dest = dest_node
 
-        if st.session_state.waypoints:
-            st.markdown(t.get("intermediate_stops", "Intermediate Stops"))
+if st.session_state.waypoints:
+        st.markdown(t.get("intermediate_stops", "Intermediate Stops"))
 
-            updated_waypoints = list(st.session_state.waypoints)
-            lang_code = st.session_state.lang
+        updated_waypoints = list(st.session_state.waypoints)
+        lang_code = st.session_state.lang
 
-            for idx, wp in enumerate(st.session_state.waypoints):
-                wp_col1, wp_col2 = st.columns([0.85, 0.15])
-        
-                with wp_col1:
-                    raw_label_template = t.get("stop_lbl", "Stop {idx}")
-            
-                    try:
-                        label_str = raw_label_template.format(idx=idx + 1)
-                    except (KeyError, ValueError):
-                        label_str = f"Stop {idx + 1}"
+        for idx, wp in enumerate(st.session_state.waypoints):
+            wp_col1, wp_col2 = st.columns([0.85, 0.15])
 
-                    selected_wp = st.selectbox(
-                        label_str,
-                        options=room_options,
-                        format_func=lambda r_id: format_location_label(
-                            r_id, st.session_state.lang
-                        ),
-                        index=(
-                            room_options.index(wp)
-                            if wp in room_options
-                            else (idx + 1) % len(room_options)
-                        ),
-                        key=f"waypoint_select_{lang_code}_{idx}",
-                    )
-                    updated_waypoints[idx] = selected_wp
+            with wp_col1:
+                raw_label_template = t.get("stop_lbl", "Stop {idx}")
+                try:
+                    label_str = raw_label_template.format(idx=idx + 1)
+                except (KeyError, ValueError):
+                    label_str = f"Stop {idx + 1}"
 
-        with wp_col2:
-            st.write("")
-            st.write("")
-            if st.button("❌", key=f"remove_wp_{lang_code}_{idx}"):
-                st.session_state.waypoints.pop(idx)
-                st.rerun()
+                selected_wp = st.selectbox(
+                    label_str,
+                    options=room_options,
+                    format_func=lambda r_id: format_location_label(
+                        r_id, st.session_state.lang
+                    ),
+                    index=(
+                        room_options.index(wp)
+                        if wp in room_options
+                        else (idx + 1) % len(room_options)
+                    ),
+                    key=f"waypoint_select_{lang_code}_{idx}",
+                )
+                updated_waypoints[idx] = selected_wp
+
+            with wp_col2:
+                st.write("")
+                st.write("")
+                if st.button("❌", key=f"remove_wp_{lang_code}_{idx}"):
+                    st.session_state.waypoints.pop(idx)
+                    st.rerun()
 
         st.session_state.waypoints = updated_waypoints
+
+    add_stop_label = t.get("btn_add_stop_manual", "➕ Add Manual Stop")
+    if st.button(add_stop_label, type="primary", key="add_waypoint"):
+        default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
+        st.session_state.waypoints.append(default_wp)
+        st.rerun()
     
         if st.button(t["btn_add_stop_manual"], type="primary", key="add_waypoint"):
             default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
