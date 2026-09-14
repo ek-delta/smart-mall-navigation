@@ -92,9 +92,6 @@ LOCALIZATION = {
         "btn_keep_start": "⏭️ Keep Current Start",
         "btn_keep_dest": "⏭️ Keep Current Destination",
         "lbl_current": "Current",
-        "footer_arch": "🏢 System Architecture: 3D Theta* Pathfinding Engine",
-        "footer_vector": "📐 Vector Processing: Plotly Graph",
-        "footer_lang": "🌐 Localization: Multilingual Engine",
     },
     "Simplified Chinese": {
         "title": "🏢 智能商场导航与停车系统",
@@ -150,7 +147,7 @@ LOCALIZATION = {
         "marker_dest": " 终点",
         "intermediate_stops": "📍 途经点 (中转站)",
         "stop_lbl": "途经点 {idx}",
-        "btn_add_stop_manual": "➕ 手动添加途经点",
+        "": "➕ 手动添加途经点",
         "btn_interactive_pick": "🗺️ 地图交互式路线选择",
         "btn_cancel_interactive": "⏹️ 取消地图选择模式",
         "btn_reset_all": "🗑️ 重置全部",
@@ -166,9 +163,6 @@ LOCALIZATION = {
         "btn_keep_start": "⏭️ 保留当前起点",
         "btn_keep_dest": "⏭️ 保留当前终点",
         "lbl_current": "当前",
-        "footer_arch": "🏢 系统架构: 3D Theta* 路径规划引擎",
-        "footer_vector": "📐 矢量处理: Plotly 图表",
-        "footer_lang": "🌐 多语言支持: 多语种引擎",
     },
     "Malay": {
         "title": "🏢 Sistem Navigasi & Tempat Letak Kereta Pusat Beli-Belah Smart",
@@ -224,7 +218,7 @@ LOCALIZATION = {
         "marker_dest": " Destinasi",
         "intermediate_stops": "📍 Hentian Antara",
         "stop_lbl": "Hentian {idx}",
-        "btn_add_stop_manual": "➕ Tambah Hentian Antara Secara Manual",
+        "": "➕ Tambah Hentian Antara Secara Manual",
         "btn_interactive_pick": "🗺️ Pemilihan Laluan Interaktif pada Peta",
         "btn_cancel_interactive": "⏹️ Batal Pemilihan Peta Interaktif",
         "btn_reset_all": "🗑️ Set Semula Semua",
@@ -240,9 +234,6 @@ LOCALIZATION = {
         "btn_keep_start": "⏭️ Kekalkan Permulaan Semasa",
         "btn_keep_dest": "⏭️ Kekalkan Destinasi Semasa",
         "lbl_current": "Semasa",
-        "footer_arch": "🏢 Seni Bina Sistem: Enjin Laluan 3D Theta*",
-        "footer_vector": "📐 Pemprosesan Vektor: Graf Plotly",
-        "footer_lang": "🌐 Lokalisasi: Enjin Pelbagai Bahasa",
     }
 }
 
@@ -1978,51 +1969,33 @@ with tab_map:
         st.session_state.selected_dest = dest_node
 
         if st.session_state.waypoints:
-                st.markdown(t.get("intermediate_stops", "Intermediate Stops"))
+            st.markdown(t["intermediate_stops"])
 
-                updated_waypoints = list(st.session_state.waypoints)
-                lang_code = st.session_state.lang
+            for idx, wp in enumerate(st.session_state.waypoints):
+                wp_col1, wp_col2 = st.columns([0.85, 0.15])
+                with wp_col1:
+                    selected_wp = st.selectbox(
+                        t["stop_lbl"].format(idx=idx + 1),
+                        options=room_options,
+                        format_func=lambda r_id: format_location_label(
+                            r_id, st.session_state.lang
+                        ),
+                        index=(
+                            room_options.index(wp)
+                            if wp in room_options
+                            else (idx + 1) % len(room_options)
+                        ),
+                        key=f"waypoint_select_{idx}",
+                    )
+                    st.session_state.waypoints[idx] = selected_wp
 
-                for idx, wp in enumerate(st.session_state.waypoints):
-                    wp_col1, wp_col2 = st.columns([0.85, 0.15])
+                with wp_col2:
+                    st.write("")
+                    st.write("")
+                    if st.button("❌", key=f"remove_wp_{idx}"):
+                        st.session_state.waypoints.pop(idx)
+                        st.rerun()
 
-                    with wp_col1:
-                        raw_label_template = t.get("stop_lbl", "Stop {idx}")
-                        try:
-                            label_str = raw_label_template.format(idx=idx + 1)
-                        except (KeyError, ValueError):
-                            label_str = f"Stop {idx + 1}"
-
-                        selected_wp = st.selectbox(
-                            label_str,
-                            options=room_options,
-                            format_func=lambda r_id: format_location_label(
-                                r_id, st.session_state.lang
-                            ),
-                            index=(
-                                room_options.index(wp)
-                                if wp in room_options
-                                else (idx + 1) % len(room_options)
-                            ),
-                            key=f"waypoint_select_{lang_code}_{idx}",
-                        )
-                        updated_waypoints[idx] = selected_wp
-
-                    with wp_col2:
-                        st.write("")
-                        st.write("")
-                        if st.button("❌", key=f"remove_wp_{lang_code}_{idx}"):
-                            st.session_state.waypoints.pop(idx)
-                            st.rerun()
-
-                st.session_state.waypoints = updated_waypoints
-
-        add_stop_label = t.get("btn_add_stop_manual", "➕ Add Manual Stop")
-        if st.button(add_stop_label, type="primary", key="add_waypoint"):
-            default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
-            st.session_state.waypoints.append(default_wp)
-            st.rerun()
-    
         if st.button(t["btn_add_stop_manual"], type="primary", key="add_waypoint"):
             default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
             st.session_state.waypoints.append(default_wp)
@@ -2385,14 +2358,17 @@ with tab_park:
 def render_system_footer():
     st.markdown("---")
     foot_col1, foot_col2, foot_col3 = st.columns(3)
-    lang = st.session_state.get("lang", "English")
-    lang_dict = LOCALIZATION.get(lang, LOCALIZATION["English"])
 
     with foot_col1:
-        st.caption(lang_dict.get("footer_arch", "🏢 System Architecture: 3D Theta* Pathfinding Engine"))
+        st.caption("🏢 **System Architecture:** 3D Theta* Pathfinding Engine")
     with foot_col2:
-        st.caption(lang_dict.get("footer_vector", "📐 Vector Processing: Plotly Graph"))
+        st.caption(
+            "📐 **Vector Processing:** FloorPlanCAD Parser (DXF/SVG Topology)"
+        )
     with foot_col3:
-        st.caption(lang_dict.get("footer_lang", "🌐 Localization: Multilingual Engine"))
+        st.caption("🌐 **Localization:** Active Multilingual Engine")
 
-
+if __name__ == "__main__":
+    if "initialized" not in st.session_state:
+        st.session_state.initialized = True
+    render_system_footer()
