@@ -1199,12 +1199,38 @@ def render_2d_cad_view(
                 name='Calculated Route'
             ))
 
+   if route_path:
+        # Filter path coordinates for current floor
+        # (Assuming MULTI_CAD_NODES or graph nodes are filtered by floor_select)
+        floor_route_x, floor_route_y = [], []
+        
+        for node in route_path:
+            if node in MULTI_CAD_NODES:
+                pos = MULTI_CAD_NODES[node].get("pos", (0, 0, 0))
+                if pos[2] == floor_select:
+                    floor_route_x.append(pos[0])
+                    floor_route_y.append(pos[1])
+                elif len(floor_route_x) > 0 and floor_route_x[-1] is not None:
+                    # Break line segment if route moves to another floor
+                    floor_route_x.append(None)
+                    floor_route_y.append(None)
+
+        if len(floor_route_x) > 1:
+            fig.add_trace(go.Scatter(
+                x=floor_route_x,
+                y=floor_route_y,
+                mode='lines+markers',
+                line=dict(color='#E91E63', width=4),
+                marker=dict(size=8, color='#E91E63'),
+                name='Active Route'
+            ))
+
     # ----------------------------------------------------
-    # D. CAD LAYOUT & AXIS STYLING
+    # 4. LAYOUT & AXIS CONSTRAINTS
     # ----------------------------------------------------
     fig.update_layout(
-        xaxis=dict(range=[min_x - 2, max_x + 2], fixedrange=True, showgrid=True, gridcolor='#F0F0F0', zeroline=False),
-        yaxis=dict(range=[min_y - 2, max_y + 2], fixedrange=True, showgrid=True, gridcolor='#F0F0F0', zeroline=False, scaleanchor="x", scaleratio=1),
+        xaxis=dict(range=[min_x - 2, max_x + 2], fixedrange=True, showgrid=True, zeroline=False),
+        yaxis=dict(range=[min_y - 2, max_y + 2], fixedrange=True, showgrid=True, zeroline=False, scaleanchor="x", scaleratio=1),
         plot_bgcolor='#FFFFFF',
         paper_bgcolor='#FFFFFF',
         margin=dict(l=10, r=10, t=30, b=10),
