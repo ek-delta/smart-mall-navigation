@@ -881,6 +881,43 @@ def get_nearest_graph_node(x, y, z_floor, graph_nodes):
 
     return closest_node, min_dist
 
+def inject_temp_node(temp_id, coords, nodes_dict, graph_dict, walls_dict, max_connect_dist=30.0):
+    """
+    Injects a temporary node (X, Y, Z) into nodes_dict and dynamically links it
+    to surrounding visible graph nodes on the same floor.
+    """
+    x_temp, y_temp, z_temp = coords
+    
+    # 1. Add temporary coordinate to nodes dictionary
+    nodes_dict[temp_id] = (x_temp, y_temp, z_temp)
+    graph_dict[temp_id] = []
+    
+    # 2. Find nearby nodes on the same floor
+    for node_id, (nx, ny, nz) in list(nodes_dict.items()):
+        if node_id == temp_id or nz != z_temp:
+            continue
+            
+        # Distance check
+        dist = math.hypot(x_temp - nx, y_temp - ny)
+        if dist <= max_connect_dist:
+            # Line-of-sight check against wall obstacles
+            floor_walls = walls_dict.get(z_temp, [])
+            if check_line_of_sight_2d((x_temp, y_temp), (nx, ny), floor_walls):
+                # Add bidirectional temporary edges
+                graph_dict[temp_id].append((node_id, dist))
+                graph_dict[node_id].append((temp_id, dist))
+
+def cleanup_temp_node(temp_id, nodes_dict, graph_dict):
+    """Removes temporary node and its connections after route calculation."""
+    if temp_id in nodes_dict:
+        del nodes_dict[temp_id]
+    if temp_id in graph_dict:
+        del graph_dict[temp_id]
+    
+    # Clean references from neighbor edge lists
+    for node_id in list(graph_dict.keys()):
+        graph_dict[node_id] = [edge for edge in graph_dict[node_id] if edge[0] != temp_id]
+
 # ==============================================================================
 # 3. Theta* pathfinding algorithm
 # ==============================================================================
@@ -926,43 +963,6 @@ def euclidean_distance_3d(node_a, node_b, node_coords):
     x1, y1, z1 = node_coords[node_a]
     x2, y2, z2 = node_coords[node_b]
     return math.sqrt((x1 - x2)**2 + (y1 - y2)**2 + ((z1 - z2) * 15.0)**2)
-
-def inject_temp_node(temp_id, coords, nodes_dict, graph_dict, walls_dict, max_connect_dist=30.0):
-    """
-    Injects a temporary node (X, Y, Z) into nodes_dict and dynamically links it
-    to surrounding visible graph nodes on the same floor.
-    """
-    x_temp, y_temp, z_temp = coords
-    
-    # 1. Add temporary coordinate to nodes dictionary
-    nodes_dict[temp_id] = (x_temp, y_temp, z_temp)
-    graph_dict[temp_id] = []
-    
-    # 2. Find nearby nodes on the same floor
-    for node_id, (nx, ny, nz) in list(nodes_dict.items()):
-        if node_id == temp_id or nz != z_temp:
-            continue
-            
-        # Distance check
-        dist = math.hypot(x_temp - nx, y_temp - ny)
-        if dist <= max_connect_dist:
-            # Line-of-sight check against wall obstacles
-            floor_walls = walls_dict.get(z_temp, [])
-            if check_line_of_sight_2d((x_temp, y_temp), (nx, ny), floor_walls):
-                # Add bidirectional temporary edges
-                graph_dict[temp_id].append((node_id, dist))
-                graph_dict[node_id].append((temp_id, dist))
-
-def cleanup_temp_node(temp_id, nodes_dict, graph_dict):
-    """Removes temporary node and its connections after route calculation."""
-    if temp_id in nodes_dict:
-        del nodes_dict[temp_id]
-    if temp_id in graph_dict:
-        del graph_dict[temp_id]
-    
-    # Clean references from neighbor edge lists
-    for node_id in list(graph_dict.keys()):
-        graph_dict[node_id] = [edge for edge in graph_dict[node_id] if edge[0] != temp_id]
 
 def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
     if start not in node_coords or goal not in node_coords:
@@ -1174,24 +1174,6 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def add_clickable_background_grid(fig, min_x=0, max_x=100, min_y=0, max_y=100, step=2.0):
-    x_grid, y_grid = np.mgrid[min_x:max_x:step, min_y:max_y:step]
-    
-    fig.add_trace(
-        go.Scatter(
-            x=x_grid.flatten(),
-            y=y_grid.flatten(),
-            mode="markers",
-            marker=dict(
-                size=14,
-                color="rgba(0,0,0,0.1)" # Near-zero opacity keeps click hitboxes active
-            ),
-            hoverinfo="none",
-            showlegend=False,
-            name="background_click_layer"
-        )
-    )
-
 def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     fig = go.Figure()
 
@@ -1340,10 +1322,9 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         )
 
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
-    add_clickable_background_grid(fig, min_x=0, max_x=100, min_y=0, max_y=100, step=2.0)
 
     fig.update_layout(
-        clickmode='event+select',  
+        clickmode='event+select',
         dragmode='pan',
         height=650,  
         margin=dict(l=15, r=15, t=30, b=15),
@@ -2028,7 +2009,6 @@ with tab_home:
 
 
 # Mall map tab
-# Mall map tab
 with tab_map:
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
@@ -2353,53 +2333,6 @@ with tab_map:
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
-
-# Directions tab
-with tab_dir:
-    st.subheader(t["route_summary"])
-
-    if "path" not in locals():
-        full_route_sequence = (
-            [st.session_state.selected_start]
-            + st.session_state.waypoints
-            + [st.session_state.selected_dest]
-        )
-        path = []
-        for i in range(len(full_route_sequence) - 1):
-            s_path = theta_star_3d(
-                full_route_sequence[i],
-                full_route_sequence[i + 1],
-                MULTI_CAD_GRAPH,
-                MULTI_CAD_NODES,
-            )
-            if s_path:
-                path.extend(s_path[1:] if path else s_path)
-
-    if path:
-        summary = compute_route_summary(path)
-        m_col1, m_col2, m_col3 = st.columns(3)
-        m_col1.metric(t["total_dist"], f"{summary['total_distance']} m")
-        m_col2.metric(t["floors_crossed"], summary["floors_crossed"])
-        m_col3.metric(t["total_steps"], summary["steps"])
-
-        st.markdown("---")
-        st.subheader(t["turn_by_turn"])
-
-        detailed_steps = generate_detailed_directions(
-            path, MULTI_CAD_NODES, lang=st.session_state.lang
-        )
-
-        for step_info in detailed_steps:
-            col_icon, col_text = st.columns([0.1, 0.9])
-            with col_icon:
-                st.markdown(f"### {step_info['icon']}")
-            with col_text:
-                st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
-                st.markdown(step_info["text"])
-            st.divider()
-    else:
-        st.warning(t["no_route"])
-
 # Parking tab
 with tab_park:
     st.subheader(t["parking_sec"])
