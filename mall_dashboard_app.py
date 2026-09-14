@@ -881,6 +881,50 @@ def get_nearest_graph_node(x, y, z_floor, graph_nodes):
 
     return closest_node, min_dist
 
+def get_floor_z_coordinate(floor_code: str) -> float:
+    """Helper to get standard Z elevation height for a given floor string."""
+    floor_elevations = {"GF": 0.0, "1F": 4.0, "2F": 8.0, "R": 12.0}
+    return floor_elevations.get(floor_code, 0.0)
+
+
+def inject_custom_point_into_graph(
+    point_id: str,
+    x: float,
+    y: float,
+    floor: str,
+    nodes_dict: dict,
+    graph_dict: dict
+) -> tuple[dict, dict]:
+    """
+    Dynamically injects a custom clicked coordinate (x, y, z) into the graph,
+    connecting it to all visible nodes on the same floor via Line-of-Sight.
+    """
+    # Create copies to prevent mutating permanent application state
+    temp_nodes = dict(nodes_dict)
+    temp_graph = {k: list(v) for k, v in graph_dict.items()}
+
+    z = get_floor_z_coordinate(floor)
+
+    # 1. Register the custom point coordinate
+    temp_nodes[point_id] = {"floor": floor, "x": x, "y": y, "z": z}
+    temp_graph[point_id] = []
+
+    # 2. Connect the custom point to visible nodes on the same floor
+    for node_id, data in temp_nodes.items():
+        if node_id == point_id or data.get("floor") != floor:
+            continue
+
+        target_point = (data["x"], data["y"], data["z"])
+        source_point = (x, y, z)
+
+        # Connect if clear line of sight exists between custom click and node
+        if has_line_of_sight_3d(source_point, target_point, floor):
+            temp_graph[point_id].append(node_id)
+            if node_id in temp_graph:
+                temp_graph[node_id].append(point_id)
+
+    return temp_nodes, temp_graph
+
 # ==============================================================================
 # 3. Theta* pathfinding algorithm
 # ==============================================================================
@@ -978,6 +1022,73 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
     return None
+
+def compute_exact_coordinate_route(
+    waypoints: list[dict],
+    base_nodes: dict,
+    base_graph: dict,
+    accessible_only: bool = False
+) -> tuple[list[tuple[float, float, float]], float, list[dict]]:
+    """
+    Computes precise 3D Theta* pathing across exact custom coordinates without node snapping.
+    Returns full path coordinate list, total exact Euclidean distance (m), and node trace list.
+    """
+    full_path_coords = []
+    total_distance = 0.0
+    detailed_node_trace = []
+
+    # Working copies of spatial graph
+    current_nodes = dict(base_nodes)
+    current_graph = {k: list(v) for k, v in base_graph.items()}
+
+    # 1. Inject all custom waypoints into graph topology
+    for wpt in waypoints:
+        if wpt.get("is_custom"):
+            current_nodes, current_graph = inject_custom_point_into_graph(
+                point_id=wpt["id"],
+                x=wpt["x"],
+                y=wpt["y"],
+                floor=wpt["floor"],
+                nodes_dict=current_nodes,
+                graph_dict=current_graph
+            )
+
+    # 2. Execute multi-leg Theta* pathfinding through precise coordinates
+    for i in range(len(waypoints) - 1):
+        start_wpt = waypoints[i]
+        end_wpt = waypoints[i + 1]
+
+        start_id = start_wpt["id"] if start_wpt.get("is_custom") else start_wpt["node_key"]
+        end_id = end_wpt["id"] if end_wpt.get("is_custom") else end_wpt["node_key"]
+
+        # Run 3D Theta* pathfinding on dynamically augmented graph
+        segment_nodes, segment_dist = theta_star_3d(
+            start_node=start_id,
+            target_node=end_id,
+            nodes=current_nodes,
+            graph=current_graph,
+            accessible_only=accessible_only
+        )
+
+        if not segment_nodes:
+            continue  # Path leg unreachable
+
+        # Extract exact (x, y, z) spatial trajectory points
+        segment_coords = [
+            (current_nodes[nid]["x"], current_nodes[nid]["y"], current_nodes[nid]["z"])
+            for nid in segment_nodes
+        ]
+
+        # Prevent duplicate overlapping points between leg boundaries
+        if full_path_coords and segment_coords:
+            full_path_coords.extend(segment_coords[1:])
+        else:
+            full_path_coords.extend(segment_coords)
+
+        total_distance += segment_dist
+        detailed_node_trace.extend(segment_nodes)
+
+    return full_path_coords, total_distance, detailed_node_trace
     
 # ==============================================================================
 # 4. Map generation with Plotly
@@ -2157,48 +2268,47 @@ with tab_map:
             route_path=path, current_lang=st.session_state.lang
         )
         selected_data = st.plotly_chart(
-            fig_3d,
+            fig_2d,
             use_container_width=True,
             on_select="rerun",
-            selection_mode="points",
+            key="interactive_2d_map"
         )
 
-    if (
-        st.session_state.map_pick_mode
-        and selected_data
-        and "selection" in selected_data
-        and selected_data["selection"]["points"]
-    ):
-        point = selected_data["selection"]["points"][0]
-        clicked_id = None
+# Process clicked coordinates
+if selected_data and "selection" in selected_data:
+    points = selected_data["selection"].get("points", [])
+    if points:
+        clicked_pt = points[0]
+        
+        # Extract exact continuous clicked coordinates
+        exact_x = float(clicked_pt.get("x", 0.0))
+        exact_y = float(clicked_pt.get("y", 0.0))
+        current_floor = st.session_state.get("active_floor", "GF")
 
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(
-                    st.session_state.lang, {}
-                ).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
+        # Determine if click occurred inside a named room for visual feedback label
+        room_name = find_room_by_coordinate(exact_x, exact_y, current_floor)
+        display_label = room_name if room_name else f"Point ({exact_x:.1f}, {exact_y:.1f})"
 
-        if clicked_id and clicked_id in ROOM_POLYGONS:
-            if st.session_state.map_pick_step == "START":
-                st.session_state.selected_start = clicked_id
-                st.session_state.map_pick_step = "WAYPOINT"
-                st.rerun()
+        # Check interaction mode state (e.g., setting Start, Destination, or Stopover)
+        selection_mode = st.session_state.get("waypoint_selection_mode", "start")
+        
+        custom_waypoint = {
+            "id": f"CUSTOM_{len(st.session_state.get('custom_waypoints', [])) + 1}",
+            "label": display_label,
+            "x": exact_x,
+            "y": exact_y,
+            "floor": current_floor,
+            "is_custom": True
+        }
 
-            elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(clicked_id)
-                st.rerun()
-
-            elif st.session_state.map_pick_step == "DEST":
-                st.session_state.selected_dest = clicked_id
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
+        if selection_mode == "start":
+            st.session_state["route_start_pt"] = custom_waypoint
+        elif selection_mode == "destination":
+            st.session_state["route_end_pt"] = custom_waypoint
+        elif selection_mode == "stopover":
+            st.session_state.setdefault("route_stops", []).append(custom_waypoint)
+            
+        st.rerun()
 
 # Directions tab
 with tab_dir:
