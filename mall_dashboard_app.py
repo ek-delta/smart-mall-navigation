@@ -92,6 +92,9 @@ LOCALIZATION = {
         "btn_keep_start": "⏭️ Keep Current Start",
         "btn_keep_dest": "⏭️ Keep Current Destination",
         "lbl_current": "Current",
+        "footer_arch": "🏢 System Architecture: 3D Theta* Pathfinding Engine",
+        "footer_vector": "📐 Vector Processing: Plotly Graph",
+        "footer_lang": "🌐 Localization: Multilingual Engine",
     },
     "Simplified Chinese": {
         "title": "🏢 智能商场导航与停车系统",
@@ -163,6 +166,9 @@ LOCALIZATION = {
         "btn_keep_start": "⏭️ 保留当前起点",
         "btn_keep_dest": "⏭️ 保留当前终点",
         "lbl_current": "当前",
+        "footer_arch": "🏢 系统架构: 3D Theta* 路径规划引擎",
+        "footer_vector": "📐 矢量处理: Plotly 图表",
+        "footer_lang": "🌐 多语言支持: 多语种引擎",
     },
     "Malay": {
         "title": "🏢 Sistem Navigasi & Tempat Letak Kereta Pusat Beli-Belah Smart",
@@ -234,6 +240,9 @@ LOCALIZATION = {
         "btn_keep_start": "⏭️ Kekalkan Permulaan Semasa",
         "btn_keep_dest": "⏭️ Kekalkan Destinasi Semasa",
         "lbl_current": "Semasa",
+        "footer_arch": "🏢 Seni Bina Sistem: Enjin Laluan 3D Theta*",
+        "footer_vector": "📐 Pemprosesan Vektor: Graf Plotly",
+        "footer_lang": "🌐 Lokalisasi: Enjin Pelbagai Bahasa",
     }
 }
 
@@ -2359,14 +2368,15 @@ def render_system_footer():
     st.markdown("---")
     foot_col1, foot_col2, foot_col3 = st.columns(3)
 
+    lang = st.session_state.get("lang", "English")
+    lang_dict = LOCALIZATION.get(lang, LOCALIZATION["English"])
+
     with foot_col1:
-        st.caption("🏢 **System Architecture:** 3D Theta* Pathfinding Engine")
+        st.caption(lang_dict.get("footer_arch", "🏢 System Architecture: 3D Theta* Pathfinding Engine"))
     with foot_col2:
-        st.caption(
-            "📐 **Vector Processing:** FloorPlanCAD Parser (DXF/SVG Topology)"
-        )
+        st.caption(lang_dict.get("footer_vector", "📐 Vector Processing: Plotly Graph"))
     with foot_col3:
-        st.caption("🌐 **Localization:** Active Multilingual Engine")
+        st.caption(lang_dict.get("footer_lang", "🌐 Localization: Multilingual Engine"))
 
 if __name__ == "__main__":
     if "initialized" not in st.session_state:
