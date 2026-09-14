@@ -1111,129 +1111,74 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def render_2d_cad_view(
-    floor_select: int, 
-    route_path: list = None, 
-    current_lang: str = "en",
-    map_bounds: tuple = (0, 0, 100, 100)
-) -> go.Figure:
-    """
-    Renders 2D CAD floor view with active route overlays and an 
-    invisible background click grid for map-wide selection.
-    """
+def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
     fig = go.Figure()
-    min_x, min_y, max_x, max_y = map_bounds
 
-    # ----------------------------------------------------
-    # 1. INVISIBLE CLICK GRID (Full Canvas Click Catcher)
-    # ----------------------------------------------------
-    grid_res = 50  # 50x50 click target density across floor grid
-    grid_x, grid_y = np.meshgrid(
-        np.linspace(min_x, max_x, grid_res),
-        np.linspace(min_y, max_y, grid_res)
-    )
-
-    bg_click_trace = go.Scatter(
-        x=grid_x.flatten(),
-        y=grid_y.flatten(),
-        mode='markers',
-        marker=dict(size=18, color='rgba(0,0,0,0)'),  # Fully transparent
-        hoverinfo='none',
-        showlegend=False,
-        name="bg_click_grid"
-    )
-    fig.add_trace(bg_click_trace)
-
-    # ----------------------------------------------------
-    # B. NAVIGABLE GRAPH NODES & EDGES (CAD Style)
-    # ----------------------------------------------------
+    # 1. Filter floor nodes using MULTI_CAD_NODES (FIXED)
     floor_nodes = {
-        n: data for n, data in graph_data.items() 
-        if data.get('floor') == floor_id or data['pos'][2] == floor_id
+        n: coords
+        for n, coords in MULTI_CAD_NODES.items()
+        if coords[2] == floor_level
     }
-    
-    # Render Walkway Edges
-    edge_x, edge_y = [], []
-    for node_id, data in floor_nodes.items():
-        for neighbor in data.get('neighbors', []):
-            if neighbor in floor_nodes:
-                edge_x.extend([data['pos'][0], floor_nodes[neighbor]['pos'][0], None])
-                edge_y.extend([data['pos'][1], floor_nodes[neighbor]['pos'][1], None])
 
-    fig.add_trace(go.Scatter(
-        x=edge_x, y=edge_y,
-        mode='lines',
-        line=dict(color='#E0E0E0', width=1.5, dash='dot'),
-        hoverinfo='none',
-        showlegend=False
-    ))
-
-    # Render Node Markers
-    node_x = [d['pos'][0] for d in floor_nodes.values()]
-    node_y = [d['pos'][1] for d in floor_nodes.values()]
-    node_text = [f"Node: {n}" for n in floor_nodes.keys()]
-
-    fig.add_trace(go.Scatter(
-        x=node_x, y=node_y,
-        mode='markers',
-        marker=dict(size=8, color='#4A90E2', symbol='circle', line=dict(width=1, color='#1B365D')),
-        text=node_text,
-        hoverinfo='text',
-        name='Nodes'
-    ))
-
-    # ----------------------------------------------------
-    # C. ROUTE OVERLAY (If Active)
-    # ----------------------------------------------------
-    if current_route:
-        route_nodes = [n for n in current_route if n in floor_nodes]
-        if len(route_nodes) > 1:
-            rx = [floor_nodes[n]['pos'][0] for n in route_nodes]
-            ry = [floor_nodes[n]['pos'][1] for n in route_nodes]
+    # 2. Draw Room Polygons for the selected floor
+    for room_id, poly_info in ROOM_POLYGONS.items():
+        if room_id in MULTI_CAD_NODES and MULTI_CAD_NODES[room_id][2] == floor_level:
+            x_coords = poly_info["x"]
+            y_coords = poly_info["y"]
             
-            fig.add_trace(go.Scatter(
-                x=rx, y=ry,
-                mode='lines+markers',
-                line=dict(color='#FF3B30', width=4),
-                marker=dict(size=10, color='#FF3B30'),
-                name='Calculated Route'
-            ))
-
-        if route_path:
-        # Filter path nodes for the active floor level
-            floor_path_nodes = [
-                node for node in route_path 
-                if node in MULTI_CAD_NODES and MULTI_CAD_NODES[node][2] == floor_level
-            ]
- 
-            if len(floor_path_nodes) >= 2:
-                path_x = [MULTI_CAD_NODES[n][0] for n in floor_path_nodes]
-                path_y = [MULTI_CAD_NODES[n][1] for n in floor_path_nodes]
-
-                fig.add_trace(
-                    go.Scatter(
-                        x=path_x,
-                        y=path_y,
-                        mode="lines+markers",
-                        line=dict(color="#D32F2F", width=5),
-                        marker=dict(size=8, color="#D32F2F"),
-                        name="Navigation Path",
-                        hoverinfo="none",
-                    )
+            # Display name translation
+            display_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+            
+            fig.add_trace(
+                go.Scatter(
+                    x=x_coords,
+                    y=y_coords,
+                    fill="toself",
+                    fillcolor="rgba(220, 220, 220, 0.5)",
+                    line=dict(color="#333333", width=2),
+                    name=display_name,
+                    text=display_name,
+                    customdata=[room_id] * len(x_coords),
+                    hoverinfo="text",
+                    mode="lines+text" if "center" in poly_info else "lines",
                 )
+            )
 
-    # --- 3. Draw Icons & Location Markers ---
-    # [Your icon overlay code here...]
+    # 3. Draw Route Path if active
+    if route_path:
+        floor_path = [
+            node for node in route_path
+            if node in MULTI_CAD_NODES and MULTI_CAD_NODES[node][2] == floor_level
+        ]
+        
+        if len(floor_path) >= 2:
+            path_x = [MULTI_CAD_NODES[n][0] for n in floor_path]
+            path_y = [MULTI_CAD_NODES[n][1] for n in floor_path]
 
-        fig.update_layout(
-            xaxis=dict(showgrid=False, zeroline=False, visible=False),
-            yaxis=dict(showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1),
-            plot_bgcolor="#F5F5F5",
-            paper_bgcolor="#FFFFFF",
-            margin=dict(l=10, r=10, t=10, b=10),
-            showlegend=False,
-        )
-        return fig
+            fig.add_trace(
+                go.Scatter(
+                    x=path_x,
+                    y=path_y,
+                    mode="lines+markers",
+                    line=dict(color="#D32F2F", width=5),
+                    marker=dict(size=8, color="#D32F2F"),
+                    name="Path",
+                    hoverinfo="none",
+                )
+            )
+
+    # 4. Layout configuration
+    fig.update_layout(
+        xaxis=dict(showgrid=False, zeroline=False, visible=False),
+        yaxis=dict(showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1),
+        plot_bgcolor="#FFFFFF",
+        paper_bgcolor="#FFFFFF",
+        margin=dict(l=10, r=10, t=10, b=10),
+        showlegend=False,
+    )
+
+    return fig
 
     
 def render_3d_isometric_view(route_path=None, current_lang="English"):
