@@ -2,4 +2,4 @@ streamlit
 plotly
 streamlit-plotly-events
 geopy
-folium
+streamlit-folium
