@@ -4,3 +4,6 @@ streamlit-plotly-events
 geopy
 streamlit-folium
 scipy
+pandas
+numpy
+Pillow
