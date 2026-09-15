@@ -1981,7 +1981,9 @@ with tab_map:
             st.markdown(t["intermediate_stops"])
 
             for idx, wp in enumerate(st.session_state.waypoints):
-                wp_col1, wp_col2 = st.columns([0.85, 0.15])
+                # Columns layout: Selectbox, Move Up, Move Down, Delete
+                wp_col1, wp_col_up, wp_col_dn, wp_col_del = st.columns([0.65, 0.11, 0.11, 0.13])
+                
                 with wp_col1:
                     selected_wp = st.selectbox(
                         t["stop_lbl"].format(idx=idx + 1),
@@ -1998,7 +2000,29 @@ with tab_map:
                     )
                     st.session_state.waypoints[idx] = selected_wp
 
-                with wp_col2:
+                with wp_col_up:
+                    st.write("")
+                    st.write("")
+                    # Disable Move Up for the first item
+                    if st.button("⬆️", key=f"move_up_wp_{idx}", disabled=(idx == 0)):
+                        st.session_state.waypoints[idx], st.session_state.waypoints[idx - 1] = (
+                            st.session_state.waypoints[idx - 1],
+                            st.session_state.waypoints[idx],
+                        )
+                        st.rerun()
+
+                with wp_col_dn:
+                    st.write("")
+                    st.write("")
+                    # Disable Move Down for the last item
+                    if st.button("⬇️", key=f"move_dn_wp_{idx}", disabled=(idx == len(st.session_state.waypoints) - 1)):
+                        st.session_state.waypoints[idx], st.session_state.waypoints[idx + 1] = (
+                            st.session_state.waypoints[idx + 1],
+                            st.session_state.waypoints[idx],
+                        )
+                        st.rerun()
+
+                with wp_col_del:
                     st.write("")
                     st.write("")
                     if st.button("❌", key=f"remove_wp_{idx}"):
