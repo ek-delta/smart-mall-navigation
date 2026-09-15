@@ -2004,7 +2004,6 @@ with tab_map:
                 st.session_state.waypoints.pop(idx)
 
             def update_waypoint_value(wp_obj_id, widget_key):
-                # Update the target object's value in state using its unique ID
                 val = st.session_state[widget_key]
                 for item in st.session_state.waypoints:
                     if item["id"] == wp_obj_id:
@@ -2165,6 +2164,12 @@ with tab_map:
                 st.rerun()
         else:
             if st.button(t["btn_cancel_interactive"], use_container_width=True):
+                # When canceling, if intermediate stops were clicked, promote the last one to Destination
+                if st.session_state.waypoints:
+                    last_wp = st.session_state.waypoints.pop()
+                    last_wp_value = last_wp["value"] if isinstance(last_wp, dict) else last_wp
+                    st.session_state.selected_dest = last_wp_value
+
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
