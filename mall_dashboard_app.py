@@ -1527,6 +1527,93 @@ def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
         parking_status[spot] = random.random() < occupancy_rate
     return parking_status
 
+def add_parking_infrastructure_annotations(fig, lang="English"):
+    """
+    Appends callout labels for specialized parking infrastructure on the Plotly map.
+    """
+    # Mapping required feature keys to localization label keys
+    feature_nodes = {
+        "P_L3_Driveway_Entrance": "lbl_entrance_ramp",
+        "P_L3_Driveway_Exit": "lbl_exit_ramp",
+        "P_L3_Stairs": "lbl_stairwell",
+        "P_L3_Elevator": "lbl_elevator",
+        "P_L3_Escalator": "lbl_escalator",
+    }
+
+    # Alias mapping in case your CAD node dictionary uses alternative key names
+    node_aliases = {
+        "P_L3_Driveway_Entrance": ["P_L3_Entrance_Ramp", "P_L3_Entrance", "Driveway_Entrance"],
+        "P_L3_Driveway_Exit": ["P_L3_Exit_Ramp", "P_L3_Exit", "Driveway_Exit"],
+        "P_L3_Stairs": ["P_L3_Stairwell", "P_L3_Stair"],
+        "P_L3_Elevator": ["P_L3_Lift"],
+        "P_L3_Escalator": ["P_L3_Escalators"],
+    }
+
+    # Resolve language dictionary
+    lang_map = {"en": "English", "zh": "Simplified Chinese", "ms": "Malay"}
+    resolved_lang = lang_map.get(lang, lang)
+    
+    if isinstance(t, dict) and resolved_lang in t:
+        lang_dict = t[resolved_lang]
+    elif isinstance(t, dict) and "English" in t:
+        lang_dict = t["English"]
+    else:
+        lang_dict = t
+
+    # Preserve existing annotations on the figure instead of overwriting
+    existing_annotations = list(fig.layout.annotations) if fig.layout.annotations else []
+    new_annotations = []
+
+    nodes_dict = globals().get("MULTI_CAD_NODES", {})
+
+    for primary_id, trans_key in feature_nodes.items():
+        # Find matching node ID (primary or alias)
+        matched_id = None
+        if primary_id in nodes_dict:
+            matched_id = primary_id
+        else:
+            for alias in node_aliases.get(primary_id, []):
+                if alias in nodes_dict:
+                    matched_id = alias
+                    break
+
+        if matched_id:
+            node_data = nodes_dict[matched_id]
+            
+            # Extract x, y coordinates handling both tuple/list and dict formats
+            if isinstance(node_data, (tuple, list)):
+                x, y = node_data[0], node_data[1]
+            elif isinstance(node_data, dict):
+                x, y = node_data.get("x", 0), node_data.get("y", 0)
+            else:
+                continue
+
+            label_text = lang_dict.get(trans_key, matched_id)
+
+            new_annotations.append(
+                dict(
+                    x=x,
+                    y=y,
+                    text=f"<b>{label_text}</b>",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1,
+                    arrowwidth=2,
+                    arrowcolor="#1976D2",
+                    ax=0,
+                    ay=-30,
+                    bgcolor="rgba(255, 255, 255, 0.95)",
+                    bordercolor="#1976D2",
+                    borderwidth=2,
+                    borderpad=4,
+                    font=dict(size=12, color="#000000"),
+                )
+            )
+
+    # Merge preserved annotations with new infrastructure callouts
+    fig.layout.annotations = existing_annotations + new_annotations
+    return fig
+
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
     """
     Finds the nearest parking slot that is flagged as available (False in availability_map).
@@ -2422,6 +2509,8 @@ with tab_park:
                 route_path=entry_path,
                 current_lang=curr_lang,
             )
+            # Add infrastructure annotations (Ramps, Escalators, Elevators, Stairwells)
+            fig_entry = add_parking_infrastructure_annotations(fig_entry, lang=curr_lang)
             st.plotly_chart(fig_entry, use_container_width=True)
 
             if entry_path:
@@ -2461,6 +2550,8 @@ with tab_park:
                 route_path=exit_path,
                 current_lang=curr_lang,
             )
+            # Add infrastructure annotations (Ramps, Escalators, Elevators, Stairwells)
+            fig_exit = add_parking_infrastructure_annotations(fig_exit, lang=curr_lang)
             st.plotly_chart(fig_exit, use_container_width=True)
 
             if exit_path:
@@ -2499,6 +2590,7 @@ with tab_park:
             route_path=[],
             current_lang=curr_lang,
         )
+        fig_parking = add_parking_infrastructure_annotations(fig_parking, lang=curr_lang)
         st.plotly_chart(fig_parking, use_container_width=True)
 
 # ==============================================================================
