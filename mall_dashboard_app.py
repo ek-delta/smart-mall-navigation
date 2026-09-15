@@ -1585,9 +1585,7 @@ def add_parking_infrastructure_annotations(fig, lang="English"):
     fig.layout.annotations = existing_annotations + new_annotations
 
     # 2. Prevent auto-cropping: expand axis ranges to cover all nodes (-45 to 45)
-    fig.update_xaxes(range=[-50, 50], autorange=False)
-    fig.update_yaxes(range=[-25, 40], autorange=False)
-
+   
     return fig
 
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
