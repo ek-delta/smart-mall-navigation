@@ -1281,26 +1281,22 @@ def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
     # --------------------------------------------------------------------------
     # 1. Overlay Background Image Map
     # --------------------------------------------------------------------------
-    if floor_level in FLOOR_IMAGE_MAP:
+    if "FLOOR_IMAGE_MAP" in globals() and floor_level in FLOOR_IMAGE_MAP:
         img_info = FLOOR_IMAGE_MAP[floor_level]
         img_src = get_encoded_image(img_info["source"])
-
         if img_src:
-            x_min, x_max = img_info["x_min"], img_info["x_max"]
-            y_min, y_max = img_info["y_min"], img_info["y_max"]
-
             fig.add_layout_image(
                 dict(
                     source=img_src,
                     xref="x",
                     yref="y",
-                    x=x_min,
-                    y=y_max,  # Top-left corner Y coordinate
-                    sizex=x_max - x_min,  # Image width in graph units
-                    sizey=y_max - y_min,  # Image height in graph units
+                    x=img_info["x_min"],
+                    y=img_info["y_max"],
+                    sizex=img_info["x_max"] - img_info["x_min"],
+                    sizey=img_info["y_max"] - img_info["y_min"],
                     sizing="stretch",
-                    opacity=0.85,  # Adjust opacity to blend with overlays
-                    layer="below",  # Places the image behind lines & markers
+                    opacity=0.85,
+                    layer="below",
                 )
             )
 
@@ -1339,7 +1335,7 @@ def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
         path_x, path_y = [], []
         for node in route_path:
             coords = MULTI_CAD_NODES.get(node)
-            if coords and int(coords[2]) == floor_level:
+            if coords and len(coords) >= 3 and int(coords[2]) == floor_level:
                 path_x.append(coords[0])
                 path_y.append(coords[1])
 
@@ -1349,7 +1345,7 @@ def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
                     x=path_x,
                     y=path_y,
                     mode="lines+markers",
-                    line=dict(color="#00E676", width=5),  # Vibrant green path line
+                    line=dict(color="#00E676", width=5),
                     marker=dict(size=8, color="#00C853"),
                     name="Navigation Path",
                 )
@@ -1365,7 +1361,7 @@ def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
             zeroline=False,
             visible=False,
             scaleanchor="x",
-            scaleratio=1,  # Maintain aspect ratio
+            scaleratio=1,
         ),
         margin=dict(l=10, r=10, t=10, b=10),
         plot_bgcolor="rgba(0,0,0,0)",
