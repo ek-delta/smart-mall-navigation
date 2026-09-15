@@ -6,4 +6,3 @@ streamlit-folium
 scipy
 pandas
 numpy
-Pillow
