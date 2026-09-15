@@ -3,6 +3,7 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
+import random
 
 # ==============================================================================
 # 1. Translation table
@@ -1492,47 +1493,48 @@ def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang
 # ==============================================================================
 # 5. Step-by-step directions and smart parking
 # ==============================================================================
+def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
+    """
+    Randomly assigns True (occupied) or False (available) to parking spots.
+    occupancy_rate: 0.7 means ~70% of spots will be occupied.
+    """
+    parking_status = {}
+    for spot in all_parking_spots:
+        # True = Occupied, False = Available
+        parking_status[spot] = random.random() < occupancy_rate
+    return parking_status
 
-def find_nearest_available_parking(start_node, graph, node_coords, accessible_only=False):
-    entrance_node = "P_L3_Driveway_Entrance"
-    exit_node = "P_L3_Driveway_Exit"
-
-    if entrance_node not in node_coords or exit_node not in node_coords:
-        return None, [], []
-
-    available_slots = [
-        slot_id for slot_id, details in PARKING_SLOTS.items()
-        if not details.get("occupied", False) and slot_id in node_coords
+def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
+    """
+    Finds the nearest parking slot that is flagged as available (False in availability_map).
+    """
+    available_spots = [
+        spot for spot, is_occupied in availability_map.items() 
+        if not is_occupied
     ]
+    
+    if not available_spots:
+        return None, [], []  # Parking lot completely full
 
-    if not available_slots:
-        return None, [], []
-
-    nearest_slot = None
+    # Calculate shortest path from entrance to all available spots
+    best_spot = None
+    shortest_distance = float("inf")
     best_entry_path = []
-    best_exit_path = []
-    min_total_dist = float("inf")
 
-    for slot_id in available_slots:
-        entry_path = theta_star_3d(entrance_node, slot_id, graph, node_coords, accessible_only=accessible_only)
-        if not entry_path:
-            continue
+    for spot in available_spots:
+        path = theta_star_3d(entrance_node, spot, graph, nodes, accessible_only=accessible_only)
+        if path:
+            # Assuming distance function exists or path length acts as metric
+            dist = len(path) 
+            if dist < shortest_distance:
+                shortest_distance = dist
+                best_spot = spot
+                best_entry_path = path
 
-        exit_path = theta_star_3d(slot_id, exit_node, graph, node_coords, accessible_only=accessible_only)
-        if not exit_path:
-            continue
+    # Optional: Generate exit path back to main exit
+    best_exit_path = theta_star_3d(best_spot, "P_L3_Driveway_Exit", graph, nodes, accessible_only=accessible_only) if best_spot else []
 
-        entry_dist = compute_route_summary(entry_path)["total_distance"]
-        exit_dist = compute_route_summary(exit_path)["total_distance"]
-        total_dist = entry_dist + exit_dist
-
-        if total_dist < min_total_dist:
-            min_total_dist = total_dist
-            nearest_slot = slot_id
-            best_entry_path = entry_path
-            best_exit_path = exit_path
-
-    return nearest_slot, best_entry_path, best_exit_path
+    return best_spot, best_entry_path, best_exit_path
 
 def calculate_heading_angle(node_a, node_b, node_coords):
     x1, y1, _ = node_coords[node_a]
@@ -2139,10 +2141,21 @@ with tab_map:
 
     path = full_path
 
+    # Identify all parking spot IDs from your graph or nodes dictionary
+    all_parking_spots = [
+        node_id for node_id, data in MULTI_CAD_NODES.items() 
+        if node_id.startswith("P_") or data.get("type") == "parking"
+    ]
+
+    # Randomize availability on each execution/reload
+    parking_availability = get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.65)
+
+    # Find nearest available slot using the randomized availability map
     assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
         "P_L3_Driveway_Entrance",
         MULTI_CAD_GRAPH,
         MULTI_CAD_NODES,
+        availability_map=parking_availability,  # Pass the randomized status map here
         accessible_only=accessible_flag,
     )
     st.session_state.assigned_parking = assigned_slot_id
