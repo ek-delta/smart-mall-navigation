@@ -2164,12 +2164,16 @@ with tab_map:
                 st.rerun()
         else:
             if st.button(t["btn_cancel_interactive"], use_container_width=True):
-                # When canceling, if intermediate stops were clicked, promote the last one to Destination
-                if st.session_state.waypoints:
+                # Context-aware cancellation
+                current_step = st.session_state.map_pick_step
+                
+                # Only convert the last waypoint to Destination if canceling mid-waypoint selection
+                if current_step == "WAYPOINT" and st.session_state.waypoints:
                     last_wp = st.session_state.waypoints.pop()
                     last_wp_value = last_wp["value"] if isinstance(last_wp, dict) else last_wp
                     st.session_state.selected_dest = last_wp_value
 
+                # Reset mode without altering existing waypoints or destination if canceling on START or DEST
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
