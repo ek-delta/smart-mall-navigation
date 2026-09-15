@@ -1308,24 +1308,29 @@ def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
     # 2. Render Room Polygons (Store Outlines / Nodes)
     # --------------------------------------------------------------------------
     for room_id, poly in ROOM_POLYGONS.items():
-        node_z = MULTI_CAD_NODES[room_id][2] if room_id in MULTI_CAD_NODES else 0
-        if node_z == floor_level:
-            x_coords = [p[0] for p in poly] + [poly[0][0]]
-            y_coords = [p[1] for p in poly] + [poly[0][1]]
+    # 1. Skip empty or malformed polygon lists
+    if not poly or len(poly) < 3:
+        continue
 
-            fig.add_trace(
-                go.Scatter(
-                    x=x_coords,
-                    y=y_coords,
-                    fill="toself",
-                    fillcolor="rgba(255, 103, 0, 0.15)",  # Semi-transparent fill
-                    line=dict(color="#D32F2F", width=1.5),
-                    name=room_id,
-                    hoverinfo="text",
-                    text=room_id,
-                    customdata=[room_id] * len(x_coords),
-                )
+    node_z = MULTI_CAD_NODES[room_id][2] if room_id in MULTI_CAD_NODES else 0
+    if node_z == floor_level:
+        # Safely construct closed polygon coordinates
+        x_coords = [p[0] for p in poly] + [poly[0][0]]
+        y_coords = [p[1] for p in poly] + [poly[0][1]]
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_coords,
+                y=y_coords,
+                fill="toself",
+                fillcolor="rgba(255, 103, 0, 0.15)",
+                line=dict(color="#D32F2F", width=1.5),
+                name=room_id,
+                hoverinfo="text",
+                text=room_id,
+                customdata=[room_id] * len(x_coords),
             )
+        )
 
     # --------------------------------------------------------------------------
     # 3. Render Navigation Route (Pathing Layer)
