@@ -1531,7 +1531,7 @@ def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
         parking_status[spot] = random.random() < occupancy_rate
     return parking_status
 
-def add_parking_infrastructure_annotations(fig, lang="en"):
+def add_parking_infrastructure_annotations(fig, lang="English"):
     """
     Appends callout labels for specialized parking infrastructure on the Plotly map.
     """
@@ -1543,11 +1543,29 @@ def add_parking_infrastructure_annotations(fig, lang="en"):
         "P_L3_Escalator": "lbl_escalator",
     }
 
+    # Map language codes to LOCALIZATION keys if short codes ("en", "zh", "ms") are passed
+    lang_map = {
+        "en": "English",
+        "zh": "Simplified Chinese",
+        "ms": "Malay"
+    }
+    
+    # Resolve language key
+    resolved_lang = lang_map.get(lang, lang)
+    
+    # Fallback order: resolved language -> English -> current active t dictionary -> empty dict
+    if isinstance(t, dict) and resolved_lang in t:
+        lang_dict = t[resolved_lang]
+    elif isinstance(t, dict) and "English" in t:
+        lang_dict = t["English"]
+    else:
+        # If t is already the localized dictionary for the active language
+        lang_dict = t
+
     annotations = []
-    lang_dict = t.get(lang, t["en"])
 
     for node_id, trans_key in feature_nodes.items():
-        if node_id in MULTI_CAD_NODES:
+        if "MULTI_CAD_NODES" in globals() and node_id in MULTI_CAD_NODES:
             x, y, floor = MULTI_CAD_NODES[node_id]
             label_text = lang_dict.get(trans_key, node_id)
 
@@ -1569,6 +1587,7 @@ def add_parking_infrastructure_annotations(fig, lang="en"):
 
     fig.update_layout(annotations=annotations)
     return fig
+    
 
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
     """
