@@ -868,7 +868,6 @@ def get_floor_bounds(floor_z):
     return (min(all_x) - padding, max(all_x) + padding, min(all_y) - padding, max(all_y) + padding)
 
 def point_in_polygon(x, y, polygon):
-    """Ray-casting algorithm to test if (x, y) lies inside a 2D polygon list of (x, y) tuples."""
     n = len(polygon)
     inside = False
     p1x, p1y = polygon[0]
@@ -888,7 +887,6 @@ def point_in_polygon(x, y, polygon):
 
 
 def find_room_by_coordinate(x, y, z_floor):
-    """Finds which ROOM_POLYGONS room ID contains the given (x, y) coordinate on floor z_floor."""
     for room_id, poly_info in ROOM_POLYGONS.items():
         room_z = int(MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2])
         if room_z != z_floor:
@@ -901,7 +899,6 @@ def find_room_by_coordinate(x, y, z_floor):
 
 
 def get_nearest_graph_node(x, y, z_floor, graph_nodes):
-    """Finds the closest node in MULTI_CAD_NODES on the same floor to connect arbitrary click coordinates to the pathfinder graph."""
     closest_node = None
     min_dist = float("inf")
 
