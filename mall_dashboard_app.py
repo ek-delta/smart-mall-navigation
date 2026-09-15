@@ -96,6 +96,15 @@ LOCALIZATION = {
         "footer_arch": "🏢 System Architecture: 3D Theta* Pathfinding Engine",
         "footer_vector": "📐 Vector Processing: Plotly Graph",
         "footer_lang": "🌐 Localization: Multilingual Engine",
+        "tab_nav_drive_to_spot": "🚗 1. Entrance to Parking Spot",
+        "tab_nav_spot_to_exit": "🚪 2. Parking Spot to Exit",
+        "header_driving_to_spot": "🚗 Driving to Parking Spot",
+        "header_leaving_spot": "🚪 Leaving Parking Spot to Driveway Exit",
+        "lbl_entrance_ramp": "🚗 Entrance Ramp",
+        "lbl_exit_ramp": "🚗 Exit Ramp",
+        "lbl_stairwell": "🪜 Stairwell",
+        "lbl_elevator": "🛗 Elevator",
+        "lbl_escalator": "🪜 Escalator",
     },
     "Simplified Chinese": {
         "title": "🏢 智能商场导航与停车系统",
@@ -170,6 +179,15 @@ LOCALIZATION = {
         "footer_arch": "🏢 系统架构: 3D Theta* 路径规划引擎",
         "footer_vector": "📐 矢量处理: Plotly 图表",
         "footer_lang": "🌐 多语言支持: 多语种引擎",
+        "tab_nav_drive_to_spot": "🚗 1. 入口至停车位",
+        "tab_nav_spot_to_exit": "🚪 2. 停车位至出口",
+        "header_driving_to_spot": "🚗 驶向停车位",
+        "header_leaving_spot": "🚪 离开停车位驶向出口匝道",
+        "lbl_entrance_ramp": "🚗 进口匝道",
+        "lbl_exit_ramp": "🚗 出口匝道",
+        "lbl_stairwell": "🪜 楼梯间",
+        "lbl_elevator": "🛗 电梯",
+        "lbl_escalator": "🪜 自动扶梯",
     },
     "Malay": {
         "title": "🏢 Sistem Navigasi & Tempat Letak Kereta Pusat Beli-Belah Smart",
@@ -244,6 +262,15 @@ LOCALIZATION = {
         "footer_arch": "🏢 Seni Bina Sistem: Enjin Laluan 3D Theta*",
         "footer_vector": "📐 Pemprosesan Vektor: Graf Plotly",
         "footer_lang": "🌐 Lokalisasi: Enjin Pelbagai Bahasa",
+        "tab_nav_drive_to_spot": "🚗 1. Pintu Masuk ke Petak Meletak Kenderaan",
+        "tab_nav_spot_to_exit": "🚪 2. Petak Meletak Kenderaan ke Pintu Keluar",
+        "header_driving_to_spot": "🚗 Memandu ke Petak Meletak Kenderaan",
+        "header_leaving_spot": "🚪 Meninggalkan Petak Meletak Kenderaan ke Pintu Keluar",
+        "lbl_entrance_ramp": "🚗 Ramp Masuk",
+        "lbl_exit_ramp": "🚗 Ramp Keluar",
+        "lbl_stairwell": "🪜 Tangga",
+        "lbl_elevator": "🛗 Lif",
+        "lbl_escalator": "🪜 Eskalator",
     }
 }
 
@@ -1504,6 +1531,45 @@ def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
         parking_status[spot] = random.random() < occupancy_rate
     return parking_status
 
+def add_parking_infrastructure_annotations(fig, lang="en"):
+    """
+    Appends callout labels for specialized parking infrastructure on the Plotly map.
+    """
+    feature_nodes = {
+        "P_L3_Driveway_Entrance": "lbl_entrance_ramp",
+        "P_L3_Driveway_Exit": "lbl_exit_ramp",
+        "P_L3_Stairs": "lbl_stairwell",
+        "P_L3_Elevator": "lbl_elevator",
+        "P_L3_Escalator": "lbl_escalator",
+    }
+
+    annotations = []
+    lang_dict = t.get(lang, t["en"])
+
+    for node_id, trans_key in feature_nodes.items():
+        if node_id in MULTI_CAD_NODES:
+            x, y, floor = MULTI_CAD_NODES[node_id]
+            label_text = lang_dict.get(trans_key, node_id)
+
+            annotations.append(
+                dict(
+                    x=x,
+                    y=y,
+                    text=f"<b>{label_text}</b>",
+                    showarrow=True,
+                    arrowhead=2,
+                    ax=0,
+                    ay=-28,
+                    bgcolor="rgba(255, 255, 255, 0.9)",
+                    bordercolor="#1976D2",
+                    borderwidth=1.5,
+                    font=dict(size=11, color="#000000"),
+                )
+            )
+
+    fig.update_layout(annotations=annotations)
+    return fig
+
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
     """
     Finds the nearest parking slot that is flagged as available (False in availability_map).
@@ -2376,6 +2442,7 @@ with tab_park:
     assigned_slot = st.session_state.get("assigned_parking", None)
     entry_path = st.session_state.get("entry_path", [])
     exit_path = st.session_state.get("exit_path", [])
+    curr_lang = st.session_state.lang
 
     if assigned_slot:
         slot_icon = get_location_icon(assigned_slot)
@@ -2384,17 +2451,22 @@ with tab_park:
         )
 
         tab_entry, tab_exit = st.tabs(
-            ["🚗 1. Entrance to Parking Spot", "🚪 2. Parking Spot to Exit"]
+            [
+                t["tab_nav_drive_to_spot"],
+                t["tab_nav_spot_to_exit"],
+            ]
         )
 
         with tab_entry:
-            st.markdown("### 🚗 Driving to Parking Spot")
+            st.markdown(f"### {t['header_driving_to_spot']}")
 
             fig_entry = render_rooftop_parking_map(
                 assigned_slot=assigned_slot,
                 route_path=entry_path,
-                current_lang=st.session_state.lang,
+                current_lang=curr_lang,
             )
+            # Add infrastructure annotations (Ramps, Escalators, Elevators, Stairwells)
+            fig_entry = add_parking_infrastructure_annotations(fig_entry, lang=curr_lang)
             st.plotly_chart(fig_entry, use_container_width=True)
 
             if entry_path:
@@ -2414,7 +2486,7 @@ with tab_park:
                 st.markdown("---")
                 st.subheader(t["parking_turn_by_turn"])
                 entry_steps = generate_detailed_directions(
-                    entry_path, MULTI_CAD_NODES, lang=st.session_state.lang
+                    entry_path, MULTI_CAD_NODES, lang=curr_lang
                 )
 
                 for step_info in entry_steps:
@@ -2427,13 +2499,15 @@ with tab_park:
                     st.divider()
 
         with tab_exit:
-            st.markdown("### 🚪 Leaving Parking Spot to Driveway Exit")
+            st.markdown(f"### {t['header_leaving_spot']}")
 
             fig_exit = render_rooftop_parking_map(
                 assigned_slot=assigned_slot,
                 route_path=exit_path,
-                current_lang=st.session_state.lang,
+                current_lang=curr_lang,
             )
+            # Add infrastructure annotations (Ramps, Escalators, Elevators, Stairwells)
+            fig_exit = add_parking_infrastructure_annotations(fig_exit, lang=curr_lang)
             st.plotly_chart(fig_exit, use_container_width=True)
 
             if exit_path:
@@ -2453,7 +2527,7 @@ with tab_park:
                 st.markdown("---")
                 st.subheader(t["parking_turn_by_turn"])
                 exit_steps = generate_detailed_directions(
-                    exit_path, MULTI_CAD_NODES, lang=st.session_state.lang
+                    exit_path, MULTI_CAD_NODES, lang=curr_lang
                 )
 
                 for step_info in exit_steps:
@@ -2470,8 +2544,9 @@ with tab_park:
         fig_parking = render_rooftop_parking_map(
             assigned_slot=None,
             route_path=[],
-            current_lang=st.session_state.lang,
+            current_lang=curr_lang,
         )
+        fig_parking = add_parking_infrastructure_annotations(fig_parking, lang=curr_lang)
         st.plotly_chart(fig_parking, use_container_width=True)
 
 # ==============================================================================
