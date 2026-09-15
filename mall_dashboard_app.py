@@ -2083,7 +2083,8 @@ with tab_map:
 
         # Extract values for path building
         extracted_waypoints = [
-            wp["value"] if isinstance(wp, dict) else wp for wp in st.session_state.waypoints
+            wp["value"] if isinstance(wp, dict) else wp 
+            for wp in (st.session_state.waypoints + st.session_state.interactive_session_wps)
         ]
 
         full_route_sequence = (
@@ -2285,13 +2286,16 @@ with tab_map:
 
             elif st.session_state.map_pick_step == "WAYPOINT":
                 st.session_state.waypoint_counter += 1
-                st.session_state.waypoints.append(
-                    {"id": st.session_state.waypoint_counter, "value": clicked_id}
-                )
+                wp_obj = {"id": st.session_state.waypoint_counter, "value": clicked_id}
+                # Track in session buffer during pick mode
+                st.session_state.interactive_session_wps.append(wp_obj)
                 st.rerun()
 
             elif st.session_state.map_pick_step == "DEST":
                 st.session_state.selected_dest = clicked_id
+                # Append all session waypoints into main waypoints list on complete flow finish
+                st.session_state.waypoints.extend(st.session_state.interactive_session_wps)
+                st.session_state.interactive_session_wps = []
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
