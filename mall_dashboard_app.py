@@ -86,10 +86,6 @@ LOCALIZATION = {
         "pick_step_3": "👇 *Step 3:* Click any room on the map to set as *Destination*.",
         "btn_done_adding_stops": "➡️ Done Adding Stops (Next: Pick Destination)",
         "btn_add_as_stop": "➕ Add as Stop",
-        "tab_parking_entry": "🚗 1. Entrance to Parking Spot",
-        "tab_parking_exit": "🚪 2. Parking Spot to Exit",
-        "drive_to_spot_title": "🚗 Driving to Parking Spot",
-        "drive_to_exit_title": "🚪 Leaving Parking Spot to Driveway Exit",
         "btn_keep_start": "⏭️ Keep Current Start",
         "btn_keep_dest": "⏭️ Keep Current Destination",
         "lbl_current": "Current",
@@ -1531,64 +1527,6 @@ def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
         parking_status[spot] = random.random() < occupancy_rate
     return parking_status
 
-def add_parking_infrastructure_annotations(fig, lang="English"):
-    """
-    Appends callout labels for specialized parking infrastructure on the Plotly map.
-    """
-    feature_nodes = {
-        "P_L3_Driveway_Entrance": "lbl_entrance_ramp",
-        "P_L3_Driveway_Exit": "lbl_exit_ramp",
-        "P_L3_Stairs": "lbl_stairwell",
-        "P_L3_Elevator": "lbl_elevator",
-        "P_L3_Escalator": "lbl_escalator",
-    }
-
-    # Map language codes to LOCALIZATION keys if short codes ("en", "zh", "ms") are passed
-    lang_map = {
-        "en": "English",
-        "zh": "Simplified Chinese",
-        "ms": "Malay"
-    }
-    
-    # Resolve language key
-    resolved_lang = lang_map.get(lang, lang)
-    
-    # Fallback order: resolved language -> English -> current active t dictionary -> empty dict
-    if isinstance(t, dict) and resolved_lang in t:
-        lang_dict = t[resolved_lang]
-    elif isinstance(t, dict) and "English" in t:
-        lang_dict = t["English"]
-    else:
-        # If t is already the localized dictionary for the active language
-        lang_dict = t
-
-    annotations = []
-
-    for node_id, trans_key in feature_nodes.items():
-        if "MULTI_CAD_NODES" in globals() and node_id in MULTI_CAD_NODES:
-            x, y, floor = MULTI_CAD_NODES[node_id]
-            label_text = lang_dict.get(trans_key, node_id)
-
-            annotations.append(
-                dict(
-                    x=x,
-                    y=y,
-                    text=f"<b>{label_text}</b>",
-                    showarrow=True,
-                    arrowhead=2,
-                    ax=0,
-                    ay=-28,
-                    bgcolor="rgba(255, 255, 255, 0.9)",
-                    bordercolor="#1976D2",
-                    borderwidth=1.5,
-                    font=dict(size=11, color="#000000"),
-                )
-            )
-
-    fig.update_layout(annotations=annotations)
-    return fig
-    
-
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
     """
     Finds the nearest parking slot that is flagged as available (False in availability_map).
@@ -2484,8 +2422,6 @@ with tab_park:
                 route_path=entry_path,
                 current_lang=curr_lang,
             )
-            # Add infrastructure annotations (Ramps, Escalators, Elevators, Stairwells)
-            fig_entry = add_parking_infrastructure_annotations(fig_entry, lang=curr_lang)
             st.plotly_chart(fig_entry, use_container_width=True)
 
             if entry_path:
@@ -2525,8 +2461,6 @@ with tab_park:
                 route_path=exit_path,
                 current_lang=curr_lang,
             )
-            # Add infrastructure annotations (Ramps, Escalators, Elevators, Stairwells)
-            fig_exit = add_parking_infrastructure_annotations(fig_exit, lang=curr_lang)
             st.plotly_chart(fig_exit, use_container_width=True)
 
             if exit_path:
@@ -2565,7 +2499,6 @@ with tab_park:
             route_path=[],
             current_lang=curr_lang,
         )
-        fig_parking = add_parking_infrastructure_annotations(fig_parking, lang=curr_lang)
         st.plotly_chart(fig_parking, use_container_width=True)
 
 # ==============================================================================
