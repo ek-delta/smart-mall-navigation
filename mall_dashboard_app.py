@@ -2184,7 +2184,7 @@ with tab_map:
             st.session_state.selected_start = "A_L0_Entrance"
             st.session_state.selected_dest = "A_L0_Lobby"
             st.rerun()
-
+            
     if st.session_state.map_pick_mode:
         curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
         curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
@@ -2276,7 +2276,10 @@ with tab_map:
                 st.rerun()
 
             elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(clicked_id)
+                st.session_state.waypoint_counter += 1
+                st.session_state.waypoints.append(
+                    {"id": st.session_state.waypoint_counter, "value": clicked_id}
+                )
                 st.rerun()
 
             elif st.session_state.map_pick_step == "DEST":
