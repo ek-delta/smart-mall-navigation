@@ -1942,6 +1942,19 @@ with tab_home:
 
 # Mall map tab
 with tab_map:
+    # Ensure intermediate waypoints are tracked as unique object dicts if not already
+    # Format: [{"id": 1, "value": "A_L0_Entrance"}, ...]
+    if "waypoint_counter" not in st.session_state:
+        st.session_state.waypoint_counter = 0
+
+    # Migration check in case waypoints contains raw strings from old state
+    if st.session_state.waypoints and isinstance(st.session_state.waypoints[0], str):
+        migrated_wps = []
+        for raw_wp in st.session_state.waypoints:
+            st.session_state.waypoint_counter += 1
+            migrated_wps.append({"id": st.session_state.waypoint_counter, "value": raw_wp})
+        st.session_state.waypoints = migrated_wps
+
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
 
@@ -1980,10 +1993,8 @@ with tab_map:
         if st.session_state.waypoints:
             st.markdown(t["intermediate_stops"])
 
-            # Define callbacks to manage state modifications safely before rerender
             def move_waypoint(idx, direction):
                 target_idx = idx - 1 if direction == "up" else idx + 1
-                # Swap elements in session_state list
                 st.session_state.waypoints[idx], st.session_state.waypoints[target_idx] = (
                     st.session_state.waypoints[target_idx],
                     st.session_state.waypoints[idx],
@@ -1992,16 +2003,22 @@ with tab_map:
             def remove_waypoint(idx):
                 st.session_state.waypoints.pop(idx)
 
-            def update_waypoint_value(idx):
-                key = f"waypoint_select_{idx}"
-                if key in st.session_state:
-                    st.session_state.waypoints[idx] = st.session_state[key]
+            def update_waypoint_value(wp_obj_id, widget_key):
+                # Update the target object's value in state using its unique ID
+                val = st.session_state[widget_key]
+                for item in st.session_state.waypoints:
+                    if item["id"] == wp_obj_id:
+                        item["value"] = val
+                        break
 
-            for idx, wp in enumerate(st.session_state.waypoints):
+            for idx, wp_obj in enumerate(st.session_state.waypoints):
+                wp_id = wp_obj["id"]
+                wp_val = wp_obj["value"]
+                widget_key = f"waypoint_select_obj_{wp_id}"
+
                 wp_col1, wp_col_up, wp_col_dn, wp_col_del = st.columns([0.65, 0.11, 0.11, 0.13])
 
-                # Determine correct index safely to avoid falling back to default/0
-                current_index = room_options.index(wp) if wp in room_options else 0
+                current_index = room_options.index(wp_val) if wp_val in room_options else 0
 
                 with wp_col1:
                     st.selectbox(
@@ -2011,9 +2028,9 @@ with tab_map:
                         format_func=lambda r_id: format_location_label(
                             r_id, st.session_state.lang
                         ),
-                        key=f"waypoint_select_{idx}",
+                        key=widget_key,
                         on_change=update_waypoint_value,
-                        args=(idx,),
+                        args=(wp_id, widget_key),
                     )
 
                 with wp_col_up:
@@ -2021,7 +2038,7 @@ with tab_map:
                     st.write("")
                     st.button(
                         "⬆️",
-                        key=f"move_up_wp_{idx}",
+                        key=f"move_up_wp_{wp_id}",
                         disabled=(idx == 0),
                         on_click=move_waypoint,
                         args=(idx, "up"),
@@ -2032,7 +2049,7 @@ with tab_map:
                     st.write("")
                     st.button(
                         "⬇️",
-                        key=f"move_dn_wp_{idx}",
+                        key=f"move_dn_wp_{wp_id}",
                         disabled=(idx == len(st.session_state.waypoints) - 1),
                         on_click=move_waypoint,
                         args=(idx, "down"),
@@ -2043,14 +2060,17 @@ with tab_map:
                     st.write("")
                     st.button(
                         "❌",
-                        key=f"remove_wp_{idx}",
+                        key=f"remove_wp_{wp_id}",
                         on_click=remove_waypoint,
                         args=(idx,),
                     )
 
         if st.button(t["btn_add_stop_manual"], type="primary", key="add_waypoint"):
             default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
-            st.session_state.waypoints.append(default_wp)
+            st.session_state.waypoint_counter += 1
+            st.session_state.waypoints.append(
+                {"id": st.session_state.waypoint_counter, "value": default_wp}
+            )
             st.rerun()
 
         st.markdown("---")
@@ -2062,9 +2082,14 @@ with tab_map:
         )
         accessible_flag = route_pref == t["accessible"]
 
+        # Extract values for path building
+        extracted_waypoints = [
+            wp["value"] if isinstance(wp, dict) else wp for wp in st.session_state.waypoints
+        ]
+
         full_route_sequence = (
             [st.session_state.selected_start]
-            + st.session_state.waypoints
+            + extracted_waypoints
             + [st.session_state.selected_dest]
         )
 
@@ -2243,7 +2268,10 @@ with tab_map:
                 st.rerun()
 
             elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoints.append(clicked_id)
+                st.session_state.waypoint_counter += 1
+                st.session_state.waypoints.append(
+                    {"id": st.session_state.waypoint_counter, "value": clicked_id}
+                )
                 st.rerun()
 
             elif st.session_state.map_pick_step == "DEST":
