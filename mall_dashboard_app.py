@@ -2159,14 +2159,26 @@ with tab_map:
     # Randomize availability on each execution/reload
     parking_availability = get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.65)
 
-    # Find nearest available slot using the randomized availability map
+# 1. Isolate parkable slots (P1 to P8)
+    parkable_spots = [
+        node_id for node_id in MULTI_CAD_NODES.keys()
+        if node_id.startswith("P") and node_id[1:].isdigit()
+    ]
+
+
+    parking_availability = {
+        spot: random.random() < 0.65 for spot in parkable_spots
+    }
+
+    # 3. Find nearest available parking slot
     assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
         "P_L3_Driveway_Entrance",
         MULTI_CAD_GRAPH,
         MULTI_CAD_NODES,
-        availability_map=parking_availability,  # Pass the randomized status map here
+        availability_map=parking_availability,
         accessible_only=accessible_flag,
     )
+
     st.session_state.assigned_parking = assigned_slot_id
     st.session_state.entry_path = entry_path
     st.session_state.exit_path = exit_path
