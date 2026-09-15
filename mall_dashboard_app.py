@@ -1531,7 +1531,6 @@ def add_parking_infrastructure_annotations(fig, lang="English"):
     """
     Appends callout labels for specialized parking infrastructure on the Plotly map.
     """
-    # Mapping required feature keys to localization label keys
     feature_nodes = {
         "P_L3_Driveway_Entrance": "lbl_entrance_ramp",
         "P_L3_Driveway_Exit": "lbl_exit_ramp",
@@ -1540,19 +1539,11 @@ def add_parking_infrastructure_annotations(fig, lang="English"):
         "P_L3_Escalator": "lbl_escalator",
     }
 
-    # Alias mapping in case your CAD node dictionary uses alternative key names
-    node_aliases = {
-        "P_L3_Driveway_Entrance": ["P_L3_Entrance_Ramp", "P_L3_Entrance", "Driveway_Entrance"],
-        "P_L3_Driveway_Exit": ["P_L3_Exit_Ramp", "P_L3_Exit", "Driveway_Exit"],
-        "P_L3_Stairs": ["P_L3_Stairwell", "P_L3_Stair"],
-        "P_L3_Elevator": ["P_L3_Lift"],
-        "P_L3_Escalator": ["P_L3_Escalators"],
-    }
-
-    # Resolve language dictionary
+    # Map short language codes to LOCALIZATION keys
     lang_map = {"en": "English", "zh": "Simplified Chinese", "ms": "Malay"}
     resolved_lang = lang_map.get(lang, lang)
     
+    # Resolve translation dict safely
     if isinstance(t, dict) and resolved_lang in t:
         lang_dict = t[resolved_lang]
     elif isinstance(t, dict) and "English" in t:
@@ -1560,35 +1551,16 @@ def add_parking_infrastructure_annotations(fig, lang="English"):
     else:
         lang_dict = t
 
-    # Preserve existing annotations on the figure instead of overwriting
     existing_annotations = list(fig.layout.annotations) if fig.layout.annotations else []
     new_annotations = []
 
     nodes_dict = globals().get("MULTI_CAD_NODES", {})
 
-    for primary_id, trans_key in feature_nodes.items():
-        # Find matching node ID (primary or alias)
-        matched_id = None
-        if primary_id in nodes_dict:
-            matched_id = primary_id
-        else:
-            for alias in node_aliases.get(primary_id, []):
-                if alias in nodes_dict:
-                    matched_id = alias
-                    break
-
-        if matched_id:
-            node_data = nodes_dict[matched_id]
-            
-            # Extract x, y coordinates handling both tuple/list and dict formats
-            if isinstance(node_data, (tuple, list)):
-                x, y = node_data[0], node_data[1]
-            elif isinstance(node_data, dict):
-                x, y = node_data.get("x", 0), node_data.get("y", 0)
-            else:
-                continue
-
-            label_text = lang_dict.get(trans_key, matched_id)
+    for node_id, trans_key in feature_nodes.items():
+        if node_id in nodes_dict:
+            node_data = nodes_dict[node_id]
+            x, y = node_data[0], node_data[1]
+            label_text = lang_dict.get(trans_key, node_id)
 
             new_annotations.append(
                 dict(
@@ -1601,17 +1573,21 @@ def add_parking_infrastructure_annotations(fig, lang="English"):
                     arrowwidth=2,
                     arrowcolor="#1976D2",
                     ax=0,
-                    ay=-30,
+                    ay=-28,
                     bgcolor="rgba(255, 255, 255, 0.95)",
                     bordercolor="#1976D2",
                     borderwidth=2,
-                    borderpad=4,
-                    font=dict(size=12, color="#000000"),
+                    font=dict(size=11, color="#000000"),
                 )
             )
 
-    # Merge preserved annotations with new infrastructure callouts
+    # 1. Attach annotations without overwriting previous ones
     fig.layout.annotations = existing_annotations + new_annotations
+
+    # 2. Prevent auto-cropping: expand axis ranges to cover all nodes (-45 to 45)
+    fig.update_xaxes(range=[-50, 50], autorange=False)
+    fig.update_yaxes(range=[-25, 40], autorange=False)
+
     return fig
 
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
