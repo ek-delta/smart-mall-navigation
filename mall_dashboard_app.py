@@ -2155,24 +2155,31 @@ with tab_map:
         horizontal=True,
     )
 
+    # Initialize interactive session tracking if not present
+    if "interactive_session_wps" not in st.session_state:
+        st.session_state.interactive_session_wps = []
+
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
         if not st.session_state.map_pick_mode:
             if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
                 st.session_state.map_pick_mode = True
                 st.session_state.map_pick_step = "START"
+                st.session_state.interactive_session_wps = []  # Clear session buffer on start
                 st.rerun()
         else:
             if st.button(t["btn_cancel_interactive"], use_container_width=True):
-                current_step = st.session_state.map_pick_step
-                
-                # If canceling during waypoint picking and at least one stop was selected:
-                # Make the latest selected stop the destination without dropping remaining waypoints.
-                if current_step == "WAYPOINT" and st.session_state.waypoints:
-                    last_wp = st.session_state.waypoints.pop()
-                    last_wp_value = last_wp["value"] if isinstance(last_wp, dict) else last_wp
-                    st.session_state.selected_dest = last_wp_value
+                # Check if user added any NEW stops during this session
+                if st.session_state.interactive_session_wps:
+                    # Latest clicked stop becomes destination
+                    new_dest = st.session_state.interactive_session_wps.pop()
+                    st.session_state.selected_dest = new_dest["value"]
+                    
+                    # Any remaining stops added before it in this session join existing waypoints
+                    st.session_state.waypoints.extend(st.session_state.interactive_session_wps)
 
+                # Reset session state
+                st.session_state.interactive_session_wps = []
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
@@ -2180,6 +2187,7 @@ with tab_map:
     with col_btn_clear:
         if st.button(t["btn_reset_all"], use_container_width=True):
             st.session_state.waypoints = []
+            st.session_state.interactive_session_wps = []
             st.session_state.map_pick_mode = False
             st.session_state.selected_start = "A_L0_Entrance"
             st.session_state.selected_dest = "A_L0_Lobby"
