@@ -1981,6 +1981,11 @@ with tab_map:
             st.markdown(t["intermediate_stops"])
 
             for idx, wp in enumerate(st.session_state.waypoints):
+                # Sync widget key with current list state
+                key_name = f"waypoint_select_{idx}"
+                if key_name not in st.session_state or st.session_state[key_name] != wp:
+                    st.session_state[key_name] = wp
+
                 # Columns layout: Selectbox, Move Up, Move Down, Delete
                 wp_col1, wp_col_up, wp_col_dn, wp_col_del = st.columns([0.65, 0.11, 0.11, 0.13])
 
@@ -1991,12 +1996,7 @@ with tab_map:
                         format_func=lambda r_id: format_location_label(
                             r_id, st.session_state.lang
                         ),
-                        index=(
-                            room_options.index(wp)
-                            if wp in room_options
-                            else (idx + 1) % len(room_options)
-                        ),
-                        key=f"waypoint_select_{idx}",
+                        key=key_name,
                     )
                     st.session_state.waypoints[idx] = selected_wp
 
@@ -2004,20 +2004,28 @@ with tab_map:
                     st.write("")
                     st.write("")
                     if st.button("⬆️", key=f"move_up_wp_{idx}", disabled=(idx == 0)):
+                        # Swap list items
                         st.session_state.waypoints[idx], st.session_state.waypoints[idx - 1] = (
                             st.session_state.waypoints[idx - 1],
                             st.session_state.waypoints[idx],
                         )
+                        # Swap widget key values directly
+                        st.session_state[f"waypoint_select_{idx}"] = st.session_state.waypoints[idx]
+                        st.session_state[f"waypoint_select_{idx - 1}"] = st.session_state.waypoints[idx - 1]
                         st.rerun()
 
                 with wp_col_dn:
                     st.write("")
                     st.write("")
                     if st.button("⬇️", key=f"move_dn_wp_{idx}", disabled=(idx == len(st.session_state.waypoints) - 1)):
+                        # Swap list items
                         st.session_state.waypoints[idx], st.session_state.waypoints[idx + 1] = (
                             st.session_state.waypoints[idx + 1],
                             st.session_state.waypoints[idx],
                         )
+                        # Swap widget key values directly
+                        st.session_state[f"waypoint_select_{idx}"] = st.session_state.waypoints[idx]
+                        st.session_state[f"waypoint_select_{idx + 1}"] = st.session_state.waypoints[idx + 1]
                         st.rerun()
 
                 with wp_col_del:
@@ -2025,6 +2033,11 @@ with tab_map:
                     st.write("")
                     if st.button("❌", key=f"remove_wp_{idx}"):
                         st.session_state.waypoints.pop(idx)
+                        # Clean up widget keys to prevent state shifting issues
+                        for i in range(len(st.session_state.waypoints)):
+                            st.session_state[f"waypoint_select_{i}"] = st.session_state.waypoints[i]
+                        if f"waypoint_select_{len(st.session_state.waypoints)}" in st.session_state:
+                            del st.session_state[f"waypoint_select_{len(st.session_state.waypoints)}"]
                         st.rerun()
 
         if st.button(t["btn_add_stop_manual"], type="primary", key="add_waypoint"):
