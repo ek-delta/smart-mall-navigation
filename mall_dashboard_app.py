@@ -3,6 +3,8 @@ import heapq
 import os
 import streamlit as st
 import plotly.graph_objects as go
+import base64
+from PIL import Image
 
 # ==============================================================================
 # 1. Translation table
@@ -833,6 +835,37 @@ PARKING_SLOTS = {
     "P7": {"occupied": False}, "P8": {"occupied": True},
 }
 
+FLOOR_IMAGE_MAP = {
+    0: {
+        "source": "assets/floor_0_ground.png",  # Local path or web URL (e.g., https://...)
+        "x_min": 0,
+        "x_max": 100,
+        "y_min": 0,
+        "y_max": 100,
+    },
+    1: {
+        "source": "assets/floor_1_first.png",
+        "x_min": 0,
+        "x_max": 100,
+        "y_min": 0,
+        "y_max": 100,
+    },
+    2: {
+        "source": "assets/floor_2_second.png",
+        "x_min": 0,
+        "x_max": 100,
+        "y_min": 0,
+        "y_max": 100,
+    },
+    3: {
+        "source": "assets/floor_3_rooftop.png",
+        "x_min": 0,
+        "x_max": 100,
+        "y_min": 0,
+        "y_max": 100,
+    },
+}
+
 def get_floor_bounds(floor_z):
     floor_rooms = [info for info in ROOM_POLYGONS.values() if info["z"] == floor_z]
     if not floor_rooms:
@@ -1108,163 +1141,231 @@ def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tupl
     max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
     return font_size, max_chars_per_line
 
-def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
-    fig = go.Figure()
+def get_encoded_image(image_path):
+    """Utility to convert a local PNG/SVG image to a base64 string for Plotly."""
+    if image_path.startswith("http://") or image_path.startswith("https://"):
+        return image_path
+        
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+            ext = image_path.split(".")[-1].lower()
+            mime = "image/svg+xml" if ext == "svg" else f"image/{ext}"
+            return f"data:{mime};base64,{encoded_string}"
+    return None
 
-    floor_rooms = {
-        r_id: poly["coords"]
-        for r_id, poly in ROOM_POLYGONS.items()
-        if poly["z"] == active_floor_z
-    }
+class FloorPlanCalibrator:
+    def __init__(self, ref_pt1, ref_pt2):
+        """
+        ref_pt1 & ref_pt2 are tuples of format:
+        ((pixel_x, pixel_y), (graph_x, graph_y))
+        """
+        (px1, py1), (gx1, gy1) = ref_pt1
+        (px2, py2), (gx2, gy2) = ref_pt2
+        
+        # Calculate Scale Factors
+        self.scale_x = (gx2 - gx1) / (px2 - px1)
+        self.scale_y = (gy2 - gy1) / (py2 - py1)
+        
+        # Calculate Translation Offsets
+        self.trans_x = gx1 - (px1 * self.scale_x)
+        self.trans_y = gy1 - (py1 * self.scale_y)
 
-    for room_id, coords in floor_rooms.items():
-        x_coords = [c[0] for c in coords] + [coords[0][0]]
-        y_coords = [c[1] for c in coords] + [coords[0][1]]
-        room_info = ROOM_POLYGONS[room_id]
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+    def pixel_to_graph(self, px, py):
+        """Convert image pixel coordinates (x, y) to spatial graph coordinates."""
+        gx = (px * self.scale_x) + self.trans_x
+        gy = (py * self.scale_y) + self.trans_y
+        return gx, gy
 
-        fig.add_trace(
-            go.Scatter(
-                x=x_coords,
-                y=y_coords,
-                fill="toself",
-                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
-                line=dict(color="#4A5568", width=1.5),
-                hoverinfo="text",
-                text=translated_name,
-                customdata=[room_id] * len(x_coords),
-                showlegend=False,
+    def get_plotly_image_bounds(self, image_path):
+        """
+        Calculate image boundary box (x_min, x_max, y_min, y_max) 
+        in graph space for Plotly layout overlay.
+        """
+        with PIL.Image.open(image_path) as img:
+            img_w, img_h = img.size
+            
+        # Top-Left Pixel is (0, 0)
+        x_min, y_max = self.pixel_to_graph(0, 0)
+        # Bottom-Right Pixel is (img_w, img_h)
+        x_max, y_min = self.pixel_to_graph(img_w, img_h)
+        
+        return {
+            "x_min": min(x_min, x_max),
+            "x_max": max(x_min, x_max),
+            "y_min": min(y_min, y_max),
+            "y_max": max(y_min, y_max)
+        }
+
+def render_calibration_tab():
+    st.title("🎯 Floor Plan Spatial Alignment & Calibration")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.subheader("Reference Anchor Points")
+        st.markdown("**Anchor 1 (Top-Left Reference)**")
+        p1_pixel_x = st.number_input("Pixel X1", value=150)
+        p1_pixel_y = st.number_input("Pixel Y1", value=120)
+        p1_graph_x = st.number_input("Graph X1", value=10.0)
+        p1_graph_y = st.number_input("Graph Y1", value=90.0)
+        
+        st.markdown("**Anchor 2 (Bottom-Right Reference)**")
+        p2_pixel_x = st.number_input("Pixel X2", value=1850)
+        p2_pixel_y = st.number_input("Pixel Y2", value=1100)
+        p2_graph_x = st.number_input("Graph X2", value=95.0)
+        p2_graph_y = st.number_input("Graph Y2", value=12.0)
+        
+        # Instantiate Calibrator
+        calibrator = FloorPlanCalibrator(
+            ref_pt1=((p1_pixel_x, p1_pixel_y), (p1_graph_x, p1_graph_y)),
+            ref_pt2=((p2_pixel_x, p2_pixel_y), (p2_graph_x, p2_graph_y))
+        )
+        
+        # Calculate image boundary parameters
+        bounds = calibrator.get_plotly_image_bounds("assets/floor_0_ground.png")
+        
+        st.success(f"""
+        **Computed Image Layout Bounds:**
+        * `x_min`: {bounds['x_min']:.2f}
+        * `x_max`: {bounds['x_max']:.2f}
+        * `y_min`: {bounds['y_min']:.2f}
+        * `y_max`: {bounds['y_max']:.2f}
+        """)
+
+    with col2:
+        # Render Plotly canvas with aligned image overlay
+        fig = go.Figure()
+        
+        # Overlay map image
+        fig.add_layout_image(
+            dict(
+                source="assets/floor_0_ground.png",
+                xref="x", yref="y",
+                x=bounds["x_min"],
+                y=bounds["y_max"],
+                sizex=bounds["x_max"] - bounds["x_min"],
+                sizey=bounds["y_max"] - bounds["y_min"],
+                sizing="stretch",
+                opacity=0.75,
+                layer="below"
             )
         )
+        
+        # Plot existing MULTI_CAD_NODES on top to verify alignment
+        node_x = [v[0] for k, v in MULTI_CAD_NODES.items() if v[2] == 0]
+        node_y = [v[1] for k, v in MULTI_CAD_NODES.items() if v[2] == 0]
+        node_names = [k for k, v in MULTI_CAD_NODES.items() if v[2] == 0]
+        
+        fig.add_trace(go.Scatter(
+            x=node_x, y=node_y,
+            mode='markers+text',
+            text=node_names,
+            textposition="top center",
+            marker=dict(size=10, color='#00E676', symbol='circle'),
+            name='Spatial Graph Nodes'
+        ))
+        
+        fig.update_layout(
+            height=650,
+            xaxis=dict(range=[bounds["x_min"] - 5, bounds["x_max"] + 5]),
+            yaxis=dict(range=[bounds["y_min"] - 5, bounds["y_max"] + 5], scaleanchor="x", scaleratio=1),
+            margin=dict(l=0, r=0, t=30, b=0)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
 
+def render_2d_cad_view(floor_level, route_path=None, current_lang="English"):
+    fig = go.Figure()
+
+    # --------------------------------------------------------------------------
+    # 1. Overlay Background Image Map
+    # --------------------------------------------------------------------------
+    if floor_level in FLOOR_IMAGE_MAP:
+        img_info = FLOOR_IMAGE_MAP[floor_level]
+        img_src = get_encoded_image(img_info["source"])
+
+        if img_src:
+            x_min, x_max = img_info["x_min"], img_info["x_max"]
+            y_min, y_max = img_info["y_min"], img_info["y_max"]
+
+            fig.add_layout_image(
+                dict(
+                    source=img_src,
+                    xref="x",
+                    yref="y",
+                    x=x_min,
+                    y=y_max,  # Top-left corner Y coordinate
+                    sizex=x_max - x_min,  # Image width in graph units
+                    sizey=y_max - y_min,  # Image height in graph units
+                    sizing="stretch",
+                    opacity=0.85,  # Adjust opacity to blend with overlays
+                    layer="below",  # Places the image behind lines & markers
+                )
+            )
+
+    # --------------------------------------------------------------------------
+    # 2. Render Room Polygons (Store Outlines / Nodes)
+    # --------------------------------------------------------------------------
+    for room_id, poly in ROOM_POLYGONS.items():
+        node_z = MULTI_CAD_NODES[room_id][2] if room_id in MULTI_CAD_NODES else 0
+        if node_z == floor_level:
+            x_coords = [p[0] for p in poly] + [poly[0][0]]
+            y_coords = [p[1] for p in poly] + [poly[0][1]]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=x_coords,
+                    y=y_coords,
+                    fill="toself",
+                    fillcolor="rgba(255, 103, 0, 0.15)",  # Semi-transparent fill
+                    line=dict(color="#D32F2F", width=1.5),
+                    name=room_id,
+                    hoverinfo="text",
+                    text=room_id,
+                    customdata=[room_id] * len(x_coords),
+                )
+            )
+
+    # --------------------------------------------------------------------------
+    # 3. Render Navigation Route (Pathing Layer)
+    # --------------------------------------------------------------------------
     if route_path:
-        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
+        path_x, path_y = [], []
+        for node in route_path:
+            coords = MULTI_CAD_NODES.get(node)
+            if coords and int(coords[2]) == floor_level:
+                path_x.append(coords[0])
+                path_y.append(coords[1])
 
-        if len(floor_path) > 1:
-            path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
-            path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
-
+        if path_x:
             fig.add_trace(
                 go.Scatter(
                     x=path_x,
                     y=path_y,
                     mode="lines+markers",
-                    line=dict(color="#FF0000", width=4, dash="solid"),
-                    marker=dict(size=8, color="#8B0000"),
-                    name="Route Path",
-                    showlegend=False
+                    line=dict(color="#00E676", width=5),  # Vibrant green path line
+                    marker=dict(size=8, color="#00C853"),
+                    name="Navigation Path",
                 )
             )
 
-            for i in range(len(floor_path) - 1):
-                x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
-                x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
-
-                x_mid = x_start + 0.6 * (x_end - x_start)
-                y_mid = y_start + 0.6 * (y_end - y_start)
-
-                fig.add_annotation(
-                    x=x_mid,
-                    y=y_mid,
-                    ax=x_start,
-                    ay=y_start,
-                    xref="x",
-                    yref="y",
-                    axref="x",
-                    ayref="y",
-                    showarrow=True,
-                    arrowhead=2,
-                    arrowsize=1.5,
-                    arrowwidth=2.5,
-                    arrowcolor="#CC0000"
-                )
-
-        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
-        start_lbl = lang_dict.get("marker_start", " Start")
-        dest_lbl = lang_dict.get("marker_dest", " Destination")
-        start_node_id = route_path[0]
-        dest_node_id = route_path[-1]
-
-        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
-            start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
-            fig.add_trace(
-                go.Scatter(
-                    x=[start_x],
-                    y=[start_y],
-                    mode="markers+text",
-                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
-                    text=[start_lbl],
-                    textposition="top right",
-                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
-                    name="Start Location",
-                    showlegend=False
-                )
-            )
-
-        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
-            dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
-            fig.add_trace(
-                go.Scatter(
-                    x=[dest_x],
-                    y=[dest_y],
-                    mode="markers+text",
-                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
-                    text=[dest_lbl],
-                    textposition="top right",
-                    textfont=dict(color="#00FF00", size=12, family="Arial Black"),
-                    name="Destination",
-                    showlegend=False
-                )
-            )
-
-    for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-
-        xs = [p[0] for p in coords]
-        ys = [p[1] for p in coords]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-
-        cx = (min_x + max_x) / 2.0
-        cy = (min_y + max_y) / 2.0
-        bbox_w = max_x - min_x
-        bbox_h = max_y - min_y
-
-        if bbox_w < 0.6 or bbox_h < 0.6:
-            continue
-
-        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
-        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
-
-        fig.add_trace(
-            go.Scatter(
-                x=[cx],
-                y=[cy],
-                text=[wrapped_label],
-                mode="text",
-                textposition="middle center",
-                textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
-                ),
-                customdata=[room_id],
-                hoverinfo="text",
-                hovertext=[translated_name],
-                showlegend=False
-            )
-        )
-
-    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
-
+    # --------------------------------------------------------------------------
+    # 4. Axes & Layout Settings
+    # --------------------------------------------------------------------------
     fig.update_layout(
-        height=650,  
-        margin=dict(l=15, r=15, t=30, b=15),
-        showlegend=False,
-        plot_bgcolor="#FFB6C1",
-        paper_bgcolor="#000000",
-        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
-        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
+        xaxis=dict(showgrid=False, zeroline=False, visible=False),
+        yaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            visible=False,
+            scaleanchor="x",
+            scaleratio=1,  # Maintain aspect ratio
+        ),
+        margin=dict(l=10, r=10, t=10, b=10),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        height=600,
     )
 
     return fig
