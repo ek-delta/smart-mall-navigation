@@ -1983,7 +1983,7 @@ with tab_map:
             for idx, wp in enumerate(st.session_state.waypoints):
                 # Columns layout: Selectbox, Move Up, Move Down, Delete
                 wp_col1, wp_col_up, wp_col_dn, wp_col_del = st.columns([0.65, 0.11, 0.11, 0.13])
-                
+
                 with wp_col1:
                     selected_wp = st.selectbox(
                         t["stop_lbl"].format(idx=idx + 1),
@@ -2003,7 +2003,6 @@ with tab_map:
                 with wp_col_up:
                     st.write("")
                     st.write("")
-                    # Disable Move Up for the first item
                     if st.button("⬆️", key=f"move_up_wp_{idx}", disabled=(idx == 0)):
                         st.session_state.waypoints[idx], st.session_state.waypoints[idx - 1] = (
                             st.session_state.waypoints[idx - 1],
@@ -2014,7 +2013,6 @@ with tab_map:
                 with wp_col_dn:
                     st.write("")
                     st.write("")
-                    # Disable Move Down for the last item
                     if st.button("⬇️", key=f"move_dn_wp_{idx}", disabled=(idx == len(st.session_state.waypoints) - 1)):
                         st.session_state.waypoints[idx], st.session_state.waypoints[idx + 1] = (
                             st.session_state.waypoints[idx + 1],
@@ -2232,7 +2230,7 @@ with tab_map:
                 st.session_state.map_pick_mode = False
                 st.session_state.map_pick_step = "START"
                 st.rerun()
-
+                
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
