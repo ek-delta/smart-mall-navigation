@@ -1980,65 +1980,73 @@ with tab_map:
         if st.session_state.waypoints:
             st.markdown(t["intermediate_stops"])
 
-            for idx, wp in enumerate(st.session_state.waypoints):
-                # Sync widget key with current list state
-                key_name = f"waypoint_select_{idx}"
-                if key_name not in st.session_state or st.session_state[key_name] != wp:
-                    st.session_state[key_name] = wp
+            # Define callbacks to manage state modifications safely before rerender
+            def move_waypoint(idx, direction):
+                target_idx = idx - 1 if direction == "up" else idx + 1
+                # Swap elements in session_state list
+                st.session_state.waypoints[idx], st.session_state.waypoints[target_idx] = (
+                    st.session_state.waypoints[target_idx],
+                    st.session_state.waypoints[idx],
+                )
 
-                # Columns layout: Selectbox, Move Up, Move Down, Delete
+            def remove_waypoint(idx):
+                st.session_state.waypoints.pop(idx)
+
+            def update_waypoint_value(idx):
+                key = f"waypoint_select_{idx}"
+                if key in st.session_state:
+                    st.session_state.waypoints[idx] = st.session_state[key]
+
+            for idx, wp in enumerate(st.session_state.waypoints):
                 wp_col1, wp_col_up, wp_col_dn, wp_col_del = st.columns([0.65, 0.11, 0.11, 0.13])
 
+                # Determine correct index safely to avoid falling back to default/0
+                current_index = room_options.index(wp) if wp in room_options else 0
+
                 with wp_col1:
-                    selected_wp = st.selectbox(
+                    st.selectbox(
                         t["stop_lbl"].format(idx=idx + 1),
                         options=room_options,
+                        index=current_index,
                         format_func=lambda r_id: format_location_label(
                             r_id, st.session_state.lang
                         ),
-                        key=key_name,
+                        key=f"waypoint_select_{idx}",
+                        on_change=update_waypoint_value,
+                        args=(idx,),
                     )
-                    st.session_state.waypoints[idx] = selected_wp
 
                 with wp_col_up:
                     st.write("")
                     st.write("")
-                    if st.button("⬆️", key=f"move_up_wp_{idx}", disabled=(idx == 0)):
-                        # Swap list items
-                        st.session_state.waypoints[idx], st.session_state.waypoints[idx - 1] = (
-                            st.session_state.waypoints[idx - 1],
-                            st.session_state.waypoints[idx],
-                        )
-                        # Swap widget key values directly
-                        st.session_state[f"waypoint_select_{idx}"] = st.session_state.waypoints[idx]
-                        st.session_state[f"waypoint_select_{idx - 1}"] = st.session_state.waypoints[idx - 1]
-                        st.rerun()
+                    st.button(
+                        "⬆️",
+                        key=f"move_up_wp_{idx}",
+                        disabled=(idx == 0),
+                        on_click=move_waypoint,
+                        args=(idx, "up"),
+                    )
 
                 with wp_col_dn:
                     st.write("")
                     st.write("")
-                    if st.button("⬇️", key=f"move_dn_wp_{idx}", disabled=(idx == len(st.session_state.waypoints) - 1)):
-                        # Swap list items
-                        st.session_state.waypoints[idx], st.session_state.waypoints[idx + 1] = (
-                            st.session_state.waypoints[idx + 1],
-                            st.session_state.waypoints[idx],
-                        )
-                        # Swap widget key values directly
-                        st.session_state[f"waypoint_select_{idx}"] = st.session_state.waypoints[idx]
-                        st.session_state[f"waypoint_select_{idx + 1}"] = st.session_state.waypoints[idx + 1]
-                        st.rerun()
+                    st.button(
+                        "⬇️",
+                        key=f"move_dn_wp_{idx}",
+                        disabled=(idx == len(st.session_state.waypoints) - 1),
+                        on_click=move_waypoint,
+                        args=(idx, "down"),
+                    )
 
                 with wp_col_del:
                     st.write("")
                     st.write("")
-                    if st.button("❌", key=f"remove_wp_{idx}"):
-                        st.session_state.waypoints.pop(idx)
-                        # Clean up widget keys to prevent state shifting issues
-                        for i in range(len(st.session_state.waypoints)):
-                            st.session_state[f"waypoint_select_{i}"] = st.session_state.waypoints[i]
-                        if f"waypoint_select_{len(st.session_state.waypoints)}" in st.session_state:
-                            del st.session_state[f"waypoint_select_{len(st.session_state.waypoints)}"]
-                        st.rerun()
+                    st.button(
+                        "❌",
+                        key=f"remove_wp_{idx}",
+                        on_click=remove_waypoint,
+                        args=(idx,),
+                    )
 
         if st.button(t["btn_add_stop_manual"], type="primary", key="add_waypoint"):
             default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
