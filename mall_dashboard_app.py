@@ -2143,9 +2143,18 @@ with tab_map:
 
     # Identify all parking spot IDs from your graph or nodes dictionary
     all_parking_spots = [
-        node_id for node_id, data in MULTI_CAD_NODES.items() 
-        if node_id.startswith("P_") or data.get("type") == "parking"
+        node_id for node_id in MULTI_CAD_NODES.keys()
+        if node_id.startswith("P_") or (node_id.startswith("P") and node_id[1:].isdigit())
     ]
+
+    non_parking_nodes = {
+        "P_L3_Aisle_Main",
+        "P_L3_Driveway_Entrance",
+        "P_L3_Driveway_Exit",
+        "P_L3_Elevator",
+        "P_L3_Escalator",
+        "P_L3_Stairs",
+    }
 
     # Randomize availability on each execution/reload
     parking_availability = get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.65)
