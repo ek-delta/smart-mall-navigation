@@ -1516,20 +1516,13 @@ def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang
 # 5. Step-by-step directions and smart parking
 # ==============================================================================
 def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
-    """
-    Randomly assigns True (occupied) or False (available) to parking spots.
-    occupancy_rate: 0.7 means ~70% of spots will be occupied.
-    """
     parking_status = {}
     for spot in all_parking_spots:
-        # True = Occupied, False = Available
         parking_status[spot] = random.random() < occupancy_rate
     return parking_status
 
 def add_parking_infrastructure_annotations(fig, lang="English"):
-    """
-    Appends callout labels for specialized parking infrastructure on the Plotly map.
-    """
+
     feature_nodes = {
         "P_L3_Driveway_Entrance": "lbl_entrance_ramp",
         "P_L3_Driveway_Exit": "lbl_exit_ramp",
@@ -1538,11 +1531,9 @@ def add_parking_infrastructure_annotations(fig, lang="English"):
         "P_L3_Escalator": "lbl_escalator",
     }
 
-    # Map short language codes to LOCALIZATION keys
     lang_map = {"en": "English", "zh": "Simplified Chinese", "ms": "Malay"}
     resolved_lang = lang_map.get(lang, lang)
     
-    # Resolve translation dict safely
     if isinstance(t, dict) and resolved_lang in t:
         lang_dict = t[resolved_lang]
     elif isinstance(t, dict) and "English" in t:
@@ -1580,26 +1571,19 @@ def add_parking_infrastructure_annotations(fig, lang="English"):
                 )
             )
 
-    # 1. Attach annotations without overwriting previous ones
     fig.layout.annotations = existing_annotations + new_annotations
-
-    # 2. Prevent auto-cropping: expand axis ranges to cover all nodes (-45 to 45)
    
     return fig
 
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
-    """
-    Finds the nearest parking slot that is flagged as available (False in availability_map).
-    """
     available_spots = [
         spot for spot, is_occupied in availability_map.items() 
         if not is_occupied
     ]
     
     if not available_spots:
-        return None, [], []  # Parking lot completely full
+        return None, [], []
 
-    # Calculate shortest path from entrance to all available spots
     best_spot = None
     shortest_distance = float("inf")
     best_entry_path = []
@@ -1607,14 +1591,12 @@ def find_nearest_available_parking(entrance_node, graph, nodes, availability_map
     for spot in available_spots:
         path = theta_star_3d(entrance_node, spot, graph, nodes, accessible_only=accessible_only)
         if path:
-            # Assuming distance function exists or path length acts as metric
             dist = len(path) 
             if dist < shortest_distance:
                 shortest_distance = dist
                 best_spot = spot
                 best_entry_path = path
 
-    # Optional: Generate exit path back to main exit
     best_exit_path = theta_star_3d(best_spot, "P_L3_Driveway_Exit", graph, nodes, accessible_only=accessible_only) if best_spot else []
 
     return best_spot, best_entry_path, best_exit_path
@@ -1804,17 +1786,16 @@ def format_location_label(room_id, lang):
 st.markdown(
     """
     <style>
-    /* 1. Style the main top header bar */
+    /* top header bar */
     header[data-testid="stHeader"] {
         background-color: #D32F2F !important; /* Deep Red */
     }
 
-    /* 1. Target the main sidebar background */
+    /* sidebar */
     section[data-testid="stSidebar"] {
         background-color: #FF6700 !important; /* Orange */
     }
 
-    /* 2. Force Settings header, labels, and text inside sidebar to black */
     section[data-testid="stSidebar"] h1,
     section[data-testid="stSidebar"] h2,
     section[data-testid="stSidebar"] h3,
@@ -1964,7 +1945,6 @@ with tab_home:
         st.markdown(
           """
           <style>
-          /* Red background for st.expander header button */
           div[data-testid="stExpander"] details summary {
             background-color: #D32F2F !important;
             color: #FFFFFF !important;
@@ -1972,7 +1952,6 @@ with tab_home:
             padding: 10px 16px !important;
           }
 
-          /* White text & arrow icon for expander header */
           div[data-testid="stExpander"] details summary p,
           div[data-testid="stExpander"] details summary svg {
             color: #FFFFFF !important;
@@ -1980,7 +1959,6 @@ with tab_home:
             font-weight: bold !important;
           }
 
-          /* Orange background for expanded content container */
           div[data-testid="stExpander"] details div[data-testid="stExpanderDetails"] {
             background-color: #FF6700 !important;
             border-radius: 0px 0px 8px 8px !important;
@@ -2027,12 +2005,9 @@ with tab_home:
 
 # Mall map tab
 with tab_map:
-    # Ensure intermediate waypoints are tracked as unique object dicts if not already
-    # Format: [{"id": 1, "value": "A_L0_Entrance"}, ...]
     if "waypoint_counter" not in st.session_state:
         st.session_state.waypoint_counter = 0
 
-    # Migration check in case waypoints contains raw strings from old state
     if st.session_state.waypoints and isinstance(st.session_state.waypoints[0], str):
         migrated_wps = []
         for raw_wp in st.session_state.waypoints:
@@ -2166,7 +2141,6 @@ with tab_map:
         )
         accessible_flag = route_pref == t["accessible"]
 
-        # Extract values for path building
         extracted_waypoints = [
             wp["value"] if isinstance(wp, dict) else wp for wp in st.session_state.waypoints
         ]
@@ -2224,7 +2198,6 @@ with tab_map:
 
     path = full_path
 
-    # Identify all parking spot IDs from your graph or nodes dictionary
     all_parking_spots = [
         node_id for node_id in MULTI_CAD_NODES.keys()
         if node_id.startswith("P_") or (node_id.startswith("P") and node_id[1:].isdigit())
@@ -2239,10 +2212,8 @@ with tab_map:
         "P_L3_Stairs",
     }
 
-    # Randomize availability on each execution/reload
     parking_availability = get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.65)
 
-# 1. Isolate parkable slots (P1 to P8)
     parkable_spots = [
         node_id for node_id in MULTI_CAD_NODES.keys()
         if node_id.startswith("P") and node_id[1:].isdigit()
@@ -2253,7 +2224,6 @@ with tab_map:
         spot: random.random() < 0.65 for spot in parkable_spots
     }
 
-    # 3. Find nearest available parking slot
     assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
         "P_L3_Driveway_Entrance",
         MULTI_CAD_GRAPH,
@@ -2283,8 +2253,6 @@ with tab_map:
             if st.button(t["btn_cancel_interactive"], use_container_width=True):
                 current_step = st.session_state.map_pick_step
                 
-                # If canceling during waypoint picking and at least one stop was selected:
-                # Make the latest selected stop the destination without dropping remaining waypoints.
                 if current_step == "WAYPOINT" and st.session_state.waypoints:
                     last_wp = st.session_state.waypoints.pop()
                     last_wp_value = last_wp["value"] if isinstance(last_wp, dict) else last_wp
@@ -2482,7 +2450,6 @@ with tab_park:
                 route_path=entry_path,
                 current_lang=curr_lang,
             )
-            # Add infrastructure annotations (Ramps, Escalators, Elevators, Stairwells)
             fig_entry = add_parking_infrastructure_annotations(fig_entry, lang=curr_lang)
             st.plotly_chart(fig_entry, use_container_width=True)
 
@@ -2523,7 +2490,6 @@ with tab_park:
                 route_path=exit_path,
                 current_lang=curr_lang,
             )
-            # Add infrastructure annotations (Ramps, Escalators, Elevators, Stairwells)
             fig_exit = add_parking_infrastructure_annotations(fig_exit, lang=curr_lang)
             st.plotly_chart(fig_exit, use_container_width=True)
 
