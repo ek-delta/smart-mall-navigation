@@ -845,7 +845,7 @@ MULTI_CAD_GRAPH = {
         "P_L3_Escalator": 35.0, "P_L3_Driveway_Entrance": 25.0, "P_L3_Driveway_Exit": 25.0,
     },
     "P_L3_Driveway_Entrance": {"P_L3_Aisle_Main": 25.0},
-    "P_L3_Driveway_Exit": {"P_L3_Aisle_Main": 25.0,},
+    "P_L3_Driveway_Exit": {"P_L3_Aisle_Main": 25.0},
     "P_L3_Elevator": {"P_L3_Aisle_Main": 40.0, "B_L2_Elevator": 15.0},
     "P_L3_Stairs":   {"P_L3_Aisle_Main": 40.0, "B_L2_Stairs": 15.0},
     "P_L3_Escalator": {"P_L3_Aisle_Main": 35.0, "B_L2_Escalator": 12.0},
