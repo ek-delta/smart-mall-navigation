@@ -544,32 +544,46 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
 # ==============================================================================
 
 def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English"):
-    m = folium.Map(location=[8, 0], zoom_start=11, crs="Simple", tiles=None)
-
+    # 1. Gather all rooms for the active floor
     floor_rooms = {
         r_id: poly["coords"]
         for r_id, poly in ROOM_POLYGONS.items()
         if poly["z"] == active_floor_z
     }
 
-    # Render CAD Polygons
+    # 2. Compute bounding box coordinates for auto-zoom
+    all_pts = [pt for coords in floor_rooms.values() for pt in coords]
+    if all_pts:
+        min_x = min(p[0] for p in all_pts) - 10
+        max_x = max(p[0] for p in all_pts) + 10
+        min_y = min(p[1] for p in all_pts) - 10
+        max_y = max(p[1] for p in all_pts) + 10
+    else:
+        min_x, max_x, min_y, max_y = -60, 60, -35, 55
+
+    # 3. Create Leaflet map anchored with flat Simple CRS
+    m = folium.Map(crs="Simple", tiles=None)
+
+    # 4. Render CAD Room Polygons
     for room_id, coords in floor_rooms.items():
         room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        
+        # Folium uses [lat, lon] -> [y, x]
         folium_coords = [[pt[1], pt[0]] for pt in coords]
 
         folium.Polygon(
             locations=folium_coords,
-            color="#4A5568",
+            color="#334155",
             weight=2,
             fill=True,
-            fill_color=room_info.get("color", "#CCCCCC"),
-            fill_opacity=0.6,
+            fill_color=room_info.get("color", "#CBD5E1"),
+            fill_opacity=0.7,
             tooltip=translated_name,
             popup=translated_name
         ).add_to(m)
 
-        # Label Center
+        # Room Label Text Marker
         cx = sum(p[0] for p in coords) / len(coords)
         cy = sum(p[1] for p in coords) / len(coords)
         icon_str = get_location_icon(room_id)
@@ -577,12 +591,19 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
         folium.Marker(
             location=[cy, cx],
             icon=folium.DivIcon(
-                html=f'<div style="font-size:11px; font-weight:bold; color:#000000; text-align:center; white-space:nowrap;">'
-                     f'{icon_str}<br>{translated_name}</div>'
+                html=f'''<div style="
+                    font-size: 10px; 
+                    font-weight: bold; 
+                    color: #0f172a; 
+                    text-align: center; 
+                    white-space: nowrap; 
+                    transform: translate(-50%, -50%);">
+                    {icon_str}<br>{translated_name}
+                </div>'''
             )
         ).add_to(m)
 
-    # Render Route Line & Markers
+    # 5. Render Route Path Lines & Markers
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -590,9 +611,9 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
             line_pts = [[MULTI_CAD_NODES[node][1], MULTI_CAD_NODES[node][0]] for node in floor_path]
             folium.PolyLine(
                 locations=line_pts,
-                color="#FF0000",
+                color="#EF4444",
                 weight=5,
-                opacity=0.85
+                opacity=0.9
             ).add_to(m)
 
         start_node_id = route_path[0]
@@ -614,25 +635,35 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
                 icon=folium.Icon(color="green", icon="flag")
             ).add_to(m)
 
+    # 6. Fit map view directly to the floorplan bounds
+    m.fit_bounds([[min_y, min_x], [max_y, max_x]])
+
     return m
 
-def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang="English"):
-    m = folium.Map(location=[8, 0], zoom_start=11, crs="Simple", tiles=None)
 
+def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang="English"):
     rooftop_rooms = {
         r_id: poly["coords"]
         for r_id, poly in ROOM_POLYGONS.items()
         if poly["z"] == 3
     }
 
+    all_pts = [pt for coords in rooftop_rooms.values() for pt in coords]
+    min_x = min(p[0] for p in all_pts) - 10
+    max_x = max(p[0] for p in all_pts) + 10
+    min_y = min(p[1] for p in all_pts) - 10
+    max_y = max(p[1] for p in all_pts) + 10
+
+    m = folium.Map(crs="Simple", tiles=None)
+
     for room_id, coords in rooftop_rooms.items():
         folium_coords = [[pt[1], pt[0]] for pt in coords]
         folium.Polygon(
             locations=folium_coords,
-            color="#4A5568",
+            color="#475569",
             weight=1.5,
             fill=True,
-            fill_color="#F0F0F0",
+            fill_color="#E2E8F0",
             fill_opacity=0.5
         ).add_to(m)
 
@@ -641,11 +672,11 @@ def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang=
         cx, cy, _ = MULTI_CAD_NODES[slot_id]
 
         if slot_id == assigned_slot:
-            color, status_txt = "#1D4ED8", "ASSIGNED TO YOU"
+            color, status_txt = "#2563EB", "ASSIGNED TO YOU"
         elif details["occupied"]:
-            color, status_txt = "#B91C1C", "OCCUPIED"
+            color, status_txt = "#DC2626", "OCCUPIED"
         else:
-            color, status_txt = "#15803D", "AVAILABLE"
+            color, status_txt = "#16A34A", "AVAILABLE"
 
         box_w, box_h = 3.5, 6.0
         bx = [cx - box_w/2, cx + box_w/2, cx + box_w/2, cx - box_w/2]
@@ -664,7 +695,7 @@ def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang=
         folium.Marker(
             location=[cy, cx],
             icon=folium.DivIcon(
-                html=f'<div style="font-size:10px; font-weight:bold; color:#FFFFFF;">{slot_id}</div>'
+                html=f'<div style="font-size: 10px; font-weight: bold; color: #FFFFFF; transform: translate(-50%, -50%);">{slot_id}</div>'
             )
         ).add_to(m)
 
@@ -673,6 +704,8 @@ def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang=
         if len(rooftop_path) > 1:
             line_pts = [[MULTI_CAD_NODES[n][1], MULTI_CAD_NODES[n][0]] for n in rooftop_path]
             folium.PolyLine(locations=line_pts, color="#2563EB", weight=4).add_to(m)
+
+    m.fit_bounds([[min_y, min_x], [max_y, max_x]])
 
     return m
 
