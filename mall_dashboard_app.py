@@ -733,23 +733,47 @@ with tab_map:
             st.info(t["pick_step_3"])
 
     # 3. Dynamic Point Injections & Path Computation
+    # 3. Dynamic Point Injections & Path Computation
     temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
     temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
 
     resolved_start = resolve_route_point(st.session_state.selected_start, floor_select, temp_graph, temp_nodes)
     resolved_dest = resolve_route_point(st.session_state.selected_dest, floor_select, temp_graph, temp_nodes)
-    resolved_waypoints = [resolve_route_point(wp, floor_select, temp_graph, temp_nodes) for wp in st.session_state.waypoints]
+    resolved_waypoints = [
+        resolve_route_point(wp, floor_select, temp_graph, temp_nodes) 
+        for wp in st.session_state.waypoints
+    ]
 
     full_route_sequence = [resolved_start] + resolved_waypoints + [resolved_dest]
 
     full_path = []
+    path_valid = True
+
     for i in range(len(full_route_sequence) - 1):
-        segment_path = theta_star_3d(full_route_sequence[i], full_route_sequence[i + 1], temp_graph, temp_nodes, accessible_only=accessible_flag)
+        curr_start = full_route_sequence[i]
+        curr_end = full_route_sequence[i + 1]
+
+        # Calculate path for the current leg
+        segment_path = theta_star_3d(
+            curr_start, 
+            curr_end, 
+            temp_graph, 
+            temp_nodes, 
+            accessible_only=accessible_flag
+        )
+
         if segment_path:
-            full_path.extend(segment_path[1:] if full_path else segment_path)
+            if not full_path:
+                full_path.extend(segment_path)
+            else:
+                # Avoid duplicating the junction node between legs
+                full_path.extend(segment_path[1:])
         else:
-            full_path = []
+            path_valid = False
             break
+
+    if not path_valid:
+        full_path = []
 
     # 4. Render Map Canvas & Process Clicks
     folium_map = render_2d_folium_view(floor_select, route_path=full_path, node_coords_dict=temp_nodes, current_lang=st.session_state.lang)
