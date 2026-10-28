@@ -1070,18 +1070,23 @@ with tab_map:
     folium_map = render_2d_folium_view(floor_select, route_path=path, current_lang=st.session_state.lang)
     map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map")
 
-    # Interactive Route Pick Logic & Click-Anywhere Handler
+    # Direct Click-Anywhere Handler for Folium Map Canvas
     if map_data and map_data.get("last_clicked"):
         click_lat = map_data["last_clicked"]["lat"]
         click_lng = map_data["last_clicked"]["lng"]
         click_signature = (click_lat, click_lng)
 
+        # Prevent duplicate re-renders on the same click
         if click_signature != st.session_state.last_processed_click:
             st.session_state.last_processed_click = click_signature
+            
+            # Folium [lat, lng] maps to CAD [y, x]
             click_x, click_y = click_lng, click_lat
 
-            # Try room polygon match first, fallback to nearest graph node
+            # 1. Exact Polygon Hit Test (Click anywhere inside room boundary)
             clicked_node = find_room_by_coordinate(click_x, click_y, floor_select)
+            
+            # 2. Open Space Fallback (Click in hallway/aisle resolves to nearest room/node)
             if not clicked_node:
                 clicked_node, _ = get_nearest_graph_node(click_x, click_y, floor_select, MULTI_CAD_NODES)
 
@@ -1101,6 +1106,7 @@ with tab_map:
                         st.rerun()
                 else:
                     st.session_state["active_click_node"] = clicked_node
+                    st.rerun()
 
     if not st.session_state.map_pick_mode and "active_click_node" in st.session_state:
         clicked_loc = st.session_state["active_click_node"]
