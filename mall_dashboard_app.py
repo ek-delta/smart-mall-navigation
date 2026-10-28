@@ -580,6 +580,35 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
 
     return None
 
+def resolve_click_to_dynamic_node(click_x, click_y, floor_z, graph, node_coords):
+    """
+    Creates a dynamic virtual node at exact clicked (X, Y) coordinates 
+    and links it to the surrounding walkable graph nodes.
+    """
+    temp_node_id = f"Dynamic_Point_({click_x:.2f}_{click_y:.2f}_Z{floor_z})"
+    
+    # Register dynamic node coordinates
+    node_coords[temp_node_id] = (click_x, click_y, floor_z)
+    graph[temp_node_id] = {}
+    
+    # Connect dynamic point to nearby visible floor nodes
+    for node_id, coords in list(node_coords.items()):
+        if node_id == temp_node_id: 
+            continue
+            
+        nx, ny, nz = coords
+        if int(nz) == int(floor_z):
+            dist = math.hypot(click_x - nx, click_y - ny)
+            
+            # Connect if within reasonable range (e.g., 50 meters) and line-of-sight is clear
+            if dist <= 50.0 and has_line_of_sight_3d(temp_node_id, node_id, node_coords, WALL_SEGMENTS_BY_FLOOR):
+                graph[temp_node_id][node_id] = dist
+                if node_id not in graph:
+                    graph[node_id] = {}
+                graph[node_id][temp_node_id] = dist
+                
+    return temp_node_id
+
 # ==============================================================================
 # 3. Folium Map Rendering Engine
 # ==============================================================================
@@ -913,6 +942,47 @@ def format_location_label(room_id, lang):
         return f"[{floor_code}] {clean_name} ({cat_name})"
     return f"[{floor_code}] {clean_name}"
 
+# Handle raw clicked coordinates vs predefined string nodes
+def resolve_route_point(point, floor_z, graph_copy, nodes_copy):
+    if isinstance(point, tuple) and len(point) == 3:
+        px, py, pz = point
+        return resolve_click_to_dynamic_node(px, py, pz, graph_copy, nodes_copy)
+    return point
+
+# Deep copy graph and node coordinates for dynamic temporary injection
+import copy
+temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
+temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
+
+# Resolve start, waypoints, and destination to dynamic nodes if raw coords are provided
+resolved_start = resolve_route_point(st.session_state.selected_start, floor_select, temp_graph, temp_nodes)
+resolved_dest = resolve_route_point(st.session_state.selected_dest, floor_select, temp_graph, temp_nodes)
+
+resolved_waypoints = [
+    resolve_route_point(wp, floor_select, temp_graph, temp_nodes)
+    for wp in st.session_state.waypoints
+]
+
+full_route_sequence = [resolved_start] + resolved_waypoints + [resolved_dest]
+
+# Run Theta* on dynamic graph
+full_path = []
+for i in range(len(full_route_sequence) - 1):
+    segment_path = theta_star_3d(
+        full_route_sequence[i], 
+        full_route_sequence[i + 1], 
+        temp_graph, 
+        temp_nodes, 
+        accessible_only=accessible_flag
+    )
+    if segment_path:
+        full_path.extend(segment_path[1:] if full_path else segment_path)
+    else:
+        full_path = []
+        break
+
+path = full_path
+
 # ==============================================================================
 # 5. UI Layout & Navigation Tabs
 # ==============================================================================
@@ -1069,50 +1139,74 @@ with tab_map:
 
     folium_map = render_2d_folium_view(floor_select, route_path=path, current_lang=st.session_state.lang)
     map_data = st_folium(
-        folium_map,
-        height=550,
-        width=1000,
-        key="interactive_folium_map",
-        returned_objects=["last_clicked"]  # Force Streamlit to listen for map clicks
-    )
+    folium_map, 
+    height=550, 
+    width=1000, 
+    key="interactive_folium_map", 
+    returned_objects=["last_clicked"]
+)
 
-    # Direct Click-Anywhere Handler for Folium Map Canvas
-    if map_data and map_data.get("last_clicked"):
-        click_lat = map_data["last_clicked"]["lat"]
-        click_lng = map_data["last_clicked"]["lng"]
-        click_signature = (click_lat, click_lng)
+if map_data and map_data.get("last_clicked"):
+    click_lat = map_data["last_clicked"]["lat"]
+    click_lng = map_data["last_clicked"]["lng"]
+    click_signature = (click_lat, click_lng)
 
-        # Prevent duplicate re-renders on the same click
-        if click_signature != st.session_state.last_processed_click:
-            st.session_state.last_processed_click = click_signature
-            
-            # Folium [lat, lng] maps to CAD [y, x]
-            click_x, click_y = click_lng, click_lat
+    if click_signature != st.session_state.last_processed_click:
+        st.session_state.last_processed_click = click_signature
+        
+        # Raw clicked CAD coordinates (X, Y, Z)
+        raw_clicked_point = (click_lng, click_lat, floor_select)
 
-            # 1. Exact Polygon Hit Test (Click anywhere inside room boundary)
-            clicked_node = find_room_by_coordinate(click_x, click_y, floor_select)
-            
-            # 2. Open Space Fallback (Click in hallway/aisle resolves to nearest room/node)
-            if not clicked_node:
-                clicked_node, _ = get_nearest_graph_node(click_x, click_y, floor_select, MULTI_CAD_NODES)
+        if st.session_state.map_pick_mode:
+            if st.session_state.map_pick_step == "START":
+                st.session_state.selected_start = raw_clicked_point
+                st.session_state.waypoints = []
+                st.session_state.map_pick_step = "STOPS"
+                st.rerun()
+            elif st.session_state.map_pick_step == "STOPS":
+                st.session_state.waypoints.append(raw_clicked_point)
+                st.rerun()
+            elif st.session_state.map_pick_step == "DEST":
+                st.session_state.selected_dest = raw_clicked_point
+                st.session_state.map_pick_mode = False
+                st.rerun()
+        else:
+            st.session_state["active_click_coords"] = raw_clicked_point
+            st.rerun()
 
-            if clicked_node:
-                if st.session_state.map_pick_mode:
-                    if st.session_state.map_pick_step == "START":
-                        st.session_state.selected_start = clicked_node
-                        st.session_state.waypoints = []
-                        st.session_state.map_pick_step = "STOPS"
-                        st.rerun()
-                    elif st.session_state.map_pick_step == "STOPS":
-                        st.session_state.waypoints.append(clicked_node)
-                        st.rerun()
-                    elif st.session_state.map_pick_step == "DEST":
-                        st.session_state.selected_dest = clicked_node
-                        st.session_state.map_pick_mode = False
-                        st.rerun()
-                else:
-                    st.session_state["active_click_node"] = clicked_node
-                    st.rerun()
+    # Render Start Pin at exact clicked dynamic coordinate
+if isinstance(start_node_id, tuple):
+    sx, sy, sz = start_node_id
+    if sz == active_floor_z:
+        folium.Marker(
+            location=[sy, sx],
+            popup=f"Start Point ({sx:.1f}, {sy:.1f})",
+            icon=folium.Icon(color="red", icon="play")
+        ).add_to(m)
+elif MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
+    sx, sy, _ = MULTI_CAD_NODES[start_node_id]
+    folium.Marker(
+        location=[sy, sx],
+        popup="Start",
+        icon=folium.Icon(color="red", icon="play")
+    ).add_to(m)
+
+# Render Destination Pin at exact clicked dynamic coordinate
+if isinstance(dest_node_id, tuple):
+    dx, dy, dz = dest_node_id
+    if dz == active_floor_z:
+        folium.Marker(
+            location=[dy, dx],
+            popup=f"Destination Point ({dx:.1f}, {dy:.1f})",
+            icon=folium.Icon(color="green", icon="flag")
+        ).add_to(m)
+elif MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
+    dx, dy, _ = MULTI_CAD_NODES[dest_node_id]
+    folium.Marker(
+        location=[dy, dx],
+        popup="Destination",
+        icon=folium.Icon(color="green", icon="flag")
+    ).add_to(m)
 
     if not st.session_state.map_pick_mode and "active_click_node" in st.session_state:
         clicked_loc = st.session_state["active_click_node"]
