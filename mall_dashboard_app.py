@@ -765,15 +765,12 @@ with tab_map:
         elif st.session_state.map_pick_step == "DEST":
             st.info(t["pick_step_3"])
 
-    # 3. Dynamic Point Injection & Route Segment Stitching
+   # 3. Dynamic Point Injection & Direct Click-to-Click Connection
     temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
     temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
 
-    resolved_start = resolve_route_point(st.session_state.selected_start, floor_select, temp_graph, temp_nodes)
-    resolved_dest = resolve_route_point(st.session_state.selected_dest, floor_select, temp_graph, temp_nodes)
-    resolved_waypoints = [resolve_route_point(wp, floor_select, temp_graph, temp_nodes) for wp in st.session_state.waypoints]
-
-    full_route_sequence = [resolved_start] + resolved_waypoints + [resolved_dest]
+    raw_sequence = [st.session_state.selected_start] + st.session_state.waypoints + [st.session_state.selected_dest]
+    full_route_sequence = resolve_all_route_points(raw_sequence, floor_select, temp_graph, temp_nodes)
 
     full_path = []
     route_failed = False
