@@ -444,11 +444,10 @@ def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
 
 def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
     """
-    Resolves route sequence while ignoring room center nodes. Dynamic click points
-    connect directly to each other if visible, or route purely through hallway grid nodes.
+    Resolves route sequence. Connects dynamic click points directly to each other 
+    if line-of-sight is clear, or to any visible nodes on the floor.
     """
     resolved_sequence = []
-    room_center_nodes = set(ROOM_POLYGONS.keys())
 
     for pt in route_sequence:
         if isinstance(pt, tuple) and len(pt) == 3:
@@ -457,9 +456,9 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
             nodes_copy[temp_id] = (px, py, pz)
             graph_copy[temp_id] = {}
 
-            # Connect dynamic point ONLY to hallway grid nodes (ignoring room centers)
+            # Connect dynamic point to all visible nodes on the floor
             for n_id, coords in list(nodes_copy.items()):
-                if n_id == temp_id or n_id in room_center_nodes:
+                if n_id == temp_id:
                     continue
                 if int(coords[2]) == int(pz):
                     if has_line_of_sight_3d(temp_id, n_id, nodes_copy, WALL_SEGMENTS_BY_FLOOR):
@@ -836,6 +835,9 @@ with tab_map:
                     st.session_state.selected_dest = raw_point
                     st.session_state.map_pick_mode = False
                     st.rerun()
+            else:
+                st.session_state.selected_dest = raw_point
+                st.rerun()
 
 # Directions Tab
 with tab_dir:
