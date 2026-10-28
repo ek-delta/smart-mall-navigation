@@ -628,9 +628,9 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
             fill=True,
             fill_color=room_info.get("color", "#CBD5E1"),
             fill_opacity=0.7,
-            tooltip=translated_name,
-            popup=translated_name
-        ).add_to(m)
+            tooltip=translated_name
+        # Removed popup=translated_name so polygon clicks don't block map canvas clicks
+        ).add_to(m) 
 
         cx = sum(p[0] for p in coords) / len(coords)
         cy = sum(p[1] for p in coords) / len(coords)
@@ -1068,7 +1068,13 @@ with tab_map:
     )
 
     folium_map = render_2d_folium_view(floor_select, route_path=path, current_lang=st.session_state.lang)
-    map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map")
+    map_data = st_folium(
+        folium_map,
+        height=550,
+        width=1000,
+        key="interactive_folium_map",
+        returned_objects=["last_clicked"]  # Force Streamlit to listen for map clicks
+    )
 
     # Direct Click-Anywhere Handler for Folium Map Canvas
     if map_data and map_data.get("last_clicked"):
