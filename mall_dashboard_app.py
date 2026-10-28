@@ -1,9 +1,10 @@
 import math
 import heapq
 import os
-import streamlit as st
-import plotly.graph_objects as go
 import random
+import streamlit as st
+import folium
+from streamlit_folium import st_folium
 
 # ==============================================================================
 # 1. Translation table & Localization
@@ -34,8 +35,7 @@ LOCALIZATION = {
         "shortest": "Shortest Path",
         "accessible": "Accessible (Elevators Only)",
         "view_mode": "Map Display Mode",
-        "view_2d": "2D Vector Plan",
-        "view_3d": "3D Isometric View",
+        "view_2d": "2D Folium Map Plan",
         "active_floor": "Select Floor",
         "tab_nav": "🗺️ Mall Map",
         "tab_directions": "🧭 Directions",
@@ -48,13 +48,13 @@ LOCALIZATION = {
         "no_route": "No route available between selected points.",
         "parking_sec": "Smart Parking Allocation",
         "home_title": "Welcome to the Smart Mall Navigation System",
-        "home_desc": "Navigate multi-floor shopping mall with real-time 2D and 3D pathfinding, routing options, and automated parking allocation with step-by-step directions.",
+        "home_desc": "Navigate multi-floor shopping mall with real-time 2D pathfinding, routing options, and automated parking allocation with step-by-step directions.",
         "poi_metric": "📍 Points of Interest",
         "floors_metric": "🏢 Total Floors",
         "spots_metric": "🅿️ Total Parking Spots",
         "available_metric": "🟢 Available Spots",
-        "feat_map_title": "🗺️ 2D / 3D Map View",
-        "feat_map_desc": "Navigate our shopping mall easily with 2D and 3D maps.",
+        "feat_map_title": "🗺️ Folium Map View",
+        "feat_map_desc": "Navigate our shopping mall easily with interactive Folium maps supporting click-anywhere pin drops.",
         "feat_turn_title": "🧭 Turn-by-Turn",
         "feat_turn_desc": "Get step-by-step directions to your destination.",
         "feat_park_title": "🅿️ Smart Parking",
@@ -81,16 +81,16 @@ LOCALIZATION = {
         "btn_interactive_pick": "🗺️ Interactive Route Selection on Map",
         "btn_cancel_interactive": "⏹️ Cancel Interactive Map Selection",
         "btn_reset_all": "🗑️ Reset All",
-        "pick_step_1": "👇 *Step 1:* Click any room on the map below to set as *Start Location*.",
-        "pick_step_2": "👇 *Step 2:* Click any room on the map to add *Intermediate Stops* (or click button below when ready for Destination).",
-        "pick_step_3": "👇 *Step 3:* Click any room on the map to set as *Destination*.",
+        "pick_step_1": "👇 *Step 1:* Click anywhere on the map below to set as *Start Location*.",
+        "pick_step_2": "👇 *Step 2:* Click anywhere on the map to add *Intermediate Stops* (or click button below when ready for Destination).",
+        "pick_step_3": "👇 *Step 3:* Click anywhere on the map to set as *Destination*.",
         "btn_done_adding_stops": "➡️ Done Adding Stops (Next: Pick Destination)",
         "btn_add_as_stop": "➕ Add as Stop",
         "btn_keep_start": "⏭️ Keep Current Start",
         "btn_keep_dest": "⏭️ Keep Current Destination",
         "lbl_current": "Current",
         "footer_arch": "🏢 System Architecture: 3D Theta* Pathfinding Engine",
-        "footer_vector": "📐 Vector Processing: Plotly Graph",
+        "footer_vector": "📐 Vector Processing: Folium & Leaflet Engine",
         "footer_lang": "🌐 Localization: Multilingual Engine",
         "tab_nav_drive_to_spot": "🚗 1. Entrance to Parking Spot",
         "tab_nav_spot_to_exit": "🚪 2. Parking Spot to Exit",
@@ -113,8 +113,7 @@ LOCALIZATION = {
         "shortest": "最短路线",
         "accessible": "无障碍路线 (仅限电梯)",
         "view_mode": "地图显示模式",
-        "view_2d": "2D 平面矢量图",
-        "view_3d": "3D 等轴测视图",
+        "view_2d": "2D Folium 交互地图",
         "active_floor": "选择楼层",
         "tab_nav": "🗺️ 导航地图",
         "tab_directions": "🧭 分步导航",
@@ -127,13 +126,13 @@ LOCALIZATION = {
         "no_route": "所选地点之间未找到可用路线。",
         "parking_sec": "智能车位分配",
         "home_title": "欢迎使用智能商场导航与停车系统",
-        "home_desc": "支持多楼层商场的实时 2D 与 3D 路径规划、无障碍路线选择及自动车位分配。",
+        "home_desc": "支持多楼层商场的实时路径规划、无障碍路线选择及自动车位分配。",
         "poi_metric": "📍 兴趣点数量",
         "floors_metric": "🏢 总楼层数",
         "spots_metric": "🅿️ 总车位数",
         "available_metric": "🟢 空余车位",
-        "feat_map_title": "🗺️ 2D / 3D 地图视图",
-        "feat_map_desc": "可交互的 2D 楼层矢量图与多楼层 3D 等轴立体投影切换。",
+        "feat_map_title": "🗺️ Folium 地图视图",
+        "feat_map_desc": "基于 Folium 的矢量地图，支持在地图任意位置精准点击选取节点。",
         "feat_turn_title": "🧭 逐向导航",
         "feat_turn_desc": "提供精确转向角度、跨楼层换乘指引与距离统计的分步指引。",
         "feat_park_title": "🅿️ 智能停车",
@@ -160,9 +159,9 @@ LOCALIZATION = {
         "btn_interactive_pick": "🗺️ 地图交互式路线选择",
         "btn_cancel_interactive": "⏹️ 取消地图选择模式",
         "btn_reset_all": "🗑️ 重置全部",
-        "pick_step_1": "👇 *步骤 1：* 点击下方地图上的任意地点设为 *起点位置*。",
-        "pick_step_2": "👇 *步骤 2：* 点击地图上的房间添加 *途经点*（若已添加完毕，请点击下方按钮选择终点）。",
-        "pick_step_3": "👇 *步骤 3：* 点击地图上的任意房间设为 *终点位置*。",
+        "pick_step_1": "👇 *步骤 1：* 点击地图任意位置设为 *起点位置*。",
+        "pick_step_2": "👇 *步骤 2：* 点击地图任意位置添加 *途经点*（若已添加完毕，请点击下方按钮选择终点）。",
+        "pick_step_3": "👇 *步骤 3：* 点击地图任意位置设为 *终点位置*。",
         "btn_done_adding_stops": "➡️ 完成添加途经点 (下一步: 选择终点)",
         "btn_add_as_stop": "➕ 添加为途经点",
         "tab_parking_entry": "🚗 1. 入口至停车位",
@@ -173,7 +172,7 @@ LOCALIZATION = {
         "btn_keep_dest": "⏭️ 保留当前终点",
         "lbl_current": "当前",
         "footer_arch": "🏢 系统架构: 3D Theta* 路径规划引擎",
-        "footer_vector": "📐 矢量处理: Plotly 图表",
+        "footer_vector": "📐 矢量处理: Folium & Leaflet 图表引擎",
         "footer_lang": "🌐 多语言支持: 多语种引擎",
         "tab_nav_drive_to_spot": "🚗 1. 入口至停车位",
         "tab_nav_spot_to_exit": "🚪 2. 停车位至出口",
@@ -187,7 +186,7 @@ LOCALIZATION = {
     },
     "Malay": {
         "title": "🏢 Sistem Navigasi & Tempat Letak Kereta Pusat Beli-Belah Smart",
-        "subtitle": "Navigasi Laluan 3D Lebih Mudah, Laluan Mesra OKU & Pengurusan Tempat Letak Kereta",
+        "subtitle": "Navigasi Laluan Lebih Mudah, Laluan Mesra OKU & Pengurusan Tempat Letak Kereta",
         "select_lang": "Bahasa",
         "nav_controls": "Kawalan Navigasi",
         "start_loc": "Lokasi Permulaan",
@@ -196,8 +195,7 @@ LOCALIZATION = {
         "shortest": "Laluan Terpendek",
         "accessible": "Mesra OKU (Lif Sahaja)",
         "view_mode": "Mod Paparan Peta",
-        "view_2d": "Pelan Vektor 2D",
-        "view_3d": "Pandangan Isometrik 3D",
+        "view_2d": "Pelan Peta Interaktif Folium 2D",
         "active_floor": "Pilih Tingkat",
         "tab_nav": "🗺️ Peta Navigasi",
         "tab_directions": "🧭 Arah Langkah demi Langkah",
@@ -210,13 +208,13 @@ LOCALIZATION = {
         "no_route": "Tiada laluan dijumpai antara lokasi yang dipilih.",
         "parking_sec": "Peruntukan Tempat Letak Kereta",
         "home_title": "Selamat Datang ke Sistem Navigasi Pusat Beli-Belah Smart",
-        "home_desc": "Navigasi pusat beli-belah bertingkat dengan laluan 3D masa nyata, pilihan laluan mesra OKU, dan automatik tempat letak kereta.",
+        "home_desc": "Navigasi pusat beli-belah bertingkat dengan laluan 2D masa nyata, pilihan laluan mesra OKU, dan automatik tempat letak kereta.",
         "poi_metric": "📍 Titik Tumpuan (POI)",
         "floors_metric": "🏢 Jumlah Tingkat",
         "spots_metric": "🅿️ Jumlah Ruang Letak Kereta",
         "available_metric": "🟢 Ruang Kosong",
-        "feat_map_title": "🗺️ Pandangan Peta 2D / 3D",
-        "feat_map_desc": "Pelan vektor tingkat 2D interaktif dan paparan isometrik 3D bertingkat.",
+        "feat_map_title": "🗺️ Pandangan Peta Folium",
+        "feat_map_desc": "Pelan tingkat vektor interaktif berasaskan Folium dengan keupayaan klik di mana-mana tempat.",
         "feat_turn_title": "🧭 Arah Langkah demi Langkah",
         "feat_turn_desc": "Panduan langkah demi langkah dengan sudut arah, transit tingkat, dan jarak.",
         "feat_park_title": "🅿️ Tempat Letak Kereta Smart",
@@ -243,9 +241,9 @@ LOCALIZATION = {
         "btn_interactive_pick": "🗺️ Pemilihan Laluan Interaktif pada Peta",
         "btn_cancel_interactive": "⏹️ Batal Pemilihan Peta Interaktif",
         "btn_reset_all": "🗑️ Set Semula Semua",
-        "pick_step_1": "👇 *Langkah 1:* Klik mana-mana bilik pada peta di bawah untuk tetapkan *Lokasi Permulaan*.",
-        "pick_step_2": "👇 *Langkah 2:* Klik bilik pada peta untuk tambah *Hentian Antara* (atau klik butang di bawah apabila sedia untuk Destinasi).",
-        "pick_step_3": "👇 *Langkah 3:* Klik mana-mana bilik pada peta untuk tetapkan *Destinasi*.",
+        "pick_step_1": "👇 *Langkah 1:* Klik di mana-mana pada peta untuk tetapkan *Lokasi Permulaan*.",
+        "pick_step_2": "👇 *Langkah 2:* Klik di mana-mana pada peta untuk tambah *Hentian Antara* (atau klik butang di bawah apabila sedia untuk Destinasi).",
+        "pick_step_3": "👇 *Langkah 3:* Klik di mana-mana pada peta untuk tetapkan *Destinasi*.",
         "btn_done_adding_stops": "➡️ Selesai Menambah Hentian (Seterusnya: Pilih Destinasi)",
         "btn_add_as_stop": "➕ Tambah sebagai Hentian",
         "tab_parking_entry": "🚗 1. Pintu Masuk ke Ruang Letak Kereta",
@@ -256,7 +254,7 @@ LOCALIZATION = {
         "btn_keep_dest": "⏭️ Kekalkan Destinasi Semasa",
         "lbl_current": "Semasa",
         "footer_arch": "🏢 Seni Bina Sistem: Enjin Laluan 3D Theta*",
-        "footer_vector": "📐 Pemprosesan Vektor: Graf Plotly",
+        "footer_vector": "📐 Pemprosesan Vektor: Folium & Leaflet Engine",
         "footer_lang": "🌐 Lokalisasi: Enjin Pelbagai Bahasa",
         "tab_nav_drive_to_spot": "🚗 1. Pintu Masuk ke Petak Meletak Kenderaan",
         "tab_nav_spot_to_exit": "🚪 2. Petak Meletak Kenderaan ke Pintu Keluar",
@@ -295,8 +293,6 @@ def get_translated_floor_name(z_index, lang="English"):
     z_int = int(z_index)
     lang_dict = FLOOR_TRANSLATIONS.get(lang, FLOOR_TRANSLATIONS["English"])
     return lang_dict.get(z_int, f"Level {z_int}")
-
-FLOOR_NAMES = FLOOR_TRANSLATIONS["English"]
 
 POI_TRANSLATIONS = {
     "English": {
@@ -440,40 +436,22 @@ STORE_CATEGORIES = {
 
 CATEGORY_TRANSLATIONS = {
     "English": {
-        "Apparel": "Apparel",
-        "Electronics": "Electronics",
-        "Jewelry": "Jewelry",
-        "Supermarket": "Supermarket",
-        "Food & Beverage": "Food & Beverage",
-        "Books": "Books",
-        "Cinema": "Cinema",
-        "Arcade": "Arcade",
-        "Restroom": "Restroom",
-        "Facility": "Facility"
+        "Apparel": "Apparel", "Electronics": "Electronics", "Jewelry": "Jewelry",
+        "Supermarket": "Supermarket", "Food & Beverage": "Food & Beverage",
+        "Books": "Books", "Cinema": "Cinema", "Arcade": "Arcade",
+        "Restroom": "Restroom", "Facility": "Facility"
     },
     "Simplified Chinese": {
-        "Apparel": "服装饰品",
-        "Electronics": "电子数码",
-        "Jewelry": "珠宝首饰",
-        "Supermarket": "超级市场",
-        "Food & Beverage": "餐饮美食",
-        "Books": "图书文具",
-        "Cinema": "电影院",
-        "Arcade": "娱乐电玩",
-        "Restroom": "洗手间",
-        "Facility": "公共设施"
+        "Apparel": "服装饰品", "Electronics": "电子数码", "Jewelry": "珠宝首饰",
+        "Supermarket": "超级市场", "Food & Beverage": "餐饮美食",
+        "Books": "图书文具", "Cinema": "电影院", "Arcade": "娱乐电玩",
+        "Restroom": "洗手间", "Facility": "公共设施"
     },
     "Malay": {
-        "Apparel": "Pakaian",
-        "Electronics": "Barangan Elektronik",
-        "Jewelry": "Barang Kemas",
-        "Supermarket": "Pasar Raya",
-        "Food & Beverage": "Makanan & Minuman",
-        "Books": "Buku",
-        "Cinema": "Pawagam",
-        "Arcade": "Pusat Rekreasi",
-        "Restroom": "Tandas",
-        "Facility": "Kemudahan"
+        "Apparel": "Pakaian", "Electronics": "Barangan Elektronik", "Jewelry": "Barang Kemas",
+        "Supermarket": "Pasar Raya", "Food & Beverage": "Makanan & Minuman",
+        "Books": "Buku", "Cinema": "Pawagam", "Arcade": "Pusat Rekreasi",
+        "Restroom": "Tandas", "Facility": "Kemudahan"
     }
 }
 
@@ -489,379 +467,125 @@ if "entry_path" not in st.session_state:
     st.session_state.entry_path = []
 if "exit_path" not in st.session_state:
     st.session_state.exit_path = []
-if "clicked_location" not in st.session_state:
-    st.session_state.clicked_location = None
-
-# ==============================================================================
-# 2. Navigation nodes and boundaries
-# ==============================================================================
 
 LOCATION_ICONS = {
-    "Fashion": "👗",
-    "Footwear": "👟",
-    "Electronics": "📱",
-    "Food & Beverage": "🍔",
-    "Supermarket": "🛒",
-    "Department Store": "🏬",
-    "Pharmacy & Health": "💊",
-    "Entertainment": "🎬",
-    "Services": "🛠️",
-    "Elevator": "🛗",
-    "Escalator": "🪜",
-    "Stairs": "🧗",
-    "Entrance": "🚪",
-    "Restroom": "🚻",
-    "Parking": "🅿️",
-    "Default": "📍"
+    "Fashion": "👗", "Footwear": "👟", "Electronics": "📱", "Food & Beverage": "🍔",
+    "Supermarket": "🛒", "Department Store": "🏬", "Pharmacy & Health": "💊",
+    "Entertainment": "🎬", "Services": "🛠️", "Elevator": "🛗", "Escalator": "🪜",
+    "Stairs": "🧗", "Entrance": "🚪", "Restroom": "🚻", "Parking": "🅿️", "Default": "📍"
 }
 
 def get_location_icon(node_id):
-    if "Elevator" in node_id:
-        return LOCATION_ICONS["Elevator"]
-    elif "Escalator" in node_id:
-        return LOCATION_ICONS["Escalator"]
-    elif "Stairs" in node_id:
-        return LOCATION_ICONS["Stairs"]
-    elif "Restroom" in node_id or "Toilet" in node_id:
-        return LOCATION_ICONS["Restroom"]
-    elif "Entrance" in node_id or "Exit" in node_id:
-        return LOCATION_ICONS["Entrance"]
-    elif "P_" in node_id or "Slot" in node_id or "Parking" in node_id:
-        return LOCATION_ICONS["Parking"]
+    if "Elevator" in node_id: return LOCATION_ICONS["Elevator"]
+    elif "Escalator" in node_id: return LOCATION_ICONS["Escalator"]
+    elif "Stairs" in node_id: return LOCATION_ICONS["Stairs"]
+    elif "Restroom" in node_id or "Toilet" in node_id: return LOCATION_ICONS["Restroom"]
+    elif "Entrance" in node_id or "Exit" in node_id: return LOCATION_ICONS["Entrance"]
+    elif "P_" in node_id or "Slot" in node_id or "Parking" in node_id: return LOCATION_ICONS["Parking"]
 
     cat_key = STORE_CATEGORIES.get(node_id)
-    if cat_key and cat_key in LOCATION_ICONS:
-        return LOCATION_ICONS[cat_key]
-
+    if cat_key and cat_key in LOCATION_ICONS: return LOCATION_ICONS[cat_key]
     return LOCATION_ICONS["Default"]
 
 ROOM_POLYGONS = {
     # Ground floor
-    "Mega Supermarket": {
-        "z": 0,
-        "coords": [(-30, 20), (30, 20), (30, 44), (-30, 44)],
-        "color": "#98FB98"
-    },
-    "A_L0_Lobby": {
-        "z": 0,
-        "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)],
-        "color": "#B0C4DE"
-    },
-    "Fashion Hub": {
-        "z": 0,
-        "coords": [(-30, -28), (30, -28), (30, -4), (-30, -4)],
-        "color": "#E6E6FA"
-    },
-    "A_L0_Info": {
-        "z": 0,
-        "coords": [(-50, 20), (-30, 20), (-30, 44), (-50, 44)],
-        "color": "#ADD8E6"
-    },
-    "A_L0_Entrance": {
-        "z": 0,
-        "coords": [(-50, -4), (-30, -4), (-30, 20), (-50, 20)],
-        "color": "#708090"
-    },
-    "A_L0_Restroom": {
-        "z": 0,
-        "coords": [(30, 20), (50, 20), (50, 44), (30, 44)],
-        "color": "#E0FFFF"
-    },
-    "A_L0_Elevator": {
-        "z": 0,
-        "coords": [(30, 8), (50, 8), (50, 20), (30, 20)],
-        "color": "#FFD700"
-    },
-    "A_L0_Escalator": {
-        "z": 0,
-        "coords": [(30, -4), (50, -4), (50, 8), (30, 8)],
-        "color": "#FFA07A"
-    },
-    "A_L0_Stairs": {
-        "z": 0,
-        "coords": [(30, -28), (50, -28), (50, -4), (30, -4)],
-        "color": "#FF8C00"
-    },
+    "Mega Supermarket": {"z": 0, "coords": [(-30, 20), (30, 20), (30, 44), (-30, 44)], "color": "#98FB98"},
+    "A_L0_Lobby": {"z": 0, "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)], "color": "#B0C4DE"},
+    "Fashion Hub": {"z": 0, "coords": [(-30, -28), (30, -28), (30, -4), (-30, -4)], "color": "#E6E6FA"},
+    "A_L0_Info": {"z": 0, "coords": [(-50, 20), (-30, 20), (-30, 44), (-50, 44)], "color": "#ADD8E6"},
+    "A_L0_Entrance": {"z": 0, "coords": [(-50, -4), (-30, -4), (-30, 20), (-50, 20)], "color": "#708090"},
+    "A_L0_Restroom": {"z": 0, "coords": [(30, 20), (50, 20), (50, 44), (30, 44)], "color": "#E0FFFF"},
+    "A_L0_Elevator": {"z": 0, "coords": [(30, 8), (50, 8), (50, 20), (30, 20)], "color": "#FFD700"},
+    "A_L0_Escalator": {"z": 0, "coords": [(30, -4), (50, -4), (50, 8), (30, 8)], "color": "#FFA07A"},
+    "A_L0_Stairs": {"z": 0, "coords": [(30, -28), (50, -28), (50, -4), (30, -4)], "color": "#FF8C00"},
 
     # 1st floor
-    "Jewel Box": {
-        "z": 1,
-        "coords": [(-30, 20), (30, 20), (30, 44), (-30, 44)],
-        "color": "#D8BFD8"
-    },
-    "A_L1_Hallway": {
-        "z": 1,
-        "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)],
-        "color": "#87CEFA"
-    },
-    "Book Nook": {
-        "z": 1,
-        "coords": [(-30, -28), (0, -28), (0, -4), (-30, -4)],
-        "color": "#F5DEB3"
-    },
-    "Tech Gadgets": {
-        "z": 1,
-        "coords": [(0, -28), (30, -28), (30, -4), (0, -4)],
-        "color": "#9370DB"
-    },
-    "A_L1_Restroom": {
-        "z": 1,
-        "coords": [(30, 20), (50, 20), (50, 44), (30, 44)],
-        "color": "#E0FFFF"
-    },
-    "A_L1_Elevator": {
-        "z": 1,
-        "coords": [(30, 8), (50, 8), (50, 20), (30, 20)],
-        "color": "#FFD700"
-    },
-    "A_L1_Escalator": {
-        "z": 1,
-        "coords": [(30, -4), (50, -4), (50, 8), (30, 8)],
-        "color": "#FFA07A"
-    },
-    "A_L1_Stairs": {
-        "z": 1,
-        "coords": [(30, -28), (50, -28), (50, -4), (30, -4)],
-        "color": "#FF8C00"
-    },
+    "Jewel Box": {"z": 1, "coords": [(-30, 20), (30, 20), (30, 44), (-30, 44)], "color": "#D8BFD8"},
+    "A_L1_Hallway": {"z": 1, "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)], "color": "#87CEFA"},
+    "Book Nook": {"z": 1, "coords": [(-30, -28), (0, -28), (0, -4), (-30, -4)], "color": "#F5DEB3"},
+    "Tech Gadgets": {"z": 1, "coords": [(0, -28), (30, -28), (30, -4), (0, -4)], "color": "#9370DB"},
+    "A_L1_Restroom": {"z": 1, "coords": [(30, 20), (50, 20), (50, 44), (30, 44)], "color": "#E0FFFF"},
+    "A_L1_Elevator": {"z": 1, "coords": [(30, 8), (50, 8), (50, 20), (30, 20)], "color": "#FFD700"},
+    "A_L1_Escalator": {"z": 1, "coords": [(30, -4), (50, -4), (50, 8), (30, 8)], "color": "#FFA07A"},
+    "A_L1_Stairs": {"z": 1, "coords": [(30, -28), (50, -28), (50, -4), (30, -4)], "color": "#FF8C00"},
 
     # 2nd floor
-    "Cineplex Theater": {
-        "z": 2,
-        "coords": [(-30, 20), (30, 20), (30, 44), (-30, 44)],
-        "color": "#CD5C5C"
-    },
-    "VR World & Arcade": {
-        "z": 2,
-        "coords": [(-50, -4), (-30, -4), (-30, 20), (-50, 20)],
-        "color": "#FF69B4"
-    },
-    "B_L2_Corridor": {
-        "z": 2,
-        "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)],
-        "color": "#5F9EA0"
-    },
-    "Sky Food Court": {
-        "z": 2,
-        "coords": [(-30, -28), (0, -28), (0, -4), (-30, -4)],
-        "color": "#FF7F50"
-    },
-    "Gourmet Bites": {
-        "z": 2,
-        "coords": [(0, -28), (30, -28), (30, -4), (0, -4)],
-        "color": "#F4A460"
-    },
-    "B_L2_Restroom": {
-        "z": 2,
-        "coords": [(30, 20), (50, 20), (50, 44), (30, 44)],
-        "color": "#E0FFFF"
-    },
-    "B_L2_Elevator": {
-        "z": 2,
-        "coords": [(30, 8), (50, 8), (50, 20), (30, 20)],
-        "color": "#FFD700"
-    },
-    "B_L2_Escalator": {
-        "z": 2,
-        "coords": [(30, -4), (50, -4), (50, 8), (30, 8)],
-        "color": "#FFA07A"
-    },
-    "B_L2_Stairs": {
-        "z": 2,
-        "coords": [(30, -28), (50, -28), (50, -4), (30, -4)],
-        "color": "#FF8C00"
-    },
+    "Cineplex Theater": {"z": 2, "coords": [(-30, 20), (30, 20), (30, 44), (-30, 44)], "color": "#CD5C5C"},
+    "VR World & Arcade": {"z": 2, "coords": [(-50, -4), (-30, -4), (-30, 20), (-50, 20)], "color": "#FF69B4"},
+    "B_L2_Corridor": {"z": 2, "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)], "color": "#5F9EA0"},
+    "Sky Food Court": {"z": 2, "coords": [(-30, -28), (0, -28), (0, -4), (-30, -4)], "color": "#FF7F50"},
+    "Gourmet Bites": {"z": 2, "coords": [(0, -28), (30, -28), (30, -4), (0, -4)], "color": "#F4A460"},
+    "B_L2_Restroom": {"z": 2, "coords": [(30, 20), (50, 20), (50, 44), (30, 44)], "color": "#E0FFFF"},
+    "B_L2_Elevator": {"z": 2, "coords": [(30, 8), (50, 8), (50, 20), (30, 20)], "color": "#FFD700"},
+    "B_L2_Escalator": {"z": 2, "coords": [(30, -4), (50, -4), (50, 8), (30, 8)], "color": "#FFA07A"},
+    "B_L2_Stairs": {"z": 2, "coords": [(30, -28), (50, -28), (50, -4), (30, -4)], "color": "#FF8C00"},
 
     # Parking lot
-    "P_L3_Aisle_Main": {
-        "z": 3,
-        "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)],
-        "color": "#A9A9A9"
-    },
-    "P_L3_Driveway_Entrance": {
-        "z": 3,
-        "coords": [(-50, -4), (-30, -4), (-30, 8), (-50, 8)],
-        "color": "#A9A9A9"
-    },
-    "P_L3_Driveway_Exit": {
-        "z": 3,
-        "coords": [(-50, 8), (-30, 8), (-30, 20), (-50, 20)],
-        "color": "#708090"
-    },
-    "P1": {
-        "z": 3,
-        "coords": [(-30, -28), (-15, -28), (-15, -4), (-30, -4)],
-        "color": "#4682B4"
-    },
-    "P2": {
-        "z": 3,
-        "coords": [(-15, -28), (0, -28), (0, -4), (-15, -4)],
-        "color": "#4682B4"
-    },
-    "P3": {
-        "z": 3,
-        "coords": [(0, -28), (15, -28), (15, -4), (0, -4)],
-        "color": "#4682B4"
-    },
-    "P4": {
-        "z": 3,
-        "coords": [(15, -28), (30, -28), (30, -4), (15, -4)],
-        "color": "#4682B4"
-    },
-    "P5": {
-        "z": 3,
-        "coords": [(-30, 20), (-15, 20), (-15, 44), (-30, 44)],
-        "color": "#4682B4"
-    },
-    "P6": {
-        "z": 3,
-        "coords": [(-15, 20), (0, 20), (0, 44), (-15, 44)],
-        "color": "#4682B4"
-    },
-    "P7": {
-        "z": 3,
-        "coords": [(0, 20), (15, 20), (15, 44), (0, 44)],
-        "color": "#4682B4"
-    },
-    "P8": {
-        "z": 3,
-        "coords": [(15, 20), (30, 20), (30, 44), (15, 44)],
-        "color": "#4682B4"
-    },
-    "P_L3_Elevator": {
-        "z": 3,
-        "coords": [(30, 8), (50, 8), (50, 20), (30, 20)],
-        "color": "#FFD700"
-    },
-    "P_L3_Escalator": {
-        "z": 3,
-        "coords": [(30, -4), (50, -4), (50, 8), (30, 8)],
-        "color": "#FFA07A"
-    },
-    "P_L3_Stairs": {
-        "z": 3,
-        "coords": [(30, -28), (50, -28), (50, -4), (30, -4)],
-        "color": "#FF8C00"
-    }
+    "P_L3_Aisle_Main": {"z": 3, "coords": [(-30, -4), (30, -4), (30, 20), (-30, 20)], "color": "#A9A9A9"},
+    "P_L3_Driveway_Entrance": {"z": 3, "coords": [(-50, -4), (-30, -4), (-30, 8), (-50, 8)], "color": "#A9A9A9"},
+    "P_L3_Driveway_Exit": {"z": 3, "coords": [(-50, 8), (-30, 8), (-30, 20), (-50, 20)], "color": "#708090"},
+    "P1": {"z": 3, "coords": [(-30, -28), (-15, -28), (-15, -4), (-30, -4)], "color": "#4682B4"},
+    "P2": {"z": 3, "coords": [(-15, -28), (0, -28), (0, -4), (-15, -4)], "color": "#4682B4"},
+    "P3": {"z": 3, "coords": [(0, -28), (15, -28), (15, -4), (0, -4)], "color": "#4682B4"},
+    "P4": {"z": 3, "coords": [(15, -28), (30, -28), (30, -4), (15, -4)], "color": "#4682B4"},
+    "P5": {"z": 3, "coords": [(-30, 20), (-15, 20), (-15, 44), (-30, 44)], "color": "#4682B4"},
+    "P6": {"z": 3, "coords": [(-15, 20), (0, 20), (0, 44), (-15, 44)], "color": "#4682B4"},
+    "P7": {"z": 3, "coords": [(0, 20), (15, 20), (15, 44), (0, 44)], "color": "#4682B4"},
+    "P8": {"z": 3, "coords": [(15, 20), (30, 20), (30, 44), (15, 44)], "color": "#4682B4"},
+    "P_L3_Elevator": {"z": 3, "coords": [(30, 8), (50, 8), (50, 20), (30, 20)], "color": "#FFD700"},
+    "P_L3_Escalator": {"z": 3, "coords": [(30, -4), (50, -4), (50, 8), (30, 8)], "color": "#FFA07A"},
+    "P_L3_Stairs": {"z": 3, "coords": [(30, -28), (50, -28), (50, -4), (30, -4)], "color": "#FF8C00"}
 }
 
 MULTI_CAD_NODES = {
-    # Ground floor
-    "Mega Supermarket": (0.0, 32.0, 0),
-    "A_L0_Lobby": (0.0, 8.0, 0),
-    "Fashion Hub": (0.0, -16.0, 0),
-    "A_L0_Info": (-40.0, 32.0, 0),
-    "A_L0_Entrance": (-40.0, 8.0, 0),
-    "A_L0_Restroom": (40.0, 32.0, 0),
-    "A_L0_Elevator": (40.0, 14.0, 0),
-    "A_L0_Escalator": (40.0, 2.0, 0),
-    "A_L0_Stairs": (40.0, -16.0, 0),
-
-    # 1st floor
-    "Jewel Box": (0.0, 32.0, 1),
-    "A_L1_Hallway": (0.0, 8.0, 1),
-    "Book Nook": (-15.0, -16.0, 1),
-    "Tech Gadgets": (15.0, -16.0, 1),
-    "A_L1_Restroom": (40.0, 32.0, 1),
-    "A_L1_Elevator": (40.0, 14.0, 1),
-    "A_L1_Escalator": (40.0, 2.0, 1),
-    "A_L1_Stairs": (40.0, -16.0, 1),
-
-    # 2nd floor
-    "Cineplex Theater": (0.0, 32.0, 2),
-    "VR World & Arcade": (-40.0, 8.0, 2),
-    "B_L2_Corridor": (0.0, 8.0, 2),
-    "Sky Food Court": (-15.0, -16.0, 2),
-    "Gourmet Bites": (15.0, -16.0, 2),
-    "B_L2_Restroom": (40.0, 32.0, 2),
-    "B_L2_Elevator": (40.0, 14.0, 2),
-    "B_L2_Escalator": (40.0, 2.0, 2),
-    "B_L2_Stairs": (40.0, -16.0, 2),
-
-    # Parking lot
-    "P_L3_Aisle_Main": (0.0, 8.0, 3),
-    "P_L3_Driveway_Entrance": (-40.0, 2.0, 3),
-    "P_L3_Driveway_Exit": (-40.0, 14.0, 3),
-    "P1": (-22.5, -16.0, 3),
-    "P2": (-7.5, -16.0, 3),
-    "P3": (7.5, -16.0, 3),
-    "P4": (22.5, -16.0, 3),
-    "P5": (-22.5, 32.0, 3),
-    "P6": (-7.5, 32.0, 3),
-    "P7": (7.5, 32.0, 3),
-    "P8": (22.5, 32.0, 3),
-    "P_L3_Elevator": (40.0, 14.0, 3),
-    "P_L3_Escalator": (40.0, 2.0, 3),
-    "P_L3_Stairs": (40.0, -16.0, 3)
+    "Mega Supermarket": (0.0, 32.0, 0), "A_L0_Lobby": (0.0, 8.0, 0), "Fashion Hub": (0.0, -16.0, 0),
+    "A_L0_Info": (-40.0, 32.0, 0), "A_L0_Entrance": (-40.0, 8.0, 0), "A_L0_Restroom": (40.0, 32.0, 0),
+    "A_L0_Elevator": (40.0, 14.0, 0), "A_L0_Escalator": (40.0, 2.0, 0), "A_L0_Stairs": (40.0, -16.0, 0),
+    "Jewel Box": (0.0, 32.0, 1), "A_L1_Hallway": (0.0, 8.0, 1), "Book Nook": (-15.0, -16.0, 1),
+    "Tech Gadgets": (15.0, -16.0, 1), "A_L1_Restroom": (40.0, 32.0, 1), "A_L1_Elevator": (40.0, 14.0, 1),
+    "A_L1_Escalator": (40.0, 2.0, 1), "A_L1_Stairs": (40.0, -16.0, 1),
+    "Cineplex Theater": (0.0, 32.0, 2), "VR World & Arcade": (-40.0, 8.0, 2), "B_L2_Corridor": (0.0, 8.0, 2),
+    "Sky Food Court": (-15.0, -16.0, 2), "Gourmet Bites": (15.0, -16.0, 2), "B_L2_Restroom": (40.0, 32.0, 2),
+    "B_L2_Elevator": (40.0, 14.0, 2), "B_L2_Escalator": (40.0, 2.0, 2), "B_L2_Stairs": (40.0, -16.0, 2),
+    "P_L3_Aisle_Main": (0.0, 8.0, 3), "P_L3_Driveway_Entrance": (-40.0, 2.0, 3), "P_L3_Driveway_Exit": (-40.0, 14.0, 3),
+    "P1": (-22.5, -16.0, 3), "P2": (-7.5, -16.0, 3), "P3": (7.5, -16.0, 3), "P4": (22.5, -16.0, 3),
+    "P5": (-22.5, 32.0, 3), "P6": (-7.5, 32.0, 3), "P7": (7.5, 32.0, 3), "P8": (22.5, 32.0, 3),
+    "P_L3_Elevator": (40.0, 14.0, 3), "P_L3_Escalator": (40.0, 2.0, 3), "P_L3_Stairs": (40.0, -16.0, 3)
 }
 
 MULTI_CAD_GRAPH = {
-    # Ground floor
     "A_L0_Entrance": {"A_L0_Lobby": 35.0, "Fashion Hub": 27.5},
     "Fashion Hub":   {"A_L0_Entrance": 27.5, "A_L0_Lobby": 37.5},
     "A_L0_Lobby":    {"A_L0_Entrance": 35.0, "Fashion Hub": 37.5, "A_L0_Info": 16.0, "Mega Supermarket": 20.0, "A_L0_Restroom": 15.0, "A_L0_Elevator": 38.0, "A_L0_Stairs": 38.0, "A_L0_Escalator": 33.0},
-    "A_L0_Info":     {"A_L0_Lobby": 16.0},
-    "Mega Supermarket": {"A_L0_Lobby": 20.0},
-    "A_L0_Restroom": {"A_L0_Lobby": 15.0},
-    "A_L0_Elevator": {"A_L0_Lobby": 38.0, "A_L1_Elevator": 15.0},
-    "A_L0_Stairs":   {"A_L0_Lobby": 38.0, "A_L1_Stairs": 15.0},
-    "A_L0_Escalator":{"A_L0_Lobby": 33.0, "A_L1_Escalator": 12.0},
-
-    # 1st floor
+    "A_L0_Info":     {"A_L0_Lobby": 16.0}, "Mega Supermarket": {"A_L0_Lobby": 20.0},
+    "A_L0_Restroom": {"A_L0_Lobby": 15.0}, "A_L0_Elevator": {"A_L0_Lobby": 38.0, "A_L1_Elevator": 15.0},
+    "A_L0_Stairs":   {"A_L0_Lobby": 38.0, "A_L1_Stairs": 15.0}, "A_L0_Escalator":{"A_L0_Lobby": 33.0, "A_L1_Escalator": 12.0},
     "A_L1_Elevator": {"A_L0_Elevator": 15.0, "A_L1_Hallway": 38.0, "B_L2_Elevator": 15.0},
     "A_L1_Stairs":   {"A_L0_Stairs": 15.0, "A_L1_Hallway": 38.0, "B_L2_Stairs": 15.0},
     "A_L1_Escalator":{"A_L0_Escalator": 12.0, "A_L1_Hallway": 33.0, "B_L2_Escalator": 12.0},
     "A_L1_Hallway":  {"A_L1_Elevator": 38.0, "A_L1_Stairs": 38.0, "A_L1_Escalator": 33.0, "Tech Gadgets": 37.5, "Jewel Box": 37.5, "Book Nook": 20.0, "A_L1_Restroom": 15.0},
-    "Tech Gadgets":  {"A_L1_Hallway": 37.5},
-    "Jewel Box":      {"A_L1_Hallway": 37.5},
-    "Book Nook":      {"A_L1_Hallway": 20.0},
-    "A_L1_Restroom": {"A_L1_Hallway": 15.0},
-
-    # 2nd floor
+    "Tech Gadgets":  {"A_L1_Hallway": 37.5}, "Jewel Box": {"A_L1_Hallway": 37.5}, "Book Nook": {"A_L1_Hallway": 20.0}, "A_L1_Restroom": {"A_L1_Hallway": 15.0},
     "B_L2_Elevator": {"A_L1_Elevator": 15.0, "B_L2_Corridor": 38.0, "P_L3_Elevator": 15.0},
     "B_L2_Stairs":   {"A_L1_Stairs": 15.0, "B_L2_Corridor": 38.0, "P_L3_Stairs": 15.0},
     "B_L2_Escalator":{"A_L1_Escalator": 12.0, "B_L2_Corridor": 33.0, "P_L3_Escalator": 12.0},
     "B_L2_Corridor": {"B_L2_Elevator": 38.0, "B_L2_Stairs": 38.0, "B_L2_Escalator": 33.0, "Cineplex Theater": 37.5, "VR World & Arcade": 37.5, "Sky Food Court": 20.0, "Gourmet Bites": 20.0, "B_L2_Restroom": 20.0},
-    "Cineplex Theater":  {"B_L2_Corridor": 37.5},
-    "VR World & Arcade": {"B_L2_Corridor": 37.5},
-    "Sky Food Court":    {"B_L2_Corridor": 20.0},
-    "Gourmet Bites":     {"B_L2_Corridor": 20.0},
-    "B_L2_Restroom":     {"B_L2_Corridor": 20.0},
-
-    # Parking lot
-    "P1": {"P_L3_Aisle_Main": 20.0}, "P2": {"P_L3_Aisle_Main": 20.0},
-    "P3": {"P_L3_Aisle_Main": 20.0}, "P4": {"P_L3_Aisle_Main": 20.0},
-    "P5": {"P_L3_Aisle_Main": 20.0}, "P6": {"P_L3_Aisle_Main": 20.0},
-    "P7": {"P_L3_Aisle_Main": 20.0}, "P8": {"P_L3_Aisle_Main": 20.0},
+    "Cineplex Theater":  {"B_L2_Corridor": 37.5}, "VR World & Arcade": {"B_L2_Corridor": 37.5},
+    "Sky Food Court":    {"B_L2_Corridor": 20.0}, "Gourmet Bites":     {"B_L2_Corridor": 20.0}, "B_L2_Restroom":     {"B_L2_Corridor": 20.0},
+    "P1": {"P_L3_Aisle_Main": 20.0}, "P2": {"P_L3_Aisle_Main": 20.0}, "P3": {"P_L3_Aisle_Main": 20.0}, "P4": {"P_L3_Aisle_Main": 20.0},
+    "P5": {"P_L3_Aisle_Main": 20.0}, "P6": {"P_L3_Aisle_Main": 20.0}, "P7": {"P_L3_Aisle_Main": 20.0}, "P8": {"P_L3_Aisle_Main": 20.0},
     "P_L3_Aisle_Main": {
-        "P1": 20.0, "P2": 20.0, "P3": 20.0, "P4": 20.0,
-        "P5": 20.0, "P6": 20.0, "P7": 20.0, "P8": 20.0,
-        "P_L3_Elevator": 40.0, "P_L3_Stairs": 40.0, 
-        "P_L3_Escalator": 35.0, "P_L3_Driveway_Entrance": 25.0, "P_L3_Driveway_Exit": 25.0,
+        "P1": 20.0, "P2": 20.0, "P3": 20.0, "P4": 20.0, "P5": 20.0, "P6": 20.0, "P7": 20.0, "P8": 20.0,
+        "P_L3_Elevator": 40.0, "P_L3_Stairs": 40.0, "P_L3_Escalator": 35.0, "P_L3_Driveway_Entrance": 25.0, "P_L3_Driveway_Exit": 25.0,
     },
-    "P_L3_Driveway_Entrance": {"P_L3_Aisle_Main": 25.0},
-    "P_L3_Driveway_Exit": {"P_L3_Aisle_Main": 25.0},
-    "P_L3_Elevator": {"P_L3_Aisle_Main": 40.0, "B_L2_Elevator": 15.0},
-    "P_L3_Stairs":   {"P_L3_Aisle_Main": 40.0, "B_L2_Stairs": 15.0},
+    "P_L3_Driveway_Entrance": {"P_L3_Aisle_Main": 25.0}, "P_L3_Driveway_Exit": {"P_L3_Aisle_Main": 25.0},
+    "P_L3_Elevator": {"P_L3_Aisle_Main": 40.0, "B_L2_Elevator": 15.0}, "P_L3_Stairs":   {"P_L3_Aisle_Main": 40.0, "B_L2_Stairs": 15.0},
     "P_L3_Escalator": {"P_L3_Aisle_Main": 35.0, "B_L2_Escalator": 12.0},
 }
 
 PARKING_SLOTS = {
-    "P1": {"occupied": False}, "P2": {"occupied": True},
-    "P3": {"occupied": False}, "P4": {"occupied": False},
-    "P5": {"occupied": True},  "P6": {"occupied": False},
-    "P7": {"occupied": False}, "P8": {"occupied": True},
+    "P1": {"occupied": False}, "P2": {"occupied": True}, "P3": {"occupied": False}, "P4": {"occupied": False},
+    "P5": {"occupied": True},  "P6": {"occupied": False}, "P7": {"occupied": False}, "P8": {"occupied": True},
 }
-
-def get_floor_bounds(floor_z):
-    floor_rooms = [info for info in ROOM_POLYGONS.values() if info["z"] == floor_z]
-    if not floor_rooms:
-        return (0, 100, 0, 100)
-
-    all_x = [pt[0] for room in floor_rooms for pt in room["coords"]]
-    all_y = [pt[1] for room in floor_rooms for pt in room["coords"]]
-    padding = 15
-    return (min(all_x) - padding, max(all_x) + padding, min(all_y) - padding, max(all_y) + padding)
 
 def point_in_polygon(x, y, polygon):
     n = len(polygon)
@@ -884,7 +608,6 @@ def find_room_by_coordinate(x, y, z_floor):
         room_z = int(MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2])
         if room_z != z_floor:
             continue
-
         coords = poly_info.get("coords", [])
         if coords and point_in_polygon(x, y, coords):
             return room_id
@@ -893,18 +616,16 @@ def find_room_by_coordinate(x, y, z_floor):
 def get_nearest_graph_node(x, y, z_floor, graph_nodes):
     closest_node = None
     min_dist = float("inf")
-
     for node_id, (nx, ny, nz) in graph_nodes.items():
         if int(nz) == int(z_floor):
             dist = math.hypot(x - nx, y - ny)
             if dist < min_dist:
                 min_dist = dist
                 closest_node = node_id
-
     return closest_node, min_dist
 
 # ==============================================================================
-# 3. Theta* pathfinding algorithm
+# 2. Theta* Pathfinding Algorithm
 # ==============================================================================
 
 def extract_wall_segments(room_polygons):
@@ -929,19 +650,14 @@ def line_segments_intersect(p1, p2, p3, p4):
 def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
     x1, y1, z1 = node_coords[node_a]
     x2, y2, z2 = node_coords[node_b]
-
-    if z1 != z2:
-        return False
-
+    if z1 != z2: return False
     p1, p2 = (x1, y1), (x2, y2)
     floor_z = int(z1)
 
     if floor_z in wall_segments:
         for w1, w2 in wall_segments[floor_z]:
-            if p1 == w1 or p1 == w2 or p2 == w1 or p2 == w2:
-                continue
-            if line_segments_intersect(p1, p2, w1, w2):
-                return False
+            if p1 == w1 or p1 == w2 or p2 == w1 or p2 == w2: continue
+            if line_segments_intersect(p1, p2, w1, w2): return False
     return True
 
 def euclidean_distance_3d(node_a, node_b, node_coords):
@@ -950,17 +666,12 @@ def euclidean_distance_3d(node_a, node_b, node_coords):
     return math.sqrt((x1 - x2)**2 + (y1 - y2)**2 + ((z1 - z2) * 15.0)**2)
 
 def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
-    if start not in node_coords or goal not in node_coords:
-        return None
-
+    if start not in node_coords or goal not in node_coords: return None
     open_set = []
     heapq.heappush(open_set, (0, start))
-
     parent = {start: start}
-    
     g_score = {node: float('inf') for node in node_coords}
     g_score[start] = 0.0
-
     f_score = {node: float('inf') for node in node_coords}
     f_score[start] = euclidean_distance_3d(start, goal, node_coords)
 
@@ -976,10 +687,8 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
             return path[::-1]
 
         for neighbor, weight in graph.get(current, {}).items():
-            if neighbor not in node_coords:
-                continue
-            if accessible_only and ("Stairs" in neighbor or "Escalator" in neighbor):
-                continue
+            if neighbor not in node_coords: continue
+            if accessible_only and ("Stairs" in neighbor or "Escalator" in neighbor): continue
 
             p_curr = parent[current]
             same_floor = (node_coords[p_curr][2] == node_coords[neighbor][2])
@@ -1002,126 +711,11 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
     return None
 
 # ==============================================================================
-# 4. Map generation with Plotly
+# 3. Folium Map Rendering Engine (Replaces Plotly 2D Map)
 # ==============================================================================
 
-def add_location_icons_to_2d_map(fig, active_floor_index, lang="English"):
-    x_coords, y_coords, icon_labels, hover_texts = [], [], [], []
-
-    for room_id, details in ROOM_POLYGONS.items():
-        if room_id not in MULTI_CAD_NODES:
-            continue
-
-        node_z = MULTI_CAD_NODES[room_id][2]
-        if int(node_z) == active_floor_index:
-            x, y, _ = MULTI_CAD_NODES[room_id]
-            icon = get_location_icon(room_id)
-            room_name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id)
-
-            x_coords.append(x)
-            y_coords.append(y)
-            icon_labels.append(icon)
-            hover_texts.append(f"{icon} {room_name}")
-
-    fig.add_trace(
-        go.Scatter(
-            x=x_coords,
-            y=y_coords,
-            mode="text",
-            text=icon_labels,
-            textposition="middle center",
-            textfont=dict(size=18),
-            hoverinfo="text",
-            hovertext=hover_texts,
-            name="Location Icons",
-            showlegend=False
-        )
-    )
-    return fig
-
-def add_location_icons_to_3d_map(fig, lang="English"):
-    x_coords, y_coords, z_coords, icon_labels, hover_texts = [], [], [], [], []
-
-    for room_id, coords in MULTI_CAD_NODES.items():
-        x, y, z = coords
-        icon = get_location_icon(room_id)
-        room_name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id)
-
-        x_coords.append(x)
-        y_coords.append(y)
-        z_coords.append(z + 0.3)
-        icon_labels.append(icon)
-        hover_texts.append(f"{icon} {room_name}")
-
-    fig.add_trace(
-        go.Scatter3d(
-            x=x_coords,
-            y=y_coords,
-            z=z_coords,
-            mode="text",
-            text=icon_labels,
-            textfont=dict(size=14),
-            hoverinfo="text",
-            hovertext=hover_texts,
-            name="3D Location Icons",
-            showlegend=False
-        )
-    )
-    return fig
-
-def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
-    x_pts = [p[0] for p in coords] + [coords[0][0]]
-    y_pts = [p[1] for p in coords] + [coords[0][1]]
-    return go.Scatter(
-        x=x_pts, y=y_pts,
-        fill="toself",
-        fillcolor=fill_color,
-        opacity=opacity,
-        line=dict(color=line_color, width=2),
-        hoverinfo="text",
-        mode="lines"
-    )
-
-def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
-    words = text.split()
-    if not words:
-        return ""
-
-    lines = []
-    current_line = []
-    current_len = 0
-
-    for word in words:
-        if current_len + len(word) <= max_chars_per_line or not current_line:
-            current_line.append(word)
-            current_len += len(word) + 1
-        else:
-            lines.append(" ".join(current_line))
-            current_line = [word]
-            current_len = len(word) + 1
-
-    if current_line:
-        lines.append(" ".join(current_line))
-
-    return "<br>".join(lines)
-
-def calculate_optimal_font_size(bbox_w: float, bbox_h: float, text: str) -> tuple[int, int]:
-    min_dim = min(bbox_w, bbox_h)
-
-    if min_dim < 2.0:
-        font_size = 7
-    elif min_dim < 4.0:
-        font_size = 8
-    elif min_dim < 7.0:
-        font_size = 10
-    else:
-        font_size = 12
-
-    max_chars_per_line = max(4, int(bbox_w * (8.5 / font_size)))
-    return font_size, max_chars_per_line
-
-def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
-    fig = go.Figure()
+def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English"):
+    m = folium.Map(location=[0, 0], zoom_start=18, crs="Simple", tiles=None)
 
     floor_rooms = {
         r_id: poly["coords"]
@@ -1129,258 +723,73 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
         if poly["z"] == active_floor_z
     }
 
+    # Render Room Polygons
     for room_id, coords in floor_rooms.items():
-        x_coords = [c[0] for c in coords] + [coords[0][0]]
-        y_coords = [c[1] for c in coords] + [coords[0][1]]
         room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        # Convert CAD (x, y) to Folium (lat=y, lon=x)
+        folium_coords = [[pt[1], pt[0]] for pt in coords]
 
-        fig.add_trace(
-            go.Scatter(
-                x=x_coords,
-                y=y_coords,
-                fill="toself",
-                fillcolor=room_info.get("color", "rgba(200, 200, 200, 0.3)"),
-                line=dict(color="#4A5568", width=1.5),
-                hoverinfo="text",
-                text=translated_name,
-                customdata=[room_id] * len(x_coords),
-                showlegend=False,
+        folium.Polygon(
+            locations=folium_coords,
+            color="#4A5568",
+            weight=2,
+            fill=True,
+            fill_color=room_info.get("color", "#CCCCCC"),
+            fill_opacity=0.6,
+            tooltip=translated_name,
+            popup=translated_name
+        ).add_to(m)
+
+        # Room Label Text Marker
+        cx = sum(p[0] for p in coords) / len(coords)
+        cy = sum(p[1] for p in coords) / len(coords)
+        icon_str = get_location_icon(room_id)
+
+        folium.Marker(
+            location=[cy, cx],
+            icon=folium.DivIcon(
+                html=f'<div style="font-size:11px; font-weight:bold; color:#000000; text-align:center; white-space:nowrap;">'
+                     f'{icon_str}<br>{translated_name}</div>'
             )
-        )
+        ).add_to(m)
 
+    # Render Route Path Lines & Start/Dest Pins
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
         if len(floor_path) > 1:
-            path_x = [MULTI_CAD_NODES[node][0] for node in floor_path]
-            path_y = [MULTI_CAD_NODES[node][1] for node in floor_path]
+            line_pts = [[MULTI_CAD_NODES[node][1], MULTI_CAD_NODES[node][0]] for node in floor_path]
+            folium.PolyLine(
+                locations=line_pts,
+                color="#FF0000",
+                weight=5,
+                opacity=0.8
+            ).add_to(m)
 
-            fig.add_trace(
-                go.Scatter(
-                    x=path_x,
-                    y=path_y,
-                    mode="lines+markers",
-                    line=dict(color="#FF0000", width=4, dash="solid"),
-                    marker=dict(size=8, color="#8B0000"),
-                    name="Route Path",
-                    showlegend=False
-                )
-            )
-
-            for i in range(len(floor_path) - 1):
-                x_start, y_start, _ = MULTI_CAD_NODES[floor_path[i]]
-                x_end, y_end, _ = MULTI_CAD_NODES[floor_path[i + 1]]
-
-                x_mid = x_start + 0.6 * (x_end - x_start)
-                y_mid = y_start + 0.6 * (y_end - y_start)
-
-                fig.add_annotation(
-                    x=x_mid,
-                    y=y_mid,
-                    ax=x_start,
-                    ay=y_start,
-                    xref="x",
-                    yref="y",
-                    axref="x",
-                    ayref="y",
-                    showarrow=True,
-                    arrowhead=2,
-                    arrowsize=1.5,
-                    arrowwidth=2.5,
-                    arrowcolor="#CC0000"
-                )
-
-        lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION.get("English", {}))
-        start_lbl = lang_dict.get("marker_start", " Start")
-        dest_lbl = lang_dict.get("marker_dest", " Destination")
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
         if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
-            start_x, start_y, _ = MULTI_CAD_NODES[start_node_id]
-            fig.add_trace(
-                go.Scatter(
-                    x=[start_x],
-                    y=[start_y],
-                    mode="markers+text",
-                    marker=dict(size=14, color="#FF0000", symbol="circle", line=dict(color="#8B0000", width=2)),
-                    text=[start_lbl],
-                    textposition="top right",
-                    textfont=dict(color="#FF0000", size=12, family="Arial Black"),
-                    name="Start Location",
-                    showlegend=False
-                )
-            )
+            sx, sy, _ = MULTI_CAD_NODES[start_node_id]
+            folium.Marker(
+                location=[sy, sx],
+                popup="Start",
+                icon=folium.Icon(color="red", icon="play")
+            ).add_to(m)
 
         if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
-            dest_x, dest_y, _ = MULTI_CAD_NODES[dest_node_id]
-            fig.add_trace(
-                go.Scatter(
-                    x=[dest_x],
-                    y=[dest_y],
-                    mode="markers+text",
-                    marker=dict(size=14, color="#00FF00", symbol="circle", line=dict(color="#006600", width=2)),
-                    text=[dest_lbl],
-                    textposition="top right",
-                    textfont=dict(color="#00FF00", size=12, family="Arial Black"),
-                    name="Destination",
-                    showlegend=False
-                )
-            )
+            dx, dy, _ = MULTI_CAD_NODES[dest_node_id]
+            folium.Marker(
+                location=[dy, dx],
+                popup="Destination",
+                icon=folium.Icon(color="green", icon="flag")
+            ).add_to(m)
 
-    for room_id, coords in floor_rooms.items():
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+    return m
 
-        xs = [p[0] for p in coords]
-        ys = [p[1] for p in coords]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-
-        cx = (min_x + max_x) / 2.0
-        cy = (min_y + max_y) / 2.0
-        bbox_w = max_x - min_x
-        bbox_h = max_y - min_y
-
-        if bbox_w < 0.6 or bbox_h < 0.6:
-            continue
-
-        font_size, max_chars = calculate_optimal_font_size(bbox_w, bbox_h, translated_name)
-        wrapped_label = wrap_text_to_fit(translated_name, max_chars_per_line=max_chars)
-
-        fig.add_trace(
-            go.Scatter(
-                x=[cx],
-                y=[cy],
-                text=[wrapped_label],
-                mode="text",
-                textposition="middle center",
-                textfont=dict(
-                    color="#000000",
-                    size=12,
-                    family="Arial Black, sans-serif"
-                ),
-                customdata=[room_id],
-                hoverinfo="text",
-                hovertext=[translated_name],
-                showlegend=False
-            )
-        )
-
-    min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
-
-    fig.update_layout(
-        height=650,
-        margin=dict(l=15, r=15, t=30, b=15),
-        showlegend=False,
-        plot_bgcolor="#FFB6C1",
-        paper_bgcolor="#000000",
-        xaxis=dict(range=[min_x - 5, max_x + 5], showgrid=False, zeroline=False, gridcolor="#000000"),
-        yaxis=dict(range=[min_y - 5, max_y + 5], showgrid=False, zeroline=False, gridcolor="#000000", scaleanchor="x")
-    )
-
-    return fig
-
-def render_3d_isometric_view(route_path=None, current_lang="English"):
-    fig = go.Figure()
-
-    for room_id, info in ROOM_POLYGONS.items():
-        z_level = info["z"] * 40
-        coords = info["coords"]
-
-        x_pts = [p[0] for p in coords] + [coords[0][0]]
-        y_pts = [p[1] for p in coords] + [coords[0][1]]
-        z_pts = [z_level] * len(x_pts)
-
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-
-        fig.add_trace(go.Scatter3d(
-            x=x_pts, y=y_pts, z=z_pts,
-            mode="lines",
-            line=dict(color=info["color"], width=4),
-            name=translated_name,
-            showlegend=False
-        ))
-
-    if route_path and len(route_path) > 0:
-        sx, sy, sz = MULTI_CAD_NODES[route_path[0]]
-        dx, dy, dz = MULTI_CAD_NODES[route_path[-1]]
-
-        fig.add_trace(
-            go.Scatter3d(
-                x=[sx], y=[sy], z=[sz * 40],
-                mode="markers+text",
-                marker=dict(size=8, color="#FF0000"),
-                text=["Start"],
-                textposition="top center",
-                textfont=dict(color="#FF0000", size=11),
-                showlegend=False
-            )
-        )
-
-        fig.add_trace(
-            go.Scatter3d(
-                x=[dx], y=[dy], z=[dz * 40],
-                mode="markers+text",
-                marker=dict(size=8, color="#00FF00"),
-                text=["Destination"],
-                textposition="top center",
-                textfont=dict(color="#00AA00", size=11),
-                showlegend=False
-            )
-        )
-
-    if route_path and len(route_path) > 1:
-        rx = [MULTI_CAD_NODES[n][0] for n in route_path]
-        ry = [MULTI_CAD_NODES[n][1] for n in route_path]
-        rz = [MULTI_CAD_NODES[n][2] * 40 for n in route_path]
-
-        fig.add_trace(go.Scatter3d(
-            x=rx, y=ry, z=rz,
-            mode="lines+markers",
-            line=dict(color="#FF0000", width=6),
-            marker=dict(size=6, color="#8B0000"),
-            name="Route Path"
-        ))
-
-        cone_x, cone_y, cone_z = [], [], []
-        cone_u, cone_v, cone_w = [], [], []
-
-        for i in range(len(route_path) - 1):
-            x1, y1, z1_idx = MULTI_CAD_NODES[route_path[i]]
-            x2, y2, z2_idx = MULTI_CAD_NODES[route_path[i+1]]
-            z1, z2 = z1_idx * 40, z2_idx * 40
-
-            cone_x.append(x1 + 0.6 * (x2 - x1))
-            cone_y.append(y1 + 0.6 * (y2 - y1))
-            cone_z.append(z1 + 0.6 * (z2 - z1))
-
-            cone_u.append(x2 - x1)
-            cone_v.append(y2 - y1)
-            cone_w.append(z2 - z1)
-
-        if cone_x:
-            fig.add_trace(go.Cone(
-                x=cone_x, y=cone_y, z=cone_z,
-                u=cone_u, v=cone_v, w=cone_w,
-                colorscale=[[0, '#CC0000'], [1, '#CC0000']],
-                showscale=False, sizemode="absolute", sizeref=30, anchor="tip"
-            ))
-
-    fig.update_layout(
-        scene=dict(
-            xaxis=dict(title="X (m)", backgroundcolor="#F8FAFC"),
-            yaxis=dict(title="Y (m)", backgroundcolor="#F8FAFC"),
-            zaxis=dict(title="Floor Level", backgroundcolor="#F8FAFC"),
-            aspectmode="data"
-        ),
-        height=680,
-        margin=dict(l=0, r=0, t=0, b=0)
-    )
-    return fig
-
-def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang="English"):
-    fig = go.Figure()
+def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang="English"):
+    m = folium.Map(location=[0, 0], zoom_start=18, crs="Simple", tiles=None)
 
     rooftop_rooms = {
         r_id: poly["coords"]
@@ -1389,198 +798,73 @@ def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang
     }
 
     for room_id, coords in rooftop_rooms.items():
-        x_coords = [c[0] for c in coords] + [coords[0][0]]
-        y_coords = [c[1] for c in coords] + [coords[0][1]]
-
-        fig.add_trace(
-            go.Scatter(
-                x=x_coords,
-                y=y_coords,
-                fill="toself",
-                fillcolor="rgba(240, 240, 240, 0.5)",
-                line=dict(color="#4A5568", width=1.5),
-                hoverinfo="text",
-                text=POI_TRANSLATIONS.get(current_lang, {}).get(
-                    room_id, room_id
-                ),
-                showlegend=False,
-            )
-        )
+        folium_coords = [[pt[1], pt[0]] for pt in coords]
+        folium.Polygon(
+            locations=folium_coords,
+            color="#4A5568",
+            weight=1.5,
+            fill=True,
+            fill_color="#F0F0F0",
+            fill_opacity=0.5
+        ).add_to(m)
 
     for slot_id, details in PARKING_SLOTS.items():
-        if slot_id not in MULTI_CAD_NODES:
-            continue
-
+        if slot_id not in MULTI_CAD_NODES: continue
         cx, cy, _ = MULTI_CAD_NODES[slot_id]
 
         if slot_id == assigned_slot:
-            fill_color = "rgba(59, 130, 246, 0.85)"
-            border_color = "#1D4ED8"
-            status_txt = "ASSIGNED TO YOU"
+            color, status_txt = "#1D4ED8", "ASSIGNED TO YOU"
         elif details["occupied"]:
-            fill_color = "rgba(239, 68, 68, 0.7)"
-            border_color = "#B91C1C"
-            status_txt = "OCCUPIED"
+            color, status_txt = "#B91C1C", "OCCUPIED"
         else:
-            fill_color = "rgba(34, 197, 94, 0.7)"
-            border_color = "#15803D"
-            status_txt = "AVAILABLE"
+            color, status_txt = "#15803D", "AVAILABLE"
 
         box_w, box_h = 3.5, 6.0
-        bx = [
-            cx - box_w / 2, cx + box_w / 2, cx + box_w / 2,
-            cx - box_w / 2, cx - box_w / 2
-        ]
-        by = [
-            cy - box_h / 2, cy - box_h / 2, cy + box_h / 2,
-            cy + box_h / 2, cy - box_h / 2
-        ]
+        bx = [cx - box_w/2, cx + box_w/2, cx + box_w/2, cx - box_w/2]
+        by = [cy - box_h/2, cy - box_h/2, cy + box_h/2, cy + box_h/2]
+        slot_poly = [[by[i], bx[i]] for i in range(4)]
 
-        fig.add_trace(
-            go.Scatter(
-                x=bx, y=by,
-                fill="toself",
-                fillcolor=fill_color,
-                line=dict(color=border_color, width=2),
-                hoverinfo="text",
-                text=f"Slot {slot_id}: {status_txt}",
-                showlegend=False
-            )
-        )
+        folium.Polygon(
+            locations=slot_poly,
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.7,
+            popup=f"Slot {slot_id}: {status_txt}"
+        ).add_to(m)
 
-        fig.add_trace(
-            go.Scatter(
-                x=[cx], y=[cy],
-                text=[slot_id],
-                mode="text",
-                textfont=dict(color="#FFFFFF", size=11, family="Arial Black"),
-                hoverinfo="none",
-                showlegend=False
+        folium.Marker(
+            location=[cy, cx],
+            icon=folium.DivIcon(
+                html=f'<div style="font-size:10px; font-weight:bold; color:#FFFFFF;">{slot_id}</div>'
             )
-        )
+        ).add_to(m)
 
     if route_path:
         rooftop_path = [node for node in route_path if int(MULTI_CAD_NODES[node][2]) == 3]
         if len(rooftop_path) > 1:
-            px = [MULTI_CAD_NODES[n][0] for n in rooftop_path]
-            py = [MULTI_CAD_NODES[n][1] for n in rooftop_path]
-            fig.add_trace(
-                go.Scatter(
-                    x=px, y=py,
-                    mode="lines+markers",
-                    line=dict(color="#2563EB", width=4),
-                    marker=dict(size=8, color="#1E40AF"),
-                    name="Parking Route"
-                )
-            )
+            line_pts = [[MULTI_CAD_NODES[n][1], MULTI_CAD_NODES[n][0]] for n in rooftop_path]
+            folium.PolyLine(locations=line_pts, color="#2563EB", weight=4).add_to(m)
 
-            for i in range(len(rooftop_path) - 1):
-                x_start, y_start, _ = MULTI_CAD_NODES[rooftop_path[i]]
-                x_end, y_end, _ = MULTI_CAD_NODES[rooftop_path[i + 1]]
-
-                x_mid = x_start + 0.6 * (x_end - x_start)
-                y_mid = y_start + 0.6 * (y_end - y_start)
-
-                fig.add_annotation(
-                    x=x_mid, y=y_mid,
-                    ax=x_start, ay=y_start,
-                    xref="x", yref="y", axref="x", ayref="y",
-                    showarrow=True, arrowhead=2, arrowsize=1.5,
-                    arrowwidth=2.5, arrowcolor="#1D4ED8"
-                )
-
-    min_x, max_x, min_y, max_y = get_floor_bounds(3)
-
-    fig.update_layout(
-        xaxis=dict(range=[min_x, max_x], showgrid=True, zeroline=False),
-        yaxis=dict(range=[min_y, max_y], showgrid=True, zeroline=False, scaleanchor="x"),
-        height=480,
-        margin=dict(l=10, r=10, t=20, b=10),
-        showlegend=False,
-        plot_bgcolor="#F8F9FA"
-    )
-    return fig
+    return m
 
 # ==============================================================================
-# 5. Step-by-step directions and smart parking
+# 4. Step-by-step directions & Smart Parking Engine
 # ==============================================================================
-
-def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
-    parking_status = {}
-    for spot in all_parking_spots:
-        parking_status[spot] = random.random() < occupancy_rate
-    return parking_status
-
-def add_parking_infrastructure_annotations(fig, lang="English"):
-    feature_nodes = {
-        "P_L3_Driveway_Entrance": "lbl_entrance_ramp",
-        "P_L3_Driveway_Exit": "lbl_exit_ramp",
-        "P_L3_Stairs": "lbl_stairwell",
-        "P_L3_Elevator": "lbl_elevator",
-        "P_L3_Escalator": "lbl_escalator",
-    }
-
-    lang_map = {"en": "English", "zh": "Simplified Chinese", "ms": "Malay"}
-    resolved_lang = lang_map.get(lang, lang)
-    lang_dict = LOCALIZATION.get(resolved_lang, LOCALIZATION["English"])
-
-    existing_annotations = list(fig.layout.annotations) if fig.layout.annotations else []
-    new_annotations = []
-
-    nodes_dict = globals().get("MULTI_CAD_NODES", {})
-
-    for node_id, trans_key in feature_nodes.items():
-        if node_id in nodes_dict:
-            node_data = nodes_dict[node_id]
-            x, y = node_data[0], node_data[1]
-            label_text = lang_dict.get(trans_key, node_id)
-
-            new_annotations.append(
-                dict(
-                    x=x,
-                    y=y,
-                    text=f"<b>{label_text}</b>",
-                    showarrow=True,
-                    arrowhead=2,
-                    arrowsize=1,
-                    arrowwidth=2,
-                    arrowcolor="#1976D2",
-                    ax=0,
-                    ay=-28,
-                    bgcolor="rgba(255, 255, 255, 0.95)",
-                    bordercolor="#1976D2",
-                    borderwidth=2,
-                    font=dict(size=11, color="#000000"),
-                )
-            )
-
-    fig.layout.annotations = existing_annotations + new_annotations
-    return fig
 
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
-    available_spots = [
-        spot for spot, is_occupied in availability_map.items() 
-        if not is_occupied
-    ]
-    
-    if not available_spots:
-        return None, [], []
+    available_spots = [spot for spot, is_occupied in availability_map.items() if not is_occupied]
+    if not available_spots: return None, [], []
 
-    best_spot = None
-    shortest_distance = float("inf")
-    best_entry_path = []
-
+    best_spot, shortest_distance, best_entry_path = None, float("inf"), []
     for spot in available_spots:
         path = theta_star_3d(entrance_node, spot, graph, nodes, accessible_only=accessible_only)
-        if path:
-            dist = len(path) 
-            if dist < shortest_distance:
-                shortest_distance = dist
-                best_spot = spot
-                best_entry_path = path
+        if path and len(path) < shortest_distance:
+            shortest_distance = len(path)
+            best_spot = spot
+            best_entry_path = path
 
     best_exit_path = theta_star_3d(best_spot, "P_L3_Driveway_Exit", graph, nodes, accessible_only=accessible_only) if best_spot else []
-
     return best_spot, best_entry_path, best_exit_path
 
 def calculate_heading_angle(node_a, node_b, node_coords):
@@ -1590,7 +874,6 @@ def calculate_heading_angle(node_a, node_b, node_coords):
 
 def format_turn_instruction(angle_diff, distance, target_name, lang="English"):
     angle_diff = (angle_diff + 180) % 360 - 180
-
     phrases = {
         "English": {
             "straight": f"Continue straight for {distance:.1f}m towards {target_name}",
@@ -1623,31 +906,19 @@ def format_turn_instruction(angle_diff, distance, target_name, lang="English"):
             "u_turn": f"Buat pusingan U dan jalan {distance:.1f}m ke {target_name}"
         }
     }
-
     lang_dict = phrases.get(lang, phrases["English"])
-
-    if -22.5 <= angle_diff <= 22.5:
-        return lang_dict["straight"]
-    elif -67.5 <= angle_diff < -22.5:
-        return lang_dict["slight_right"]
-    elif -112.5 <= angle_diff < -67.5:
-        return lang_dict["right"]
-    elif -157.5 <= angle_diff < -112.5:
-        return lang_dict["sharp_right"]
-    elif 22.5 < angle_diff <= 67.5:
-        return lang_dict["slight_left"]
-    elif 67.5 < angle_diff <= 112.5:
-        return lang_dict["left"]
-    elif 112.5 < angle_diff <= 157.5:
-        return lang_dict["sharp_left"]
-    else:
-        return lang_dict["u_turn"]
+    if -22.5 <= angle_diff <= 22.5: return lang_dict["straight"]
+    elif -67.5 <= angle_diff < -22.5: return lang_dict["slight_right"]
+    elif -112.5 <= angle_diff < -67.5: return lang_dict["right"]
+    elif -157.5 <= angle_diff < -112.5: return lang_dict["sharp_right"]
+    elif 22.5 < angle_diff <= 67.5: return lang_dict["slight_left"]
+    elif 67.5 < angle_diff <= 112.5: return lang_dict["left"]
+    elif 112.5 < angle_diff <= 157.5: return lang_dict["sharp_left"]
+    else: return lang_dict["u_turn"]
 
 def generate_detailed_directions(path, node_coords, lang="English"):
     if not path or len(path) < 2: return []
-
     directions = []
-
     start_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[0], path[0])}"
     first_dest_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[1], path[1])}"
     init_dist = euclidean_distance_3d(path[0], path[1], node_coords)
@@ -1661,10 +932,8 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     for i in range(1, len(path) - 1):
         prev_node, curr_node, next_node = path[i - 1], path[i], path[i + 1]
-
         curr_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(curr_node, curr_node)}"
         next_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(next_node, next_node)}"
-
         z_curr, z_next = node_coords[curr_node][2], node_coords[next_node][2]
 
         if z_curr != z_next:
@@ -1690,20 +959,17 @@ def generate_detailed_directions(path, node_coords, lang="English"):
                     "Malay": f"Gunakan **Tangga** di {curr_poi} ke **{target_floor_label}**."
                 }
                 icon = "🧗"
-
             directions.append({"step": len(directions) + 1, "text": trans_text.get(lang, trans_text["English"]), "icon": icon})
             continue
 
         prev_heading = calculate_heading_angle(prev_node, curr_node, node_coords)
         next_heading = calculate_heading_angle(curr_node, next_node, node_coords)
         angle_diff = next_heading - prev_heading
-
         step_dist = euclidean_distance_3d(curr_node, next_node, node_coords)
         instruction_str = format_turn_instruction(angle_diff, step_dist, f"**{next_poi}**", lang=lang)
 
         angle_diff_norm = (angle_diff + 180) % 360 - 180
         icon = "↪️" if angle_diff_norm < -22.5 else ("↩️" if angle_diff_norm > 22.5 else "⬆️")
-
         directions.append({"step": len(directions) + 1, "text": instruction_str, "icon": icon})
 
     final_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[-1], path[-1])}"
@@ -1713,26 +979,18 @@ def generate_detailed_directions(path, node_coords, lang="English"):
         "Malay": f"Anda telah tiba di destinasi: **{final_poi}**."
     }
     directions.append({"step": len(directions) + 1, "text": arrival_text.get(lang, arrival_text["English"]), "icon": "🏁"})
-
     return directions
 
 def compute_route_summary(path):
     if not path or len(path) < 2: return {"total_distance": 0, "floors_crossed": 0, "steps": 0}
-
-    total_dist = 0
-    floors_visited = set()
-
+    total_dist, floors_visited = 0, set()
     for i in range(len(path) - 1):
         curr_node, nxt_node = path[i], path[i+1]
         z1, z2 = MULTI_CAD_NODES[curr_node][2], MULTI_CAD_NODES[nxt_node][2]
-
         floors_visited.add(z1)
         floors_visited.add(z2)
-
-        if z1 == z2:
-            total_dist += euclidean_distance_3d(curr_node, nxt_node, MULTI_CAD_NODES)
-        else:
-            total_dist += 15.0
+        if z1 == z2: total_dist += euclidean_distance_3d(curr_node, nxt_node, MULTI_CAD_NODES)
+        else: total_dist += 15.0
 
     return {
         "total_distance": round(total_dist, 1),
@@ -1745,107 +1003,27 @@ def format_location_label(room_id, lang):
     floor_code = "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
     name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id)
     clean_name = name.split('(')[0].strip()
-
     cat_key = STORE_CATEGORIES.get(room_id)
     if cat_key:
         cat_name = CATEGORY_TRANSLATIONS.get(lang, {}).get(cat_key, cat_key)
         return f"[{floor_code}] {clean_name} ({cat_name})"
-
     return f"[{floor_code}] {clean_name}"
 
 # ==============================================================================
-# 6. UI configuration
+# 5. UI Layout & Tabs
 # ==============================================================================
-
-st.markdown(
-    """
-    <style>
-    /* top header bar */
-    header[data-testid="stHeader"] {
-        background-color: #D32F2F !important; /* Deep Red */
-    }
-
-    /* sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #FF6700 !important; /* Orange */
-    }
-
-    section[data-testid="stSidebar"] h1,
-    section[data-testid="stSidebar"] h2,
-    section[data-testid="stSidebar"] h3,
-    section[data-testid="stSidebar"] label,
-    section[data-testid="stSidebar"] .stMarkdown p {
-        color: #000000 !important;
-    }
-
-    button[kind="primary"] {
-        background-color: #D32F2F !important;
-        color: #FFFFFF !important;           
-        border: 1px solid #D32F2F !important;
-        font-weight: 600 !important;
-    }
-
-    button[kind="primary"]:hover {
-        background-color: #E55451 !important;
-        border: 1px solid #E55451 !important;
-        color: #FFFFFF !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-def render_orange_card(title, desc):
-    card_html = f"""
-    <div style="
-        background-color: #FF6700;
-        border: 2px solid #FF6700;
-        border-radius: 12px;
-        padding: 18px 16px;
-        margin-bottom: 10px;
-        color: #000000;
-        height: 100%;
-    ">
-        <h3 style="
-            color: #000000 !important;
-            margin-top: 0;
-            margin-bottom: 8px;
-            font-size: 1.2rem;
-            font-weight: 700;
-        ">{title}</h3>
-        <p style="
-            color: #000000 !important;
-            margin: 0;
-            font-size: 0.95rem;
-            line-height: 1.4;
-        ">{desc}</p>
-    </div>
-    """
-    st.markdown(card_html, unsafe_allow_html=True)
 
 t = LOCALIZATION[st.session_state.lang]
 
 home_tab_title = {
-    "English": "🏠 Home",
-    "Simplified Chinese": "🏠 首页",
-    "Malay": "🏠 Utama",
+    "English": "🏠 Home", "Simplified Chinese": "🏠 首页", "Malay": "🏠 Utama"
 }.get(st.session_state.lang, "🏠 Home")
 
-tab_home, tab_map, tab_dir, tab_park = st.tabs(
-    [
-        home_tab_title,
-        t["tab_nav"],
-        t["tab_directions"],
-        t["tab_parking"],
-    ]
-)
+tab_home, tab_map, tab_dir, tab_park = st.tabs([home_tab_title, t["tab_nav"], t["tab_directions"], t["tab_parking"]])
 
-if "waypoints" not in st.session_state:
-    st.session_state.waypoints = []
-if "map_pick_mode" not in st.session_state:
-    st.session_state.map_pick_mode = False
-if "map_pick_step" not in st.session_state:
-    st.session_state.map_pick_step = "START"
+if "waypoints" not in st.session_state: st.session_state.waypoints = []
+if "map_pick_mode" not in st.session_state: st.session_state.map_pick_mode = False
+if "map_pick_step" not in st.session_state: st.session_state.map_pick_step = "START"
 
 with st.sidebar:
     st.header(t["config_header"])
@@ -1859,501 +1037,112 @@ with st.sidebar:
         st.session_state.lang = selected_language_key
         st.rerun()
 
-# Home page tab
+# Home Tab
 with tab_home:
     st.title(t["title"])
     st.caption(t["subtitle"])
     st.divider()
-    st.markdown(
-        f"""
-    ### {t['home_title']}
-    {t['home_desc']}
-    """
-    )
-
-    st.divider()
-
-    col_f1, col_f2, col_f3 = st.columns(3)
-
-    with col_f1:
-        render_orange_card(t["feat_map_title"], t["feat_map_desc"])
-
-    with col_f2:
-        render_orange_card(t["feat_turn_title"], t["feat_turn_desc"])
-
-    with col_f3:
-        render_orange_card(t["feat_park_title"], t["feat_park_desc"])
-        
+    st.markdown(f"### {t['home_title']}\n{t['home_desc']}")
     st.divider()
 
     c1, c2, c3, c4 = st.columns(4)
     total_locations = len(ROOM_POLYGONS)
     total_floors = len(FLOOR_TRANSLATIONS["English"])
-    total_slots = len(PARKING_SLOTS) if "PARKING_SLOTS" in globals() else 0
-    available_slots = (
-        sum(1 for s in PARKING_SLOTS.values() if not s["occupied"])
-        if "PARKING_SLOTS" in globals()
-        else 0
-    )
+    total_slots = len(PARKING_SLOTS)
+    available_slots = sum(1 for s in PARKING_SLOTS.values() if not s["occupied"])
 
     c1.metric(t["poi_metric"], total_locations)
     c2.metric(t["floors_metric"], total_floors)
     c3.metric(t["spots_metric"], total_slots)
     c4.metric(t["available_metric"], available_slots)
 
-    st.divider()
-
-    category_header = {
-        "English": "🏷️ Store Directory by Category",
-        "Simplified Chinese": "🏷️ 分类店铺指南",
-        "Malay": "🏷️ Direktori Kedai Mengikut Kategori",
-    }.get(st.session_state.lang, "🏷️ Store Directory by Category")
-
-    st.subheader(category_header)
-
-    if "STORE_CATEGORIES" in globals() and STORE_CATEGORIES:
-        categorized_stores = {}
-        for room_id, cat_key in STORE_CATEGORIES.items():
-            categorized_stores.setdefault(cat_key, []).append(room_id)
-
-        st.markdown(
-            """
-            <style>
-            div[data-testid="stExpander"] details summary {
-              background-color: #D32F2F !important;
-              color: #FFFFFF !important;
-              border-radius: 8px 8px 0px 0px !important;
-              padding: 10px 16px !important;
-            }
-
-            div[data-testid="stExpander"] details summary p,
-            div[data-testid="stExpander"] details summary svg {
-              color: #FFFFFF !important;
-              fill: #FFFFFF !important;
-              font-weight: bold !important;
-            }
-
-            div[data-testid="stExpander"] details div[data-testid="stExpanderDetails"] {
-              background-color: #FF6700 !important;
-              border-radius: 0px 0px 8px 8px !important;
-              padding: 16px !important;
-              border: 1px solid #E65100 !important;
-              color: #000000 !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        for cat_key, room_ids in categorized_stores.items():
-            translated_cat = CATEGORY_TRANSLATIONS.get(
-                st.session_state.lang, {}
-            ).get(cat_key, cat_key)
-
-            with st.expander(
-                f"📁 **{translated_cat}** ({len(room_ids)})", expanded=True
-            ):
-                store_cols = st.columns(2)
-                for idx, room_id in enumerate(room_ids):
-                    col = store_cols[idx % 2]
-
-                    z_val = (
-                        int(MULTI_CAD_NODES[room_id][2])
-                        if room_id in MULTI_CAD_NODES
-                        else 0
-                    )
-                    floor_code = (
-                        "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
-                    )
-
-                    raw_name = POI_TRANSLATIONS.get(
-                        st.session_state.lang, {}
-                    ).get(room_id, room_id)
-                    clean_name = raw_name.split("(")[0].strip()
-
-                    col.markdown(f"- **{clean_name}** `[{floor_code}]`")
-    else:
-        st.info("No store categories defined.")
-
-# Mall map tab
+# Mall Map Tab (Folium Renderer with Click-Anywhere support)
 with tab_map:
     if "waypoint_counter" not in st.session_state:
         st.session_state.waypoint_counter = 0
 
-    if st.session_state.waypoints and isinstance(st.session_state.waypoints[0], str):
-        migrated_wps = []
-        for raw_wp in st.session_state.waypoints:
-            st.session_state.waypoint_counter += 1
-            migrated_wps.append({"id": st.session_state.waypoint_counter, "value": raw_wp})
-        st.session_state.waypoints = migrated_wps
-
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
-
         col_start, col_dest = st.columns(2)
 
         with col_start:
             start_node = st.selectbox(
                 t["start_loc"],
                 options=room_options,
-                format_func=lambda room_id: format_location_label(
-                    room_id, st.session_state.lang
-                ),
-                index=(
-                    room_options.index(st.session_state.selected_start)
-                    if st.session_state.selected_start in room_options
-                    else 0
-                ),
+                format_func=lambda r: format_location_label(r, st.session_state.lang),
+                index=room_options.index(st.session_state.selected_start) if st.session_state.selected_start in room_options else 0,
             )
         with col_dest:
             dest_node = st.selectbox(
                 t["dest_loc"],
                 options=room_options,
-                format_func=lambda room_id: format_location_label(
-                    room_id, st.session_state.lang
-                ),
-                index=(
-                    room_options.index(st.session_state.selected_dest)
-                    if st.session_state.selected_dest in room_options
-                    else len(room_options) - 1
-                ),
+                format_func=lambda r: format_location_label(r, st.session_state.lang),
+                index=room_options.index(st.session_state.selected_dest) if st.session_state.selected_dest in room_options else len(room_options)-1,
             )
 
         st.session_state.selected_start = start_node
         st.session_state.selected_dest = dest_node
 
-        if st.session_state.waypoints:
-            st.markdown(t["intermediate_stops"])
+        route_pref = st.radio(t["route_type"], options=[t["shortest"], t["accessible"]], horizontal=True)
+        accessible_flag = (route_pref == t["accessible"])
 
-            def move_waypoint(idx, direction):
-                target_idx = idx - 1 if direction == "up" else idx + 1
-                st.session_state.waypoints[idx], st.session_state.waypoints[target_idx] = (
-                    st.session_state.waypoints[target_idx],
-                    st.session_state.waypoints[idx],
-                )
+        extracted_waypoints = [wp["value"] if isinstance(wp, dict) else wp for wp in st.session_state.waypoints]
+        full_route_sequence = [st.session_state.selected_start] + extracted_waypoints + [st.session_state.selected_dest]
 
-            def remove_waypoint(idx):
-                st.session_state.waypoints.pop(idx)
+        route_display_str = " ➔ ".join([f"`{format_location_label(loc, st.session_state.lang)}`" for loc in full_route_sequence])
+        st.markdown(f"**{t['current_route_lbl']}:** {route_display_str}")
 
-            def update_waypoint_value(wp_obj_id, widget_key):
-                val = st.session_state[widget_key]
-                for item in st.session_state.waypoints:
-                    if item["id"] == wp_obj_id:
-                        item["value"] = val
-                        break
-
-            for idx, wp_obj in enumerate(st.session_state.waypoints):
-                wp_id = wp_obj["id"]
-                wp_val = wp_obj["value"]
-                widget_key = f"waypoint_select_obj_{wp_id}"
-
-                wp_col1, wp_col_up, wp_col_dn, wp_col_del = st.columns([0.65, 0.11, 0.11, 0.13])
-
-                current_index = room_options.index(wp_val) if wp_val in room_options else 0
-
-                with wp_col1:
-                    st.selectbox(
-                        t["stop_lbl"].format(idx=idx + 1),
-                        options=room_options,
-                        index=current_index,
-                        format_func=lambda r_id: format_location_label(
-                            r_id, st.session_state.lang
-                        ),
-                        key=widget_key,
-                        on_change=update_waypoint_value,
-                        args=(wp_id, widget_key),
-                    )
-
-                with wp_col_up:
-                    st.write("")
-                    st.write("")
-                    st.button(
-                        "⬆️",
-                        key=f"move_up_wp_{wp_id}",
-                        disabled=(idx == 0),
-                        on_click=move_waypoint,
-                        args=(idx, "up"),
-                    )
-
-                with wp_col_dn:
-                    st.write("")
-                    st.write("")
-                    st.button(
-                        "⬇️",
-                        key=f"move_dn_wp_{wp_id}",
-                        disabled=(idx == len(st.session_state.waypoints) - 1),
-                        on_click=move_waypoint,
-                        args=(idx, "down"),
-                    )
-
-                with wp_col_del:
-                    st.write("")
-                    st.write("")
-                    st.button(
-                        "❌",
-                        key=f"remove_wp_{wp_id}",
-                        on_click=remove_waypoint,
-                        args=(idx,),
-                    )
-
-        if st.button(t["btn_add_stop_manual"], type="primary", key="add_waypoint"):
-            default_wp = room_options[1] if len(room_options) > 1 else room_options[0]
-            st.session_state.waypoint_counter += 1
-            st.session_state.waypoints.append(
-                {"id": st.session_state.waypoint_counter, "value": default_wp}
-            )
-            st.rerun()
-
-        st.markdown("---")
-
-        route_pref = st.radio(
-            t["route_type"],
-            options=[t["shortest"], t["accessible"]],
-            horizontal=True,
-        )
-        accessible_flag = route_pref == t["accessible"]
-
-        extracted_waypoints = [
-            wp["value"] if isinstance(wp, dict) else wp for wp in st.session_state.waypoints
-        ]
-
-        full_route_sequence = (
-            [st.session_state.selected_start]
-            + extracted_waypoints
-            + [st.session_state.selected_dest]
-        )
-
-        route_display_str = " ➔ ".join(
-            [
-                f"`{format_location_label(loc, st.session_state.lang)}`"
-                for loc in full_route_sequence
-            ]
-        )
-        st.markdown(
-            f"""
-            <div style="
-                background-color: #E91E63;
-                color: #FFFFFF;
-                padding: 12px 16px;
-                border-radius: 8px;
-                font-size: 0.95rem;
-                margin-top: 10px;
-                margin-bottom: 10px;
-            ">
-                <strong>{t['current_route_lbl']}:</strong> {route_display_str}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
+    # Theta* Path Calculation
     full_path = []
     for i in range(len(full_route_sequence) - 1):
-        segment_start = full_route_sequence[i]
-        segment_end = full_route_sequence[i + 1]
-
-        segment_path = theta_star_3d(
-            segment_start,
-            segment_end,
-            MULTI_CAD_GRAPH,
-            MULTI_CAD_NODES,
-            accessible_only=accessible_flag,
-        )
-
+        segment_path = theta_star_3d(full_route_sequence[i], full_route_sequence[i + 1], MULTI_CAD_GRAPH, MULTI_CAD_NODES, accessible_only=accessible_flag)
         if segment_path:
-            if full_path:
-                full_path.extend(segment_path[1:])
-            else:
-                full_path.extend(segment_path)
+            full_path.extend(segment_path[1:] if full_path else segment_path)
         else:
             full_path = []
             break
 
     path = full_path
 
-    all_parking_spots = [
-        node_id for node_id in MULTI_CAD_NODES.keys()
-        if node_id.startswith("P_") or (node_id.startswith("P") and node_id[1:].isdigit())
-    ]
-
-    parkable_spots = [
-        node_id for node_id in MULTI_CAD_NODES.keys()
-        if node_id.startswith("P") and node_id[1:].isdigit()
-    ]
-
-    parking_availability = {
-        spot: random.random() < 0.65 for spot in parkable_spots
-    }
-
-    assigned_slot_id, entry_path, exit_path = find_nearest_available_parking(
-        "P_L3_Driveway_Entrance",
-        MULTI_CAD_GRAPH,
-        MULTI_CAD_NODES,
-        availability_map=parking_availability,
-        accessible_only=accessible_flag,
+    # Active Floor Selection
+    floor_select = st.selectbox(
+        t["active_floor"],
+        options=[0, 1, 2, 3],
+        format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
     )
 
-    st.session_state.assigned_parking = assigned_slot_id
-    st.session_state.entry_path = entry_path
-    st.session_state.exit_path = exit_path
+    # Render Interactive Folium Map
+    folium_map = render_2d_folium_view(floor_select, route_path=path, current_lang=st.session_state.lang)
+    map_data = st_folium(folium_map, height=550, width=1000)
 
-    view_type = st.radio(
-        t["view_mode"],
-        options=[t["view_2d"], t["view_3d"]],
-        horizontal=True,
-    )
+    # Click-Anywhere Event Logic
+    if map_data and map_data.get("last_clicked"):
+        click_lat = map_data["last_clicked"]["lat"]
+        click_lng = map_data["last_clicked"]["lng"]
 
-    col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
-    with col_btn_pick:
-        if not st.session_state.map_pick_mode:
-            if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
-                st.session_state.map_pick_mode = True
-                st.session_state.map_pick_step = "START"
-                st.rerun()
-        else:
-            if st.button(t["btn_cancel_interactive"], use_container_width=True):
-                current_step = st.session_state.map_pick_step
-                
-                if current_step == "WAYPOINT" and st.session_state.waypoints:
-                    last_wp = st.session_state.waypoints.pop()
-                    last_wp_value = last_wp["value"] if isinstance(last_wp, dict) else last_wp
-                    st.session_state.selected_dest = last_wp_value
+        # Map Folium (lat, lng) to CAD (x, y)
+        click_x, click_y = click_lng, click_lat
 
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
+        # Check inside room or match nearest node
+        room_hit = find_room_by_coordinate(click_x, click_y, floor_select)
+        if not room_hit:
+            room_hit, _ = get_nearest_graph_node(click_x, click_y, floor_select, MULTI_CAD_NODES)
 
-    with col_btn_clear:
-        if st.button(t["btn_reset_all"], use_container_width=True):
-            st.session_state.waypoints = []
-            st.session_state.map_pick_mode = False
-            st.session_state.selected_start = "A_L0_Entrance"
-            st.session_state.selected_dest = "A_L0_Lobby"
-            st.rerun()
-            
-    if st.session_state.map_pick_mode:
-        curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
-        curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
-
-        if st.session_state.map_pick_step == "START":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.info(f"{t['pick_step_1']} ({t['lbl_current']}: **{curr_start_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_start"], use_container_width=True):
-                    st.session_state.map_pick_step = "WAYPOINT"
+        if room_hit:
+            st.info(f"📍 Clicked Location: **{format_location_label(room_hit, st.session_state.lang)}**")
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                if st.button(t["btn_set_start"]):
+                    st.session_state.selected_start = room_hit
+                    st.rerun()
+            with col_b2:
+                if st.button(t["btn_set_dest"]):
+                    st.session_state.selected_dest = room_hit
                     st.rerun()
 
-        elif st.session_state.map_pick_step == "WAYPOINT":
-            col_msg, col_done = st.columns([0.72, 0.28])
-            with col_msg:
-                st.warning(t["pick_step_2"])
-            with col_done:
-                if st.button(t["btn_done_adding_stops"], type="primary", use_container_width=True):
-                    st.session_state.map_pick_step = "DEST"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "DEST":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.success(f"{t['pick_step_3']} ({t['lbl_current']}: **{curr_dest_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_dest"], use_container_width=True):
-                    st.session_state.map_pick_mode = False
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-
-    selected_data = None
-
-    if view_type == t["view_2d"]:
-        floor_select = st.selectbox(
-            t["active_floor"],
-            options=[0, 1, 2, 3],
-            format_func=lambda x: get_translated_floor_name(
-                x, lang=st.session_state.lang
-            ),
-        )
-        fig_2d = render_2d_cad_view(
-            floor_select, route_path=path, current_lang=st.session_state.lang
-        )
-
-        selected_data = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
-    else:
-        fig_3d = render_3d_isometric_view(
-            route_path=path, current_lang=st.session_state.lang
-        )
-        selected_data = st.plotly_chart(
-            fig_3d,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-        )
-
-    if (
-        st.session_state.map_pick_mode
-        and selected_data
-        and "selection" in selected_data
-        and selected_data["selection"]["points"]
-    ):
-        point = selected_data["selection"]["points"][0]
-        clicked_id = None
-
-        if "customdata" in point and point["customdata"]:
-            clicked_id = point["customdata"]
-        elif "text" in point:
-            raw_text = point["text"]
-            for room_key in ROOM_POLYGONS.keys():
-                t_name = POI_TRANSLATIONS.get(
-                    st.session_state.lang, {}
-                ).get(room_key, room_key)
-                if t_name == raw_text or room_key == raw_text:
-                    clicked_id = room_key
-                    break
-
-        if clicked_id and clicked_id in ROOM_POLYGONS:
-            if st.session_state.map_pick_step == "START":
-                st.session_state.selected_start = clicked_id
-                st.session_state.map_pick_step = "WAYPOINT"
-                st.rerun()
-
-            elif st.session_state.map_pick_step == "WAYPOINT":
-                st.session_state.waypoint_counter += 1
-                st.session_state.waypoints.append(
-                    {"id": st.session_state.waypoint_counter, "value": clicked_id}
-                )
-                st.rerun()
-
-            elif st.session_state.map_pick_step == "DEST":
-                st.session_state.selected_dest = clicked_id
-                st.session_state.map_pick_mode = False
-                st.session_state.map_pick_step = "START"
-                st.rerun()
-
-# Directions tab
+# Directions Tab
 with tab_dir:
     st.subheader(t["route_summary"])
-
-    if "path" not in locals():
-        full_route_sequence = (
-            [st.session_state.selected_start]
-            + [wp["value"] if isinstance(wp, dict) else wp for wp in st.session_state.waypoints]
-            + [st.session_state.selected_dest]
-        )
-        path = []
-        for i in range(len(full_route_sequence) - 1):
-            s_path = theta_star_3d(
-                full_route_sequence[i],
-                full_route_sequence[i + 1],
-                MULTI_CAD_GRAPH,
-                MULTI_CAD_NODES,
-            )
-            if s_path:
-                path.extend(s_path[1:] if path else s_path)
-
     if path:
         summary = compute_route_summary(path)
         m_col1, m_col2, m_col3 = st.columns(3)
@@ -2361,17 +1150,13 @@ with tab_dir:
         m_col2.metric(t["floors_crossed"], summary["floors_crossed"])
         m_col3.metric(t["total_steps"], summary["steps"])
 
-        st.markdown("---")
+        st.divider()
         st.subheader(t["turn_by_turn"])
-
-        detailed_steps = generate_detailed_directions(
-            path, MULTI_CAD_NODES, lang=st.session_state.lang
-        )
+        detailed_steps = generate_detailed_directions(path, MULTI_CAD_NODES, lang=st.session_state.lang)
 
         for step_info in detailed_steps:
             col_icon, col_text = st.columns([0.1, 0.9])
-            with col_icon:
-                st.markdown(f"### {step_info['icon']}")
+            with col_icon: st.markdown(f"### {step_info['icon']}")
             with col_text:
                 st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
                 st.markdown(step_info["text"])
@@ -2379,137 +1164,22 @@ with tab_dir:
     else:
         st.warning(t["no_route"])
 
-# Parking tab
+# Smart Parking Tab
 with tab_park:
     st.subheader(t["parking_sec"])
+    parkable_spots = [node for node in MULTI_CAD_NODES if node.startswith("P") and node[1:].isdigit()]
+    parking_availability = {spot: random.random() < 0.65 for spot in parkable_spots}
 
-    assigned_slot = st.session_state.get("assigned_parking", None)
-    entry_path = st.session_state.get("entry_path", [])
-    exit_path = st.session_state.get("exit_path", [])
-    curr_lang = st.session_state.lang
+    assigned_slot, entry_path, exit_path = find_nearest_available_parking(
+        "P_L3_Driveway_Entrance", MULTI_CAD_GRAPH, MULTI_CAD_NODES, availability_map=parking_availability
+    )
 
     if assigned_slot:
-        slot_icon = get_location_icon(assigned_slot)
-        st.success(
-            f"{t['nearest_spot_found']}: `{slot_icon} {assigned_slot}` ({t['rooftop_lot']})"
-        )
-
-        tab_entry, tab_exit = st.tabs(
-            [
-                t["tab_nav_drive_to_spot"],
-                t["tab_nav_spot_to_exit"],
-            ]
-        )
-
-        with tab_entry:
-            st.markdown(f"### {t['header_driving_to_spot']}")
-
-            fig_entry = render_rooftop_parking_map(
-                assigned_slot=assigned_slot,
-                route_path=entry_path,
-                current_lang=curr_lang,
-            )
-            fig_entry = add_parking_infrastructure_annotations(fig_entry, lang=curr_lang)
-            st.plotly_chart(fig_entry, use_container_width=True)
-
-            if entry_path:
-                entry_summary = compute_route_summary(entry_path)
-                st.markdown("---")
-                st.subheader(t["parking_route_summary"])
-
-                p_col1, p_col2, p_col3 = st.columns(3)
-                p_col1.metric(
-                    t["dist_to_spot"], f"{entry_summary['total_distance']} m"
-                )
-                p_col2.metric(
-                    t["floors_to_ascend"], entry_summary["floors_crossed"]
-                )
-                p_col3.metric(t["total_steps"], entry_summary["steps"])
-
-                st.markdown("---")
-                st.subheader(t["parking_turn_by_turn"])
-                entry_steps = generate_detailed_directions(
-                    entry_path, MULTI_CAD_NODES, lang=curr_lang
-                )
-
-                for step_info in entry_steps:
-                    col_icon, col_text = st.columns([0.1, 0.9])
-                    with col_icon:
-                        st.markdown(f"### {step_info['icon']}")
-                    with col_text:
-                        st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
-                        st.markdown(step_info["text"])
-                    st.divider()
-
-        with tab_exit:
-            st.markdown(f"### {t['header_leaving_spot']}")
-
-            fig_exit = render_rooftop_parking_map(
-                assigned_slot=assigned_slot,
-                route_path=exit_path,
-                current_lang=curr_lang,
-            )
-            fig_exit = add_parking_infrastructure_annotations(fig_exit, lang=curr_lang)
-            st.plotly_chart(fig_exit, use_container_width=True)
-
-            if exit_path:
-                exit_summary = compute_route_summary(exit_path)
-                st.markdown("---")
-                st.subheader(t["parking_route_summary"])
-
-                e_col1, e_col2, e_col3 = st.columns(3)
-                e_col1.metric(
-                    t["dist_to_spot"], f"{exit_summary['total_distance']} m"
-                )
-                e_col2.metric(
-                    t["floors_to_ascend"], exit_summary["floors_crossed"]
-                )
-                e_col3.metric(t["total_steps"], exit_summary["steps"])
-
-                st.markdown("---")
-                st.subheader(t["parking_turn_by_turn"])
-                exit_steps = generate_detailed_directions(
-                    exit_path, MULTI_CAD_NODES, lang=curr_lang
-                )
-
-                for step_info in exit_steps:
-                    col_icon, col_text = st.columns([0.1, 0.9])
-                    with col_icon:
-                        st.markdown(f"### {step_info['icon']}")
-                    with col_text:
-                        st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
-                        st.markdown(step_info["text"])
-                    st.divider()
-
+        st.success(f"{t['nearest_spot_found']}: `🅿️ {assigned_slot}` ({t['rooftop_lot']})")
+        park_map = render_rooftop_folium_map(assigned_slot=assigned_slot, route_path=entry_path, current_lang=st.session_state.lang)
+        st_folium(park_map, height=450, width=900)
     else:
-        st.error("⚠️ No available parking spots found on the Rooftop layer.")
-        fig_parking = render_rooftop_parking_map(
-            assigned_slot=None,
-            route_path=[],
-            current_lang=curr_lang,
-        )
-        fig_parking = add_parking_infrastructure_annotations(fig_parking, lang=curr_lang)
-        st.plotly_chart(fig_parking, use_container_width=True)
-
-# ==============================================================================
-# 7. Footer
-# ==============================================================================
-
-def render_system_footer():
-    st.markdown("---")
-    foot_col1, foot_col2, foot_col3 = st.columns(3)
-
-    lang = st.session_state.get("lang", "English")
-    lang_dict = LOCALIZATION.get(lang, LOCALIZATION["English"])
-
-    with foot_col1:
-        st.caption(lang_dict.get("footer_arch", "🏢 System Architecture: 3D Theta* Pathfinding Engine"))
-    with foot_col2:
-        st.caption(lang_dict.get("footer_vector", "📐 Vector Processing: Plotly Graph"))
-    with foot_col3:
-        st.caption(lang_dict.get("footer_lang", "🌐 Localization: Multilingual Engine"))
+        st.error("No parking available.")
 
 if __name__ == "__main__":
-    if "initialized" not in st.session_state:
-        st.session_state.initialized = True
-    render_system_footer()
+    pass
