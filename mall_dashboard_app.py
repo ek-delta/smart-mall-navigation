@@ -4,6 +4,7 @@ import random
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+from folium.plugins import Fullscreen
 
 # ==============================================================================
 # 1. Translation Table & Localization
@@ -544,14 +545,13 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
 # ==============================================================================
 
 def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English"):
-    # 1. Gather all rooms for the active floor
     floor_rooms = {
         r_id: poly["coords"]
         for r_id, poly in ROOM_POLYGONS.items()
         if poly["z"] == active_floor_z
     }
 
-    # 2. Compute bounding box coordinates for auto-zoom
+    # Compute bounding box for initial view and reset target
     all_pts = [pt for coords in floor_rooms.values() for pt in coords]
     if all_pts:
         min_x = min(p[0] for p in all_pts) - 10
@@ -561,15 +561,61 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
     else:
         min_x, max_x, min_y, max_y = -60, 60, -35, 55
 
-    # 3. Create Leaflet map anchored with flat Simple CRS
-    m = folium.Map(crs="Simple", tiles=None)
+    bounds = [[min_y, min_x], [max_y, max_x]]
 
-    # 4. Render CAD Room Polygons
+    # Initialize map with visible zoom controls enabled
+    m = folium.Map(
+        crs="Simple",
+        tiles=None,
+        zoom_control=True,        # Enables default + / - zoom buttons
+        scroll_wheel_zoom=True    # Enables mouse wheel zooming
+    )
+
+    # 1. Add Fullscreen Plugin Control
+    Fullscreen(
+        position="topleft",
+        title="Expand map",
+        title_cancel="Exit fullscreen",
+        force_separate_button=True
+    ).add_to(m)
+
+    # 2. Add JavaScript Custom Reset View Button
+    reset_button_js = f"""
+    <script>
+    function addResetButton() {{
+        var map = L.map;
+        var bounds = {bounds};
+        
+        var customControl = L.Control.extend({{
+            options: {{ position: 'topleft' }},
+            onAdd: function (map) {{
+                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                container.style.backgroundColor = 'white';
+                container.style.width = '30px';
+                container.style.height = '30px';
+                container.style.lineHeight = '30px';
+                container.style.textAlign = 'center';
+                container.style.cursor = 'pointer';
+                container.style.fontSize = '16px';
+                container.title = 'Reset View';
+                container.innerHTML = '🔄';
+                
+                container.onclick = function() {{
+                    map.fitBounds(bounds);
+                }}
+                return container;
+            }}
+        }});
+        map.addControl(new customControl());
+    }}
+    </script>
+    """
+    m.get_root().html.add_child(folium.Element(reset_button_js))
+
+    # 3. Render Floor Polygons
     for room_id, coords in floor_rooms.items():
         room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        
-        # Folium uses [lat, lon] -> [y, x]
         folium_coords = [[pt[1], pt[0]] for pt in coords]
 
         folium.Polygon(
@@ -583,7 +629,6 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
             popup=translated_name
         ).add_to(m)
 
-        # Room Label Text Marker
         cx = sum(p[0] for p in coords) / len(coords)
         cy = sum(p[1] for p in coords) / len(coords)
         icon_str = get_location_icon(room_id)
@@ -603,7 +648,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
             )
         ).add_to(m)
 
-    # 5. Render Route Path Lines & Markers
+    # 4. Render Route Polyline & Markers
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -635,8 +680,8 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
                 icon=folium.Icon(color="green", icon="flag")
             ).add_to(m)
 
-    # 6. Fit map view directly to the floorplan bounds
-    m.fit_bounds([[min_y, min_x], [max_y, max_x]])
+    # Fit Map View to Floorplan Bounds
+    m.fit_bounds(bounds)
 
     return m
 
