@@ -320,40 +320,117 @@ ROOM_POLYGONS = {
     "P_L3_Stairs": {"z": 3, "coords": [(30, -28), (50, -28), (50, -4), (30, -4)], "color": "#FF8C00"}
 }
 
+# ==============================================================================
+# Updated CAD Nodes (Including Dedicated Corridor Grid Nodes per Floor)
+# ==============================================================================
 MULTI_CAD_NODES = {
-    "Mega Supermarket": (0.0, 32.0, 0), "A_L0_Lobby": (0.0, 8.0, 0), "Fashion Hub": (0.0, -16.0, 0),
-    "A_L0_Info": (-40.0, 32.0, 0), "A_L0_Entrance": (-40.0, 8.0, 0), "A_L0_Restroom": (40.0, 32.0, 0),
-    "A_L0_Elevator": (40.0, 14.0, 0), "A_L0_Escalator": (40.0, 2.0, 0), "A_L0_Stairs": (40.0, -16.0, 0),
-    "Jewel Box": (0.0, 32.0, 1), "A_L1_Hallway": (0.0, 8.0, 1), "Book Nook": (-15.0, -16.0, 1),
-    "Tech Gadgets": (15.0, -16.0, 1), "A_L1_Restroom": (40.0, 32.0, 1), "A_L1_Elevator": (40.0, 14.0, 1),
-    "A_L1_Escalator": (40.0, 2.0, 1), "A_L1_Stairs": (40.0, -16.0, 1),
-    "Cineplex Theater": (0.0, 32.0, 2), "VR World & Arcade": (-40.0, 8.0, 2), "B_L2_Corridor": (0.0, 8.0, 2),
-    "Sky Food Court": (-15.0, -16.0, 2), "Gourmet Bites": (15.0, -16.0, 2), "B_L2_Restroom": (40.0, 32.0, 2),
-    "B_L2_Elevator": (40.0, 14.0, 2), "B_L2_Escalator": (40.0, 2.0, 2), "B_L2_Stairs": (40.0, -16.0, 2),
-    "P_L3_Aisle_Main": (0.0, 8.0, 3), "P_L3_Driveway_Entrance": (-40.0, 2.0, 3), "P_L3_Driveway_Exit": (-40.0, 14.0, 3),
+    # --- Ground Floor (Z=0) ---
+    "A_L0_Entrance": (-40.0, 8.0, 0),
+    "A_L0_Info": (-40.0, 32.0, 0),
+    "A_L0_Lobby": (0.0, 8.0, 0),
+    "Fashion Hub": (0.0, -16.0, 0),
+    "Mega Supermarket": (0.0, 32.0, 0),
+    "A_L0_Restroom": (40.0, 32.0, 0),
+    "A_L0_Elevator": (40.0, 14.0, 0),
+    "A_L0_Escalator": (40.0, 2.0, 0),
+    "A_L0_Stairs": (40.0, -16.0, 0),
+    # Ground Floor Corridor Nodes (Grid Bypasses)
+    "H_L0_West": (-20.0, 8.0, 0),
+    "H_L0_East": (20.0, 8.0, 0),
+    "H_L0_North": (0.0, 20.0, 0),
+    "H_L0_South": (0.0, -4.0, 0),
+
+    # --- 1st Floor (Z=1) ---
+    "A_L1_Hallway": (0.0, 8.0, 1),
+    "Book Nook": (-15.0, -16.0, 1),
+    "Tech Gadgets": (15.0, -16.0, 1),
+    "Jewel Box": (0.0, 32.0, 1),
+    "A_L1_Restroom": (40.0, 32.0, 1),
+    "A_L1_Elevator": (40.0, 14.0, 1),
+    "A_L1_Escalator": (40.0, 2.0, 1),
+    "A_L1_Stairs": (40.0, -16.0, 1),
+    # 1st Floor Corridor Nodes
+    "H_L1_West": (-20.0, 8.0, 1),
+    "H_L1_East": (20.0, 8.0, 1),
+    "H_L1_South_West": (-15.0, -4.0, 1),
+    "H_L1_South_East": (15.0, -4.0, 1),
+
+    # --- 2nd Floor (Z=2) ---
+    "B_L2_Corridor": (0.0, 8.0, 2),
+    "VR World & Arcade": (-40.0, 8.0, 2),
+    "Cineplex Theater": (0.0, 32.0, 2),
+    "Sky Food Court": (-15.0, -16.0, 2),
+    "Gourmet Bites": (15.0, -16.0, 2),
+    "B_L2_Restroom": (40.0, 32.0, 2),
+    "B_L2_Elevator": (40.0, 14.0, 2),
+    "B_L2_Escalator": (40.0, 2.0, 2),
+    "B_L2_Stairs": (40.0, -16.0, 2),
+    # 2nd Floor Corridor Nodes
+    "H_L2_West": (-20.0, 8.0, 2),
+    "H_L2_East": (20.0, 8.0, 2),
+    "H_L2_South_West": (-15.0, -4.0, 2),
+    "H_L2_South_East": (15.0, -4.0, 2),
+
+    # --- Rooftop Parking (Z=3) ---
+    "P_L3_Aisle_Main": (0.0, 8.0, 3),
+    "P_L3_Driveway_Entrance": (-40.0, 2.0, 3),
+    "P_L3_Driveway_Exit": (-40.0, 14.0, 3),
     "P1": (-22.5, -16.0, 3), "P2": (-7.5, -16.0, 3), "P3": (7.5, -16.0, 3), "P4": (22.5, -16.0, 3),
     "P5": (-22.5, 32.0, 3), "P6": (-7.5, 32.0, 3), "P7": (7.5, 32.0, 3), "P8": (22.5, 32.0, 3),
-    "P_L3_Elevator": (40.0, 14.0, 3), "P_L3_Escalator": (40.0, 2.0, 3), "P_L3_Stairs": (40.0, -16.0, 3)
+    "P_L3_Elevator": (40.0, 14.0, 3),
+    "P_L3_Escalator": (40.0, 2.0, 3),
+    "P_L3_Stairs": (40.0, -16.0, 3)
 }
 
+# ==============================================================================
+# Updated Mesh Graph (Direct Hallway-to-Hallway Connectivity)
+# ==============================================================================
 MULTI_CAD_GRAPH = {
-    "A_L0_Entrance": {"A_L0_Lobby": 35.0, "Fashion Hub": 27.5},
-    "Fashion Hub":   {"A_L0_Entrance": 27.5, "A_L0_Lobby": 37.5},
-    "A_L0_Lobby":    {"A_L0_Entrance": 35.0, "Fashion Hub": 37.5, "A_L0_Info": 16.0, "Mega Supermarket": 20.0, "A_L0_Restroom": 15.0, "A_L0_Elevator": 38.0, "A_L0_Stairs": 38.0, "A_L0_Escalator": 33.0},
-    "A_L0_Info":     {"A_L0_Lobby": 16.0}, "Mega Supermarket": {"A_L0_Lobby": 20.0},
-    "A_L0_Restroom": {"A_L0_Lobby": 15.0}, "A_L0_Elevator": {"A_L0_Lobby": 38.0, "A_L1_Elevator": 15.0},
-    "A_L0_Stairs":   {"A_L0_Lobby": 38.0, "A_L1_Stairs": 15.0}, "A_L0_Escalator":{"A_L0_Lobby": 33.0, "A_L1_Escalator": 12.0},
-    "A_L1_Elevator": {"A_L0_Elevator": 15.0, "A_L1_Hallway": 38.0, "B_L2_Elevator": 15.0},
-    "A_L1_Stairs":   {"A_L0_Stairs": 15.0, "A_L1_Hallway": 38.0, "B_L2_Stairs": 15.0},
-    "A_L1_Escalator":{"A_L0_Escalator": 12.0, "A_L1_Hallway": 33.0, "B_L2_Escalator": 12.0},
-    "A_L1_Hallway":  {"A_L1_Elevator": 38.0, "A_L1_Stairs": 38.0, "A_L1_Escalator": 33.0, "Tech Gadgets": 37.5, "Jewel Box": 37.5, "Book Nook": 20.0, "A_L1_Restroom": 15.0},
-    "Tech Gadgets":  {"A_L1_Hallway": 37.5}, "Jewel Box": {"A_L1_Hallway": 37.5}, "Book Nook": {"A_L1_Hallway": 20.0}, "A_L1_Restroom": {"A_L1_Hallway": 15.0},
-    "B_L2_Elevator": {"A_L1_Elevator": 15.0, "B_L2_Corridor": 38.0, "P_L3_Elevator": 15.0},
-    "B_L2_Stairs":   {"A_L1_Stairs": 15.0, "B_L2_Corridor": 38.0, "P_L3_Stairs": 15.0},
-    "B_L2_Escalator":{"A_L1_Escalator": 12.0, "B_L2_Corridor": 33.0, "P_L3_Escalator": 12.0},
-    "B_L2_Corridor": {"B_L2_Elevator": 38.0, "B_L2_Stairs": 38.0, "B_L2_Escalator": 33.0, "Cineplex Theater": 37.5, "VR World & Arcade": 37.5, "Sky Food Court": 20.0, "Gourmet Bites": 20.0, "B_L2_Restroom": 20.0},
-    "Cineplex Theater":  {"B_L2_Corridor": 37.5}, "VR World & Arcade": {"B_L2_Corridor": 37.5},
-    "Sky Food Court":    {"B_L2_Corridor": 20.0}, "Gourmet Bites":     {"B_L2_Corridor": 20.0}, "B_L2_Restroom":     {"B_L2_Corridor": 20.0},
+    # --- Ground Floor Connections ---
+    "A_L0_Entrance": {"H_L0_West": 20.0, "Fashion Hub": 27.5},
+    "A_L0_Info": {"H_L0_West": 28.0, "A_L0_Entrance": 24.0},
+    "H_L0_West": {"A_L0_Entrance": 20.0, "A_L0_Info": 28.0, "A_L0_Lobby": 20.0, "H_L0_North": 23.3, "H_L0_South": 23.3},
+    "A_L0_Lobby": {"H_L0_West": 20.0, "H_L0_East": 20.0, "H_L0_North": 12.0, "H_L0_South": 12.0},
+    "H_L0_North": {"A_L0_Lobby": 12.0, "Mega Supermarket": 12.0, "H_L0_West": 23.3, "H_L0_East": 23.3},
+    "H_L0_South": {"A_L0_Lobby": 12.0, "Fashion Hub": 12.0, "H_L0_West": 23.3, "H_L0_East": 23.3},
+    "Fashion Hub": {"H_L0_South": 12.0, "A_L0_Entrance": 27.5},
+    "Mega Supermarket": {"H_L0_North": 12.0},
+    "H_L0_East": {"A_L0_Lobby": 20.0, "A_L0_Restroom": 28.0, "A_L0_Elevator": 20.8, "A_L0_Escalator": 20.8, "A_L0_Stairs": 31.2},
+    "A_L0_Restroom": {"H_L0_East": 28.0},
+    "A_L0_Elevator": {"H_L0_East": 20.8, "A_L1_Elevator": 15.0},
+    "A_L0_Escalator": {"H_L0_East": 20.8, "A_L1_Escalator": 12.0},
+    "A_L0_Stairs": {"H_L0_East": 31.2, "A_L1_Stairs": 15.0},
+
+    # --- 1st Floor Connections ---
+    "A_L1_Hallway": {"H_L1_West": 20.0, "H_L1_East": 20.0, "Jewel Box": 24.0, "H_L1_South_West": 18.0, "H_L1_South_East": 18.0},
+    "H_L1_West": {"A_L1_Hallway": 20.0, "H_L1_South_West": 13.0},
+    "H_L1_East": {"A_L1_Hallway": 20.0, "A_L1_Restroom": 28.0, "A_L1_Elevator": 20.8, "A_L1_Escalator": 20.8, "A_L1_Stairs": 31.2},
+    "Jewel Box": {"A_L1_Hallway": 24.0},
+    "H_L1_South_West": {"H_L1_West": 13.0, "A_L1_Hallway": 18.0, "Book Nook": 12.0},
+    "H_L1_South_East": {"H_L1_East": 13.0, "A_L1_Hallway": 18.0, "Tech Gadgets": 12.0},
+    "Book Nook": {"H_L1_South_West": 12.0},
+    "Tech Gadgets": {"H_L1_South_East": 12.0},
+    "A_L1_Restroom": {"H_L1_East": 28.0},
+    "A_L1_Elevator": {"H_L1_East": 20.8, "A_L0_Elevator": 15.0, "B_L2_Elevator": 15.0},
+    "A_L1_Escalator": {"H_L1_East": 20.8, "A_L0_Escalator": 12.0, "B_L2_Escalator": 12.0},
+    "A_L1_Stairs": {"H_L1_East": 31.2, "A_L0_Stairs": 15.0, "B_L2_Stairs": 15.0},
+
+    # --- 2nd Floor Connections ---
+    "B_L2_Corridor": {"H_L2_West": 20.0, "H_L2_East": 20.0, "Cineplex Theater": 24.0, "H_L2_South_West": 18.0, "H_L2_South_East": 18.0},
+    "H_L2_West": {"B_L2_Corridor": 20.0, "VR World & Arcade": 20.0, "H_L2_South_West": 13.0},
+    "VR World & Arcade": {"H_L2_West": 20.0},
+    "Cineplex Theater": {"B_L2_Corridor": 24.0},
+    "H_L2_South_West": {"H_L2_West": 13.0, "B_L2_Corridor": 18.0, "Sky Food Court": 12.0},
+    "H_L2_South_East": {"H_L2_East": 13.0, "B_L2_Corridor": 18.0, "Gourmet Bites": 12.0},
+    "Sky Food Court": {"H_L2_South_West": 12.0},
+    "Gourmet Bites": {"H_L2_South_East": 12.0},
+    "H_L2_East": {"B_L2_Corridor": 20.0, "B_L2_Restroom": 28.0, "B_L2_Elevator": 20.8, "B_L2_Escalator": 20.8, "B_L2_Stairs": 31.2},
+    "B_L2_Restroom": {"H_L2_East": 28.0},
+    "B_L2_Elevator": {"H_L2_East": 20.8, "A_L1_Elevator": 15.0, "P_L3_Elevator": 15.0},
+    "B_L2_Escalator": {"H_L2_East": 20.8, "A_L1_Escalator": 12.0, "P_L3_Escalator": 12.0},
+    "B_L2_Stairs": {"H_L2_East": 31.2, "A_L1_Stairs": 15.0, "P_L3_Stairs": 15.0},
+
+    # --- Rooftop Parking Connections ---
     "P1": {"P_L3_Aisle_Main": 20.0}, "P2": {"P_L3_Aisle_Main": 20.0}, "P3": {"P_L3_Aisle_Main": 20.0}, "P4": {"P_L3_Aisle_Main": 20.0},
     "P5": {"P_L3_Aisle_Main": 20.0}, "P6": {"P_L3_Aisle_Main": 20.0}, "P7": {"P_L3_Aisle_Main": 20.0}, "P8": {"P_L3_Aisle_Main": 20.0},
     "P_L3_Aisle_Main": {
@@ -361,7 +438,8 @@ MULTI_CAD_GRAPH = {
         "P_L3_Elevator": 40.0, "P_L3_Stairs": 40.0, "P_L3_Escalator": 35.0, "P_L3_Driveway_Entrance": 25.0, "P_L3_Driveway_Exit": 25.0,
     },
     "P_L3_Driveway_Entrance": {"P_L3_Aisle_Main": 25.0}, "P_L3_Driveway_Exit": {"P_L3_Aisle_Main": 25.0},
-    "P_L3_Elevator": {"P_L3_Aisle_Main": 40.0, "B_L2_Elevator": 15.0}, "P_L3_Stairs":   {"P_L3_Aisle_Main": 40.0, "B_L2_Stairs": 15.0},
+    "P_L3_Elevator": {"P_L3_Aisle_Main": 40.0, "B_L2_Elevator": 15.0},
+    "P_L3_Stairs": {"P_L3_Aisle_Main": 40.0, "B_L2_Stairs": 15.0},
     "P_L3_Escalator": {"P_L3_Aisle_Main": 35.0, "B_L2_Escalator": 12.0},
 }
 
