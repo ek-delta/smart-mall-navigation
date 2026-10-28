@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 import random
 
 # ==============================================================================
-# 1. Translation table
+# 1. Translation table & Localization
 # ==============================================================================
 
 st.set_page_config(
@@ -167,7 +167,7 @@ LOCALIZATION = {
         "btn_add_as_stop": "➕ 添加为途经点",
         "tab_parking_entry": "🚗 1. 入口至停车位",
         "tab_parking_exit": "🚪 2. 停车位至出口",
-        "drive_to_spot_title": "🚗 驱动至停车位路线",
+        "drive_to_spot_title": "🚗 驶向停车位路线",
         "drive_to_exit_title": "🚪 从停车位前往车道出口",
         "btn_keep_start": "⏭️ 保留当前起点",
         "btn_keep_dest": "⏭️ 保留当前终点",
@@ -278,7 +278,7 @@ FLOOR_TRANSLATIONS = {
         3: "Rooftop Parking Lot [R]"
     },
     "Simplified Chinese": {
-        0: "底层 [GF}",
+        0: "底层 [GF]",
         1: "1层 [1F]",
         2: "2层 [2F]",
         3: "屋顶露台与停车场 [R]"
@@ -306,17 +306,17 @@ POI_TRANSLATIONS = {
         "A_L0_Elevator": "🛗Elevator (GF)",
         "A_L0_Stairs": "🧗Stairwell (GF)",
         "A_L0_Escalator": "🪜Escalator (GF)",
-        "A_L0_Restroom": "🚻Restroom (GF)",
+        "A_L0_Restroom": "Restroom (GF)",
         "A_L1_Hallway": "🚪Corridor (1F)",
         "A_L1_Elevator": "🛗Elevator (1F)",
         "A_L1_Stairs": "🧗Stairwell (1F)",
         "A_L1_Escalator": "🪜Escalator (1F)",
-        "A_L1_Restroom": "🚻Restroom (1F)",
+        "A_L1_Restroom": "Restroom (1F)",
         "B_L2_Corridor": "📍Main Hall (2F)",
         "B_L2_Elevator": "🛗Elevator (2F)",
         "B_L2_Stairs": "🧗Stairwell (2F)",
         "B_L2_Escalator": "🪜Escalator (2F)",
-        "B_L2_Restroom": "🚻Restroom (2F)",
+        "B_L2_Restroom": "Restroom (2F)",
         "P_L3_Aisle_Main": "🚪Main Drive Aisle (R)",
         "P_L3_Elevator": "🛗Elevator (R)",
         "P_L3_Stairs": "🧗Stairwell (R)",
@@ -344,17 +344,17 @@ POI_TRANSLATIONS = {
         "A_L0_Elevator": "🛗电梯 (底层)",
         "A_L0_Stairs": "🧗楼梯 (底层)",
         "A_L0_Escalator": "🪜自动扶梯 (底层)",
-        "A_L0_Restroom": "🚻洗手间 (底层)",
+        "A_L0_Restroom": "洗手间 (底层)",
         "A_L1_Hallway": "🚪主走廊 (一楼)",
         "A_L1_Elevator": "🛗电梯 (一楼)",
         "A_L1_Stairs": "🧗楼梯 (一楼)",
         "A_L1_Escalator": "🪜自动扶梯 (一楼)",
-        "A_L1_Restroom": "🚻洗手间 (一楼)",
+        "A_L1_Restroom": "洗手间 (一楼)",
         "B_L2_Corridor": "📍主大厅 (二楼)",
         "B_L2_Elevator": "🛗电梯 (二楼)",
         "B_L2_Stairs": "🧗楼梯 (二楼)",
         "B_L2_Escalator": "🪜自动扶梯 (二楼)",
-        "B_L2_Restroom": "🚻洗手间 (二楼)",
+        "B_L2_Restroom": "洗手间 (二楼)",
         "P_L3_Aisle_Main": "🚪楼顶车库主车道",
         "P_L3_Elevator": "🛗楼顶电梯间",
         "P_L3_Stairs": "🧗楼顶楼梯",
@@ -382,17 +382,17 @@ POI_TRANSLATIONS = {
         "A_L0_Elevator": "🛗Lif (Tingkat Bawah)",
         "A_L0_Stairs": "🧗Tangga (Tingkat Bawah)",
         "A_L0_Escalator": "🪜Eskalator (Tingkat Bawah)",
-        "A_L0_Restroom": "🚻Tandas (Tingkat Bawah)",
+        "A_L0_Restroom": "Tandas (Tingkat Bawah)",
         "A_L1_Hallway": "🚪Koridor (Tingkat 1)",
         "A_L1_Elevator": "🛗Lif (Tingkat 1)",
         "A_L1_Stairs": "🧗Tangga (Tingkat 1)",
         "A_L1_Escalator": "🪜Eskalator (Tingkat 1)",
-        "A_L1_Restroom": "🚻Tandas (Tingkat 1)",
+        "A_L1_Restroom": "Tandas (Tingkat 1)",
         "B_L2_Corridor": "📍Dewan Utama (Tingkat 2)",
         "B_L2_Elevator": "🛗Lif (Tingkat 2)",
         "B_L2_Stairs": "🧗Tangga (Tingkat 2)",
         "B_L2_Escalator": "🪜Eskalator (Tingkat 2)",
-        "B_L2_Restroom": "🚻Tandas (Tingkat 2)",
+        "B_L2_Restroom": "Tandas (Tingkat 2)",
         "P_L3_Aisle_Main": "🚪Laluan Utama Kenderaan (Bumbung)",
         "P_L3_Elevator": "🛗Lif (Bumbung)",
         "P_L3_Stairs": "🧗Tangga (Bumbung)",
@@ -485,16 +485,12 @@ if "selected_dest" not in st.session_state:
     st.session_state.selected_dest = "A_L0_Lobby"
 if "assigned_parking" not in st.session_state:
     st.session_state.assigned_parking = None
-if "assigned_parking" not in st.session_state:
-    st.session_state.assigned_parking = None
 if "entry_path" not in st.session_state:
     st.session_state.entry_path = []
 if "exit_path" not in st.session_state:
     st.session_state.exit_path = []
 if "clicked_location" not in st.session_state:
     st.session_state.clicked_location = None
-
-DATASET_PATHS = ["/content/drive/MyDrive/FYP Smart Navigation/train-00", "./train-01", "./test-00"]
 
 # ==============================================================================
 # 2. Navigation nodes and boundaries
@@ -690,7 +686,7 @@ ROOM_POLYGONS = {
     "P_L3_Driveway_Exit": {
         "z": 3,
         "coords": [(-50, 8), (-30, 8), (-30, 20), (-50, 20)],
-        "color": "#708090"  
+        "color": "#708090"
     },
     "P1": {
         "z": 3,
@@ -784,7 +780,7 @@ MULTI_CAD_NODES = {
 
     # Parking lot
     "P_L3_Aisle_Main": (0.0, 8.0, 3),
-    "P_L3_Driveway_Entrance": (-40.0, 2.0, 3),  
+    "P_L3_Driveway_Entrance": (-40.0, 2.0, 3),
     "P_L3_Driveway_Exit": (-40.0, 14.0, 3),
     "P1": (-22.5, -16.0, 3),
     "P2": (-7.5, -16.0, 3),
@@ -799,7 +795,6 @@ MULTI_CAD_NODES = {
     "P_L3_Stairs": (40.0, -16.0, 3)
 }
 
-# Neighbouring nodes
 MULTI_CAD_GRAPH = {
     # Ground floor
     "A_L0_Entrance": {"A_L0_Lobby": 35.0, "Fashion Hub": 27.5},
@@ -818,8 +813,8 @@ MULTI_CAD_GRAPH = {
     "A_L1_Escalator":{"A_L0_Escalator": 12.0, "A_L1_Hallway": 33.0, "B_L2_Escalator": 12.0},
     "A_L1_Hallway":  {"A_L1_Elevator": 38.0, "A_L1_Stairs": 38.0, "A_L1_Escalator": 33.0, "Tech Gadgets": 37.5, "Jewel Box": 37.5, "Book Nook": 20.0, "A_L1_Restroom": 15.0},
     "Tech Gadgets":  {"A_L1_Hallway": 37.5},
-    "Jewel Box":     {"A_L1_Hallway": 37.5},
-    "Book Nook":     {"A_L1_Hallway": 20.0},
+    "Jewel Box":      {"A_L1_Hallway": 37.5},
+    "Book Nook":      {"A_L1_Hallway": 20.0},
     "A_L1_Restroom": {"A_L1_Hallway": 15.0},
 
     # 2nd floor
@@ -851,7 +846,6 @@ MULTI_CAD_GRAPH = {
     "P_L3_Escalator": {"P_L3_Aisle_Main": 35.0, "B_L2_Escalator": 12.0},
 }
 
-
 PARKING_SLOTS = {
     "P1": {"occupied": False}, "P2": {"occupied": True},
     "P3": {"occupied": False}, "P4": {"occupied": False},
@@ -879,14 +873,11 @@ def point_in_polygon(x, y, polygon):
             if y <= max(p1y, p2y):
                 if x <= max(p1x, p2x):
                     if p1y != p2y:
-                        xinters = (y - p1y) * (p2x - p1x) / (
-                            p2y - p1y
-                        ) + p1x
+                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
                     if p1x == p2x or x <= xinters:
                         inside = not inside
         p1x, p1y = p2x, p2y
     return inside
-
 
 def find_room_by_coordinate(x, y, z_floor):
     for room_id, poly_info in ROOM_POLYGONS.items():
@@ -894,11 +885,10 @@ def find_room_by_coordinate(x, y, z_floor):
         if room_z != z_floor:
             continue
 
-        coords = poly_info.get("coordinates", [])
+        coords = poly_info.get("coords", [])
         if coords and point_in_polygon(x, y, coords):
             return room_id
     return None
-
 
 def get_nearest_graph_node(x, y, z_floor, graph_nodes):
     closest_node = None
@@ -1010,7 +1000,7 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
     return None
-    
+
 # ==============================================================================
 # 4. Map generation with Plotly
 # ==============================================================================
@@ -1091,7 +1081,6 @@ def draw_polygon_shape(coords, fill_color, opacity=0.3, line_color="#333333"):
         hoverinfo="text",
         mode="lines"
     )
-
 
 def wrap_text_to_fit(text: str, max_chars_per_line: int) -> str:
     words = text.split()
@@ -1281,7 +1270,7 @@ def render_2d_cad_view(active_floor_z, route_path=None, current_lang="English"):
     min_x, max_x, min_y, max_y = get_floor_bounds(active_floor_z)
 
     fig.update_layout(
-        height=650,  
+        height=650,
         margin=dict(l=15, r=15, t=30, b=15),
         showlegend=False,
         plot_bgcolor="#FFB6C1",
@@ -1385,7 +1374,7 @@ def render_3d_isometric_view(route_path=None, current_lang="English"):
             zaxis=dict(title="Floor Level", backgroundcolor="#F8FAFC"),
             aspectmode="data"
         ),
-        height=680,  
+        height=680,
         margin=dict(l=0, r=0, t=0, b=0)
     )
     return fig
@@ -1515,6 +1504,7 @@ def render_rooftop_parking_map(assigned_slot=None, route_path=None, current_lang
 # ==============================================================================
 # 5. Step-by-step directions and smart parking
 # ==============================================================================
+
 def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
     parking_status = {}
     for spot in all_parking_spots:
@@ -1522,7 +1512,6 @@ def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
     return parking_status
 
 def add_parking_infrastructure_annotations(fig, lang="English"):
-
     feature_nodes = {
         "P_L3_Driveway_Entrance": "lbl_entrance_ramp",
         "P_L3_Driveway_Exit": "lbl_exit_ramp",
@@ -1533,13 +1522,7 @@ def add_parking_infrastructure_annotations(fig, lang="English"):
 
     lang_map = {"en": "English", "zh": "Simplified Chinese", "ms": "Malay"}
     resolved_lang = lang_map.get(lang, lang)
-    
-    if isinstance(t, dict) and resolved_lang in t:
-        lang_dict = t[resolved_lang]
-    elif isinstance(t, dict) and "English" in t:
-        lang_dict = t["English"]
-    else:
-        lang_dict = t
+    lang_dict = LOCALIZATION.get(resolved_lang, LOCALIZATION["English"])
 
     existing_annotations = list(fig.layout.annotations) if fig.layout.annotations else []
     new_annotations = []
@@ -1572,7 +1555,6 @@ def add_parking_infrastructure_annotations(fig, lang="English"):
             )
 
     fig.layout.annotations = existing_annotations + new_annotations
-   
     return fig
 
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
@@ -1666,9 +1648,6 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     directions = []
 
-    start_icon = get_location_icon(path[0])
-    dest_icon = get_location_icon(path[1])
-
     start_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[0], path[0])}"
     first_dest_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[1], path[1])}"
     init_dist = euclidean_distance_3d(path[0], path[1], node_coords)
@@ -1682,9 +1661,6 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     for i in range(1, len(path) - 1):
         prev_node, curr_node, next_node = path[i - 1], path[i], path[i + 1]
-
-        curr_icon = get_location_icon(curr_node)
-        next_icon = get_location_icon(next_node)
 
         curr_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(curr_node, curr_node)}"
         next_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(next_node, next_node)}"
@@ -1730,7 +1706,6 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
         directions.append({"step": len(directions) + 1, "text": instruction_str, "icon": icon})
 
-    final_icon = get_location_icon(path[-1])
     final_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[-1], path[-1])}"
     arrival_text = {
         "English": f"You have arrived at your destination: **{final_poi}**.",
@@ -1764,9 +1739,8 @@ def compute_route_summary(path):
         "floors_crossed": max(0, len(floors_visited) - 1),
         "steps": len(path) - 1
     }
-    
+
 def format_location_label(room_id, lang):
-    icon = get_location_icon(room_id)
     z_val = int(MULTI_CAD_NODES[room_id][2])
     floor_code = "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
     name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id)
@@ -1943,32 +1917,32 @@ with tab_home:
             categorized_stores.setdefault(cat_key, []).append(room_id)
 
         st.markdown(
-          """
-          <style>
-          div[data-testid="stExpander"] details summary {
-            background-color: #D32F2F !important;
-            color: #FFFFFF !important;
-            border-radius: 8px 8px 0px 0px !important;
-            padding: 10px 16px !important;
-          }
+            """
+            <style>
+            div[data-testid="stExpander"] details summary {
+              background-color: #D32F2F !important;
+              color: #FFFFFF !important;
+              border-radius: 8px 8px 0px 0px !important;
+              padding: 10px 16px !important;
+            }
 
-          div[data-testid="stExpander"] details summary p,
-          div[data-testid="stExpander"] details summary svg {
-            color: #FFFFFF !important;
-            fill: #FFFFFF !important;
-            font-weight: bold !important;
-          }
+            div[data-testid="stExpander"] details summary p,
+            div[data-testid="stExpander"] details summary svg {
+              color: #FFFFFF !important;
+              fill: #FFFFFF !important;
+              font-weight: bold !important;
+            }
 
-          div[data-testid="stExpander"] details div[data-testid="stExpanderDetails"] {
-            background-color: #FF6700 !important;
-            border-radius: 0px 0px 8px 8px !important;
-            padding: 16px !important;
-            border: 1px solid #E65100 !important;
-            color: #000000 !important;
-          }
-          </style>
-          """,
-          unsafe_allow_html=True,
+            div[data-testid="stExpander"] details div[data-testid="stExpanderDetails"] {
+              background-color: #FF6700 !important;
+              border-radius: 0px 0px 8px 8px !important;
+              padding: 16px !important;
+              border: 1px solid #E65100 !important;
+              color: #000000 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
         )
 
         for cat_key, room_ids in categorized_stores.items():
@@ -1983,7 +1957,6 @@ with tab_home:
                 for idx, room_id in enumerate(room_ids):
                     col = store_cols[idx % 2]
 
-                    icon = get_location_icon(room_id)
                     z_val = (
                         int(MULTI_CAD_NODES[room_id][2])
                         if room_id in MULTI_CAD_NODES
@@ -2001,7 +1974,6 @@ with tab_home:
                     col.markdown(f"- **{clean_name}** `[{floor_code}]`")
     else:
         st.info("No store categories defined.")
-
 
 # Mall map tab
 with tab_map:
@@ -2203,22 +2175,10 @@ with tab_map:
         if node_id.startswith("P_") or (node_id.startswith("P") and node_id[1:].isdigit())
     ]
 
-    non_parking_nodes = {
-        "P_L3_Aisle_Main",
-        "P_L3_Driveway_Entrance",
-        "P_L3_Driveway_Exit",
-        "P_L3_Elevator",
-        "P_L3_Escalator",
-        "P_L3_Stairs",
-    }
-
-    parking_availability = get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.65)
-
     parkable_spots = [
         node_id for node_id in MULTI_CAD_NODES.keys()
         if node_id.startswith("P") and node_id[1:].isdigit()
     ]
-
 
     parking_availability = {
         spot: random.random() < 0.65 for spot in parkable_spots
@@ -2373,7 +2333,6 @@ with tab_map:
                 st.session_state.map_pick_step = "START"
                 st.rerun()
 
-                
 # Directions tab
 with tab_dir:
     st.subheader(t["route_summary"])
@@ -2381,7 +2340,7 @@ with tab_dir:
     if "path" not in locals():
         full_route_sequence = (
             [st.session_state.selected_start]
-            + st.session_state.waypoints
+            + [wp["value"] if isinstance(wp, dict) else wp for wp in st.session_state.waypoints]
             + [st.session_state.selected_dest]
         )
         path = []
