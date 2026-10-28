@@ -338,9 +338,10 @@ CATEGORY_TRANSLATIONS = {
 if "lang" not in st.session_state: st.session_state.lang = "English"
 if "selected_start" not in st.session_state: st.session_state.selected_start = "A_L0_Entrance"
 if "selected_dest" not in st.session_state: st.session_state.selected_dest = "A_L0_Lobby"
-if "assigned_parking" not in st.session_state: st.session_state.assigned_parking = None
-if "entry_path" not in st.session_state: st.session_state.entry_path = []
-if "exit_path" not in st.session_state: st.session_state.exit_path = []
+if "waypoints" not in st.session_state: st.session_state.waypoints = []
+if "map_pick_mode" not in st.session_state: st.session_state.map_pick_mode = False
+if "map_pick_step" not in st.session_state: st.session_state.map_pick_step = "START"
+if "last_processed_click" not in st.session_state: st.session_state.last_processed_click = None
 
 LOCATION_ICONS = {
     "Fashion": "👗", "Footwear": "👟", "Electronics": "📱", "Food & Beverage": "🍔",
@@ -590,7 +591,6 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
         if poly["z"] == active_floor_z
     }
 
-    # Compute bounding box for initial view and reset target
     all_pts = [pt for coords in floor_rooms.values() for pt in coords]
     if all_pts:
         min_x = min(p[0] for p in all_pts) - 10
@@ -602,15 +602,13 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
 
     bounds = [[min_y, min_x], [max_y, max_x]]
 
-    # Initialize map with visible zoom controls enabled
     m = folium.Map(
         crs="Simple",
         tiles=None,
-        zoom_control=True,        # Enables default + / - zoom buttons
-        scroll_wheel_zoom=True    # Enables mouse wheel zooming
+        zoom_control=True,
+        scroll_wheel_zoom=True
     )
 
-    # 1. Add Fullscreen Plugin Control
     Fullscreen(
         position="topleft",
         title="Expand map",
@@ -618,40 +616,6 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
         force_separate_button=True
     ).add_to(m)
 
-    # 2. Add JavaScript Custom Reset View Button
-    reset_button_js = f"""
-    <script>
-    function addResetButton() {{
-        var map = L.map;
-        var bounds = {bounds};
-        
-        var customControl = L.Control.extend({{
-            options: {{ position: 'topleft' }},
-            onAdd: function (map) {{
-                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-                container.style.backgroundColor = 'white';
-                container.style.width = '30px';
-                container.style.height = '30px';
-                container.style.lineHeight = '30px';
-                container.style.textAlign = 'center';
-                container.style.cursor = 'pointer';
-                container.style.fontSize = '16px';
-                container.title = 'Reset View';
-                container.innerHTML = '🔄';
-                
-                container.onclick = function() {{
-                    map.fitBounds(bounds);
-                }}
-                return container;
-            }}
-        }});
-        map.addControl(new customControl());
-    }}
-    </script>
-    """
-    m.get_root().html.add_child(folium.Element(reset_button_js))
-
-    # 3. Render Floor Polygons
     for room_id, coords in floor_rooms.items():
         room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
@@ -687,7 +651,6 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
             )
         ).add_to(m)
 
-    # 4. Render Route Polyline & Markers
     if route_path:
         floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
 
@@ -719,11 +682,8 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
                 icon=folium.Icon(color="green", icon="flag")
             ).add_to(m)
 
-    # Fit Map View to Floorplan Bounds
     m.fit_bounds(bounds)
-
     return m
-
 
 def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang="English"):
     rooftop_rooms = {
@@ -790,11 +750,10 @@ def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang=
             folium.PolyLine(locations=line_pts, color="#2563EB", weight=4).add_to(m)
 
     m.fit_bounds([[min_y, min_x], [max_y, max_x]])
-
     return m
 
 # ==============================================================================
-# 4. Routing Engine Helpers
+# 4. Helpers & Navigation Directions
 # ==============================================================================
 
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
@@ -955,7 +914,7 @@ def format_location_label(room_id, lang):
     return f"[{floor_code}] {clean_name}"
 
 # ==============================================================================
-# 5. Application UI & Navigation Tabs
+# 5. UI Layout & Navigation Tabs
 # ==============================================================================
 
 t = LOCALIZATION[st.session_state.lang]
@@ -965,8 +924,6 @@ home_tab_title = {
 }.get(st.session_state.lang, "🏠 Home")
 
 tab_home, tab_map, tab_dir, tab_park = st.tabs([home_tab_title, t["tab_nav"], t["tab_directions"], t["tab_parking"]])
-
-if "waypoints" not in st.session_state: st.session_state.waypoints = []
 
 with st.sidebar:
     st.header(t["config_header"])
@@ -999,58 +956,12 @@ with tab_home:
     c3.metric(t["spots_metric"], total_slots)
     c4.metric(t["available_metric"], available_slots)
 
-# Mall Map Tab with Interactive Route Selection Restored
+# Mall Map Tab
 with tab_map:
-    if "waypoint_counter" not in st.session_state:
-        st.session_state.waypoint_counter = 0
-
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
-
-        # Interactive Map Pick Mode Controls
-        c_pick1, c_pick2, c_pick3 = st.columns([1.5, 1, 1])
-        with c_pick1:
-            if not st.session_state.map_pick_mode:
-                if st.button(t["btn_interactive_pick"], use_container_width=True):
-                    st.session_state.map_pick_mode = True
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-            else:
-                if st.button(t["btn_cancel_interactive"], use_container_width=True):
-                    st.session_state.map_pick_mode = False
-                    st.rerun()
-
-        with c_pick2:
-            if st.button(t["btn_add_stop_manual"], use_container_width=True):
-                st.session_state.waypoint_counter += 1
-                new_key = f"waypoint_{st.session_state.waypoint_counter}"
-                st.session_state.waypoints.append({"key": new_key, "value": room_options[0]})
-                st.rerun()
-
-        with c_pick3:
-            if st.button(t["btn_reset_all"], use_container_width=True):
-                st.session_state.waypoints = []
-                st.session_state.selected_start = "A_L0_Entrance"
-                st.session_state.selected_dest = "A_L0_Lobby"
-                st.session_state.map_pick_mode = False
-                st.rerun()
-
-        # Banner for Interactive Selection Mode
-        if st.session_state.map_pick_mode:
-            st.divider()
-            if st.session_state.map_pick_step == "START":
-                st.info(t["pick_step_1"])
-            elif st.session_state.map_pick_step == "STOPS":
-                st.info(t["pick_step_2"])
-                if st.button(t["btn_done_adding_stops"]):
-                    st.session_state.map_pick_step = "DEST"
-                    st.rerun()
-            elif st.session_state.map_pick_step == "DEST":
-                st.info(t["pick_step_3"])
-            st.divider()
-
-        # Manual Dropdown Controls
         col_start, col_dest = st.columns(2)
+
         with col_start:
             start_node = st.selectbox(
                 t["start_loc"],
@@ -1069,57 +980,76 @@ with tab_map:
         st.session_state.selected_start = start_node
         st.session_state.selected_dest = dest_node
 
-       # Dynamic Intermediate Stops List
-if st.session_state.waypoints:
-    st.markdown(f"**{t['intermediate_stops']}:**")
-    
-    # Normalize waypoints structure to ensure every item is a dictionary with a valid 'key' and 'value'
-    normalized_waypoints = []
-    for idx, wp in enumerate(st.session_state.waypoints):
-        if isinstance(wp, dict) and "key" in wp and "value" in wp:
-            normalized_waypoints.append(wp)
-        else:
-            # Convert raw string waypoints into proper dict format
-            wp_val = wp["value"] if isinstance(wp, dict) and "value" in wp else str(wp)
-            normalized_waypoints.append({"key": f"waypoint_{idx + 1}", "value": wp_val})
-    
-    st.session_state.waypoints = normalized_waypoints
-
-    for idx, wp in enumerate(st.session_state.waypoints):
-        col_wp_select, col_wp_del = st.columns([0.85, 0.15])
-        
-        # Safely fall back to fallback keys if key is missing
-        wp_key = wp.get("key", f"waypoint_{idx}")
-        wp_value = wp.get("value", room_options[0])
-
-        with col_wp_select:
-            wp_val = st.selectbox(
-                t["stop_lbl"].format(idx=idx + 1),
-                options=room_options,
-                format_func=lambda r: format_location_label(r, st.session_state.lang),
-                index=room_options.index(wp_value) if wp_value in room_options else 0,
-                key=f"select_{wp_key}"
-            )
-            st.session_state.waypoints[idx]["value"] = wp_val
-
-        with col_wp_del:
-            st.write("")
-            st.write("")
-            if st.button("🗑️", key=f"del_{wp_key}"):
-                st.session_state.waypoints.pop(idx)
-                st.rerun()
-
         route_pref = st.radio(t["route_type"], options=[t["shortest"], t["accessible"]], horizontal=True)
         accessible_flag = (route_pref == t["accessible"])
 
-        # Construct full sequential route
+        # Manual / Managed Intermediate Waypoints Section
+        st.markdown(f"#### {t['intermediate_stops']}")
+        if st.session_state.waypoints:
+            for idx, wp in enumerate(list(st.session_state.waypoints)):
+                wp_val = wp["value"] if isinstance(wp, dict) else wp
+                wp_col1, wp_col2 = st.columns([0.85, 0.15])
+                with wp_col1:
+                    new_val = st.selectbox(
+                        t["stop_lbl"].format(idx=idx+1),
+                        options=room_options,
+                        format_func=lambda r: format_location_label(r, st.session_state.lang),
+                        index=room_options.index(wp_val) if wp_val in room_options else 0,
+                        key=f"wp_select_{idx}"
+                    )
+                    st.session_state.waypoints[idx] = new_val
+                with wp_col2:
+                    st.write("")
+                    st.write("")
+                    if st.button("🗑️", key=f"del_wp_{idx}"):
+                        st.session_state.waypoints.pop(idx)
+                        st.rerun()
+
+        col_add_stop, col_pick_mode, col_reset = st.columns(3)
+        with col_add_stop:
+            if st.button(t["btn_add_stop_manual"]):
+                default_stop = [r for r in room_options if r not in [st.session_state.selected_start, st.session_state.selected_dest]][0]
+                st.session_state.waypoints.append(default_stop)
+                st.rerun()
+
+        with col_pick_mode:
+            if not st.session_state.map_pick_mode:
+                if st.button(t["btn_interactive_pick"], type="primary"):
+                    st.session_state.map_pick_mode = True
+                    st.session_state.map_pick_step = "START"
+                    st.rerun()
+            else:
+                if st.button(t["btn_cancel_interactive"]):
+                    st.session_state.map_pick_mode = False
+                    st.rerun()
+
+        with col_reset:
+            if st.button(t["btn_reset_all"]):
+                st.session_state.selected_start = "A_L0_Entrance"
+                st.session_state.selected_dest = "A_L0_Lobby"
+                st.session_state.waypoints = []
+                st.session_state.map_pick_mode = False
+                st.rerun()
+
         extracted_waypoints = [wp["value"] if isinstance(wp, dict) else wp for wp in st.session_state.waypoints]
         full_route_sequence = [st.session_state.selected_start] + extracted_waypoints + [st.session_state.selected_dest]
 
         route_display_str = " ➔ ".join([f"`{format_location_label(loc, st.session_state.lang)}`" for loc in full_route_sequence])
         st.markdown(f"**{t['current_route_lbl']}:** {route_display_str}")
 
-    # Path Computation across all segments
+    # Display instructions if in Interactive Route Selection Mode
+    if st.session_state.map_pick_mode:
+        if st.session_state.map_pick_step == "START":
+            st.info(t["pick_step_1"])
+        elif st.session_state.map_pick_step == "STOPS":
+            st.info(t["pick_step_2"])
+            if st.button(t["btn_done_adding_stops"], type="primary"):
+                st.session_state.map_pick_step = "DEST"
+                st.rerun()
+        elif st.session_state.map_pick_step == "DEST":
+            st.info(t["pick_step_3"])
+
+    # Path Computation
     full_path = []
     for i in range(len(full_route_sequence) - 1):
         segment_path = theta_star_3d(full_route_sequence[i], full_route_sequence[i + 1], MULTI_CAD_GRAPH, MULTI_CAD_NODES, accessible_only=accessible_flag)
@@ -1131,59 +1061,70 @@ if st.session_state.waypoints:
 
     path = full_path
 
-    # Active Floor Selection
     floor_select = st.selectbox(
         t["active_floor"],
         options=[0, 1, 2, 3],
         format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
     )
 
-    # Render Interactive Folium Canvas
     folium_map = render_2d_folium_view(floor_select, route_path=path, current_lang=st.session_state.lang)
-    map_data = st_folium(folium_map, height=550, width=1000)
+    map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map")
 
-    # Click-Anywhere Logic Handler
+    # Interactive Route Pick Logic & Click-Anywhere Handler
     if map_data and map_data.get("last_clicked"):
-        click_x, click_y = map_data["last_clicked"]["lng"], map_data["last_clicked"]["lat"]
+        click_lat = map_data["last_clicked"]["lat"]
+        click_lng = map_data["last_clicked"]["lng"]
+        click_signature = (click_lat, click_lng)
 
-        room_hit = find_room_by_coordinate(click_x, click_y, floor_select)
-        if not room_hit:
-            room_hit, _ = get_nearest_graph_node(click_x, click_y, floor_select, MULTI_CAD_NODES)
+        if click_signature != st.session_state.last_processed_click:
+            st.session_state.last_processed_click = click_signature
+            click_x, click_y = click_lng, click_lat
 
-        if room_hit:
-            if st.session_state.map_pick_mode:
-                # Guided Selection Logic
-                if st.session_state.map_pick_step == "START":
-                    st.session_state.selected_start = room_hit
-                    st.session_state.map_pick_step = "STOPS"
-                    st.rerun()
-                elif st.session_state.map_pick_step == "STOPS":
-                    st.session_state.waypoint_counter += 1
-                    new_key = f"waypoint_{st.session_state.waypoint_counter}"
-                    st.session_state.waypoints.append({"key": new_key, "value": room_hit})
-                    st.rerun()
-                elif st.session_state.map_pick_step == "DEST":
-                    st.session_state.selected_dest = room_hit
-                    st.session_state.map_pick_mode = False
-                    st.rerun()
-            else:
-                # Standalone Click Handler
-                st.info(f"📍 Clicked Location: **{format_location_label(room_hit, st.session_state.lang)}**")
-                col_b1, col_b2, col_b3 = st.columns(3)
-                with col_b1:
-                    if st.button(t["btn_set_start"]):
-                        st.session_state.selected_start = room_hit
+            # Try room polygon match first, fallback to nearest graph node
+            clicked_node = find_room_by_coordinate(click_x, click_y, floor_select)
+            if not clicked_node:
+                clicked_node, _ = get_nearest_graph_node(click_x, click_y, floor_select, MULTI_CAD_NODES)
+
+            if clicked_node:
+                if st.session_state.map_pick_mode:
+                    if st.session_state.map_pick_step == "START":
+                        st.session_state.selected_start = clicked_node
+                        st.session_state.waypoints = []
+                        st.session_state.map_pick_step = "STOPS"
                         st.rerun()
-                with col_b2:
-                    if st.button(t["btn_add_as_stop"]):
-                        st.session_state.waypoint_counter += 1
-                        new_key = f"waypoint_{st.session_state.waypoint_counter}"
-                        st.session_state.waypoints.append({"key": new_key, "value": room_hit})
+                    elif st.session_state.map_pick_step == "STOPS":
+                        st.session_state.waypoints.append(clicked_node)
                         st.rerun()
-                with col_b3:
-                    if st.button(t["btn_set_dest"]):
-                        st.session_state.selected_dest = room_hit
+                    elif st.session_state.map_pick_step == "DEST":
+                        st.session_state.selected_dest = clicked_node
+                        st.session_state.map_pick_mode = False
                         st.rerun()
+                else:
+                    st.session_state["active_click_node"] = clicked_node
+
+    if not st.session_state.map_pick_mode and "active_click_node" in st.session_state:
+        clicked_loc = st.session_state["active_click_node"]
+        st.info(t["selected_on_map"].format(location=format_location_label(clicked_loc, st.session_state.lang)))
+        c_b1, c_b2, c_b3, c_b4 = st.columns(4)
+        with c_b1:
+            if st.button(t["btn_set_start"]):
+                st.session_state.selected_start = clicked_loc
+                del st.session_state["active_click_node"]
+                st.rerun()
+        with c_b2:
+            if st.button(t["btn_add_as_stop"]):
+                st.session_state.waypoints.append(clicked_loc)
+                del st.session_state["active_click_node"]
+                st.rerun()
+        with c_b3:
+            if st.button(t["btn_set_dest"]):
+                st.session_state.selected_dest = clicked_loc
+                del st.session_state["active_click_node"]
+                st.rerun()
+        with c_b4:
+            if st.button(t["btn_cancel"]):
+                del st.session_state["active_click_node"]
+                st.rerun()
 
 # Directions Tab
 with tab_dir:
