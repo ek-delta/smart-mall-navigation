@@ -320,9 +320,6 @@ ROOM_POLYGONS = {
     "P_L3_Stairs": {"z": 3, "coords": [(30, -28), (50, -28), (50, -4), (30, -4)], "color": "#FF8C00"}
 }
 
-# ==============================================================================
-# Updated CAD Nodes (Including Dedicated Corridor Grid Nodes per Floor)
-# ==============================================================================
 MULTI_CAD_NODES = {
     # --- Ground Floor (Z=0) ---
     "A_L0_Entrance": (-40.0, 8.0, 0),
@@ -334,7 +331,7 @@ MULTI_CAD_NODES = {
     "A_L0_Elevator": (40.0, 14.0, 0),
     "A_L0_Escalator": (40.0, 2.0, 0),
     "A_L0_Stairs": (40.0, -16.0, 0),
-    # Ground Floor Corridor Nodes (Grid Bypasses)
+    # Ground Floor Corridor Grid Nodes
     "H_L0_West": (-20.0, 8.0, 0),
     "H_L0_East": (20.0, 8.0, 0),
     "H_L0_North": (0.0, 20.0, 0),
@@ -349,7 +346,7 @@ MULTI_CAD_NODES = {
     "A_L1_Elevator": (40.0, 14.0, 1),
     "A_L1_Escalator": (40.0, 2.0, 1),
     "A_L1_Stairs": (40.0, -16.0, 1),
-    # 1st Floor Corridor Nodes
+    # 1st Floor Corridor Grid Nodes
     "H_L1_West": (-20.0, 8.0, 1),
     "H_L1_East": (20.0, 8.0, 1),
     "H_L1_South_West": (-15.0, -4.0, 1),
@@ -365,7 +362,7 @@ MULTI_CAD_NODES = {
     "B_L2_Elevator": (40.0, 14.0, 2),
     "B_L2_Escalator": (40.0, 2.0, 2),
     "B_L2_Stairs": (40.0, -16.0, 2),
-    # 2nd Floor Corridor Nodes
+    # 2nd Floor Corridor Grid Nodes
     "H_L2_West": (-20.0, 8.0, 2),
     "H_L2_East": (20.0, 8.0, 2),
     "H_L2_South_West": (-15.0, -4.0, 2),
@@ -382,9 +379,6 @@ MULTI_CAD_NODES = {
     "P_L3_Stairs": (40.0, -16.0, 3)
 }
 
-# ==============================================================================
-# Updated Mesh Graph (Direct Hallway-to-Hallway Connectivity)
-# ==============================================================================
 MULTI_CAD_GRAPH = {
     # --- Ground Floor Connections ---
     "A_L0_Entrance": {"H_L0_West": 20.0, "Fashion Hub": 27.5},
@@ -485,7 +479,10 @@ def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
     return True
 
 def resolve_click_to_dynamic_node(click_x, click_y, floor_z, graph, node_coords):
-    """Creates a dynamic virtual node at exact clicked coordinates and links it to ALL visible nodes on the floor."""
+    """
+    Creates a dynamic virtual node at exact clicked coordinates and connects it 
+    directly to all visible hallway nodes or adjacent dynamic points on the floor.
+    """
     temp_node_id = f"Dynamic_Point_({click_x:.2f}_{click_y:.2f}_Z{floor_z})"
     node_coords[temp_node_id] = (click_x, click_y, floor_z)
     graph[temp_node_id] = {}
@@ -494,19 +491,17 @@ def resolve_click_to_dynamic_node(click_x, click_y, floor_z, graph, node_coords)
         if node_id == temp_node_id: continue
         nx, ny, nz = coords
         if int(nz) == int(floor_z):
-            if has_line_of_sight_3d(temp_node_id, node_id, node_coords, WALL_SEGMENTS_BY_FLOOR):
-                dist = math.hypot(click_x - nx, click_y - ny)
-                graph[temp_node_id][node_id] = dist
-                if node_id not in graph: graph[node_id] = {}
-                graph[node_id][temp_node_id] = dist
+            # Connect only to hallway grid nodes (H_L*) or other dynamic points
+            if node_id.startswith("H_L") or node_id.startswith("Dynamic_Point") or "Aisle" in node_id:
+                if has_line_of_sight_3d(temp_node_id, node_id, node_coords, WALL_SEGMENTS_BY_FLOOR):
+                    dist = math.hypot(click_x - nx, click_y - ny)
+                    graph[temp_node_id][node_id] = dist
+                    if node_id not in graph: graph[node_id] = {}
+                    graph[node_id][temp_node_id] = dist
                 
     return temp_node_id
 
 def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
-    """
-    Resolves all start, waypoint, and destination points, connecting dynamic clicked 
-    points DIRECTLY to each other if they share line-of-sight without routing through lobby.
-    """
     resolved_sequence = []
     
     for pt in route_sequence:
@@ -784,8 +779,10 @@ with tab_map:
                 index=room_options.index(st.session_state.selected_dest) if isinstance(st.session_state.selected_dest, str) and st.session_state.selected_dest in room_options else len(room_options)-1,
             )
 
-        if isinstance(st.session_state.selected_start, str): st.session_state.selected_start = start_node
-        if isinstance(st.session_state.selected_dest, str): st.session_state.selected_dest = dest_node
+        # Only sync selectboxes if NOT in map click mode
+        if not st.session_state.map_pick_mode:
+            if isinstance(st.session_state.selected_start, str): st.session_state.selected_start = start_node
+            if isinstance(st.session_state.selected_dest, str): st.session_state.selected_dest = dest_node
 
         route_pref = st.radio(t["route_type"], options=[t["shortest"], t["accessible"]], horizontal=True)
         accessible_flag = (route_pref == t["accessible"])
@@ -826,7 +823,7 @@ with tab_map:
         elif st.session_state.map_pick_step == "DEST":
             st.info(t["pick_step_3"])
 
-    # 3. Dynamic Point Injection & Direct Click-to-Click Connection
+    # 3. Dynamic Point Injection & Path Accumulation
     temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
     temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
 
@@ -860,25 +857,24 @@ with tab_map:
     map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map", returned_objects=["last_clicked"])
 
     if map_data and map_data.get("last_clicked"):
-        click_lat = map_data["last_clicked"]["lat"]
-        click_lng = map_data["last_clicked"]["lng"]
-        click_sig = (click_lat, click_lng)
+        click_y = map_data["last_clicked"]["lat"] # Folium Lat = Y
+        click_x = map_data["last_clicked"]["lng"] # Folium Lng = X
+        click_sig = (click_x, click_y, floor_select)
 
         if click_sig != st.session_state.last_processed_click:
             st.session_state.last_processed_click = click_sig
-            raw_point = (click_lng, click_lat, floor_select)
 
             if st.session_state.map_pick_mode:
                 if st.session_state.map_pick_step == "START":
-                    st.session_state.selected_start = raw_point
+                    st.session_state.selected_start = click_sig
                     st.session_state.waypoints = []
                     st.session_state.map_pick_step = "STOPS"
                     st.rerun()
                 elif st.session_state.map_pick_step == "STOPS":
-                    st.session_state.waypoints.append(raw_point)
+                    st.session_state.waypoints.append(click_sig)
                     st.rerun()
                 elif st.session_state.map_pick_step == "DEST":
-                    st.session_state.selected_dest = raw_point
+                    st.session_state.selected_dest = click_sig
                     st.session_state.map_pick_mode = False
                     st.rerun()
 
