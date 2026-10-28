@@ -249,12 +249,6 @@ STORE_CATEGORIES = {
     "A_L1_Escalator": "Facility", "B_L2_Escalator": "Facility"
 }
 
-CATEGORY_TRANSLATIONS = {
-    "English": {"Apparel": "Apparel", "Electronics": "Electronics", "Jewelry": "Jewelry", "Supermarket": "Supermarket", "Food & Beverage": "Food & Beverage", "Books": "Books", "Cinema": "Cinema", "Arcade": "Arcade", "Restroom": "Restroom", "Facility": "Facility"},
-    "Simplified Chinese": {"Apparel": "服装饰品", "Electronics": "电子数码", "Jewelry": "珠宝首饰", "Supermarket": "超级市场", "Food & Beverage": "餐饮美食", "Books": "图书文具", "Cinema": "电影院", "Arcade": "娱乐电玩", "Restroom": "洗手间", "Facility": "公共设施"},
-    "Malay": {"Apparel": "Pakaian", "Electronics": "Barangan Elektronik", "Jewelry": "Barang Kemas", "Supermarket": "Pasar Raya", "Food & Beverage": "Makanan & Minuman", "Books": "Buku", "Cinema": "Pawagam", "Arcade": "Pusat Rekreasi", "Restroom": "Tandas", "Facility": "Kemudahan"}
-}
-
 if "lang" not in st.session_state: st.session_state.lang = "English"
 if "selected_start" not in st.session_state: st.session_state.selected_start = "A_L0_Entrance"
 if "selected_dest" not in st.session_state: st.session_state.selected_dest = "A_L0_Lobby"
@@ -264,9 +258,8 @@ if "map_pick_step" not in st.session_state: st.session_state.map_pick_step = "ST
 if "last_processed_click" not in st.session_state: st.session_state.last_processed_click = None
 
 LOCATION_ICONS = {
-    "Fashion": "👗", "Footwear": "👟", "Electronics": "📱", "Food & Beverage": "🍔",
-    "Supermarket": "🛒", "Department Store": "🏬", "Pharmacy & Health": "💊",
-    "Entertainment": "🎬", "Services": "🛠️", "Elevator": "🛗", "Escalator": "🪜",
+    "Fashion": "👗", "Electronics": "📱", "Food & Beverage": "🍔",
+    "Supermarket": "🛒", "Elevator": "🛗", "Escalator": "🪜",
     "Stairs": "🧗", "Entrance": "🚪", "Restroom": "🚻", "Parking": "🅿️", "Default": "📍"
 }
 
@@ -378,7 +371,7 @@ PARKING_SLOTS = {
 }
 
 # ==============================================================================
-# 2. Geometry & Dynamic Point Injection
+# 2. Dynamic Line of Sight & Routing Logic
 # ==============================================================================
 
 def extract_wall_segments(room_polygons):
@@ -419,30 +412,25 @@ def resolve_click_to_dynamic_node(click_x, click_y, floor_z, graph, node_coords)
     node_coords[temp_node_id] = (click_x, click_y, floor_z)
     graph[temp_node_id] = {}
 
-    # Connect to existing graph nodes if there is a clear line of sight
     for node_id, coords in list(node_coords.items()):
-        if node_id == temp_node_id: 
-            continue
+        if node_id == temp_node_id: continue
         nx, ny, nz = coords
         if int(nz) == int(floor_z):
             if has_line_of_sight_3d(temp_node_id, node_id, node_coords, WALL_SEGMENTS_BY_FLOOR):
                 dist = math.hypot(click_x - nx, click_y - ny)
                 graph[temp_node_id][node_id] = dist
-                if node_id not in graph: 
-                    graph[node_id] = {}
+                if node_id not in graph: graph[node_id] = {}
                 graph[node_id][temp_node_id] = dist
                 
     return temp_node_id
 
-
 def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
     """
     Resolves all start, waypoint, and destination points, connecting dynamic clicked 
-    points DIRECTLY to each other if they share line-of-sight.
+    points DIRECTLY to each other if they share line-of-sight without routing through lobby.
     """
     resolved_sequence = []
     
-    # 1. Resolve each point in the sequence into the node dictionary
     for pt in route_sequence:
         if isinstance(pt, tuple) and len(pt) == 3:
             px, py, pz = pt
@@ -451,7 +439,6 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
         else:
             resolved_sequence.append(pt)
 
-    # 2. Directly connect adjacent dynamic points if line of sight is clear
     for i in range(len(resolved_sequence) - 1):
         node_a = resolved_sequence[i]
         node_b = resolved_sequence[i + 1]
@@ -464,8 +451,7 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
                 bx, by, _ = nodes_copy[node_b]
                 dist = math.hypot(ax - bx, ay - by)
                 graph_copy[node_a][node_b] = dist
-                if node_b not in graph_copy: 
-                    graph_copy[node_b] = {}
+                if node_b not in graph_copy: graph_copy[node_b] = {}
                 graph_copy[node_b][node_a] = dist
 
     return resolved_sequence
@@ -695,14 +681,12 @@ with tab_home:
 
 # Mall Map Tab
 with tab_map:
-    # 1. Active Floor Selection
     floor_select = st.selectbox(
         t["active_floor"],
         options=[0, 1, 2, 3],
         format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
     )
 
-    # 2. Controls & Waypoint Management
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
         col_start, col_dest = st.columns(2)
@@ -753,7 +737,6 @@ with tab_map:
                 st.session_state.map_pick_mode = False
                 st.rerun()
 
-    # Mode Instructions
     if st.session_state.map_pick_mode:
         if st.session_state.map_pick_step == "START":
             st.info(t["pick_step_1"])
@@ -765,7 +748,7 @@ with tab_map:
         elif st.session_state.map_pick_step == "DEST":
             st.info(t["pick_step_3"])
 
-   # 3. Dynamic Point Injection & Direct Click-to-Click Connection
+    # 3. Dynamic Point Injection & Direct Click-to-Click Connection
     temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
     temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
 
@@ -798,7 +781,6 @@ with tab_map:
     folium_map = render_2d_folium_view(floor_select, route_path=path, node_coords_dict=temp_nodes, current_lang=st.session_state.lang)
     map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map", returned_objects=["last_clicked"])
 
-    # Click-Anywhere Handler
     if map_data and map_data.get("last_clicked"):
         click_lat = map_data["last_clicked"]["lat"]
         click_lng = map_data["last_clicked"]["lng"]
