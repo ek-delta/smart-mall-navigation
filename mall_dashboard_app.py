@@ -414,7 +414,7 @@ def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
     return True
 
 def resolve_click_to_dynamic_node(click_x, click_y, floor_z, graph, node_coords):
-    """Creates a virtual node at exact clicked (X, Y) coordinates and connects it to the graph."""
+    """Creates a virtual node at exact clicked (X, Y) coordinates and connects directly to all visible floor nodes."""
     temp_node_id = f"Dynamic_Point_({click_x:.2f}_{click_y:.2f}_Z{floor_z})"
     node_coords[temp_node_id] = (click_x, click_y, floor_z)
     graph[temp_node_id] = {}
@@ -424,7 +424,7 @@ def resolve_click_to_dynamic_node(click_x, click_y, floor_z, graph, node_coords)
         nx, ny, nz = coords
         if int(nz) == int(floor_z):
             dist = math.hypot(click_x - nx, click_y - ny)
-            if dist <= 60.0 and has_line_of_sight_3d(temp_node_id, node_id, node_coords, WALL_SEGMENTS_BY_FLOOR):
+            if has_line_of_sight_3d(temp_node_id, node_id, node_coords, WALL_SEGMENTS_BY_FLOOR):
                 graph[temp_node_id][node_id] = dist
                 if node_id not in graph: graph[node_id] = {}
                 graph[node_id][temp_node_id] = dist
@@ -662,7 +662,7 @@ with tab_home:
 
 # Mall Map Tab
 with tab_map:
-    # 1. Floor Selector MUST be defined before route resolution
+    # 1. Active Floor Selection
     floor_select = st.selectbox(
         t["active_floor"],
         options=[0, 1, 2, 3],
@@ -732,51 +732,40 @@ with tab_map:
         elif st.session_state.map_pick_step == "DEST":
             st.info(t["pick_step_3"])
 
-    # 3. Dynamic Point Injections & Path Computation
-    # 3. Dynamic Point Injections & Path Computation
+    # 3. Dynamic Point Injection & Route Segment Stitching
     temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
     temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
 
     resolved_start = resolve_route_point(st.session_state.selected_start, floor_select, temp_graph, temp_nodes)
     resolved_dest = resolve_route_point(st.session_state.selected_dest, floor_select, temp_graph, temp_nodes)
-    resolved_waypoints = [
-        resolve_route_point(wp, floor_select, temp_graph, temp_nodes) 
-        for wp in st.session_state.waypoints
-    ]
+    resolved_waypoints = [resolve_route_point(wp, floor_select, temp_graph, temp_nodes) for wp in st.session_state.waypoints]
 
     full_route_sequence = [resolved_start] + resolved_waypoints + [resolved_dest]
 
     full_path = []
-    path_valid = True
+    route_failed = False
 
     for i in range(len(full_route_sequence) - 1):
-        curr_start = full_route_sequence[i]
-        curr_end = full_route_sequence[i + 1]
+        seg_start = full_route_sequence[i]
+        seg_end = full_route_sequence[i + 1]
 
-        # Calculate path for the current leg
-        segment_path = theta_star_3d(
-            curr_start, 
-            curr_end, 
-            temp_graph, 
-            temp_nodes, 
-            accessible_only=accessible_flag
-        )
+        if seg_start == seg_end:
+            continue
 
+        segment_path = theta_star_3d(seg_start, seg_end, temp_graph, temp_nodes, accessible_only=accessible_flag)
         if segment_path:
             if not full_path:
                 full_path.extend(segment_path)
             else:
-                # Avoid duplicating the junction node between legs
                 full_path.extend(segment_path[1:])
         else:
-            path_valid = False
+            route_failed = True
             break
 
-    if not path_valid:
-        full_path = []
+    path = [] if route_failed else full_path
 
     # 4. Render Map Canvas & Process Clicks
-    folium_map = render_2d_folium_view(floor_select, route_path=full_path, node_coords_dict=temp_nodes, current_lang=st.session_state.lang)
+    folium_map = render_2d_folium_view(floor_select, route_path=path, node_coords_dict=temp_nodes, current_lang=st.session_state.lang)
     map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map", returned_objects=["last_clicked"])
 
     # Click-Anywhere Handler
@@ -806,8 +795,8 @@ with tab_map:
 # Directions Tab
 with tab_dir:
     st.subheader(t["route_summary"])
-    if full_path:
-        st.success(f"Route calculated with {len(full_path)} path nodes.")
+    if path:
+        st.success(f"Route calculated with {len(path)} path nodes.")
     else:
         st.warning(t["no_route"])
 
