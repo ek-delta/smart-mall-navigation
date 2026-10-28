@@ -1069,26 +1069,45 @@ with tab_map:
         st.session_state.selected_start = start_node
         st.session_state.selected_dest = dest_node
 
-        # Dynamic Intermediate Stops List
-        if st.session_state.waypoints:
-            st.markdown(f"**{t['intermediate_stops']}:**")
-            for idx, wp in enumerate(st.session_state.waypoints):
-                col_wp_select, col_wp_del = st.columns([0.85, 0.15])
-                with col_wp_select:
-                    wp_val = st.selectbox(
-                        t["stop_lbl"].format(idx=idx+1),
-                        options=room_options,
-                        format_func=lambda r: format_location_label(r, st.session_state.lang),
-                        index=room_options.index(wp["value"]) if wp["value"] in room_options else 0,
-                        key=f"select_{wp['key']}"
-                    )
-                    st.session_state.waypoints[idx]["value"] = wp_val
-                with col_wp_del:
-                    st.write("")
-                    st.write("")
-                    if st.button("🗑️", key=f"del_{wp['key']}"):
-                        st.session_state.waypoints.pop(idx)
-                        st.rerun()
+       # Dynamic Intermediate Stops List
+if st.session_state.waypoints:
+    st.markdown(f"**{t['intermediate_stops']}:**")
+    
+    # Normalize waypoints structure to ensure every item is a dictionary with a valid 'key' and 'value'
+    normalized_waypoints = []
+    for idx, wp in enumerate(st.session_state.waypoints):
+        if isinstance(wp, dict) and "key" in wp and "value" in wp:
+            normalized_waypoints.append(wp)
+        else:
+            # Convert raw string waypoints into proper dict format
+            wp_val = wp["value"] if isinstance(wp, dict) and "value" in wp else str(wp)
+            normalized_waypoints.append({"key": f"waypoint_{idx + 1}", "value": wp_val})
+    
+    st.session_state.waypoints = normalized_waypoints
+
+    for idx, wp in enumerate(st.session_state.waypoints):
+        col_wp_select, col_wp_del = st.columns([0.85, 0.15])
+        
+        # Safely fall back to fallback keys if key is missing
+        wp_key = wp.get("key", f"waypoint_{idx}")
+        wp_value = wp.get("value", room_options[0])
+
+        with col_wp_select:
+            wp_val = st.selectbox(
+                t["stop_lbl"].format(idx=idx + 1),
+                options=room_options,
+                format_func=lambda r: format_location_label(r, st.session_state.lang),
+                index=room_options.index(wp_value) if wp_value in room_options else 0,
+                key=f"select_{wp_key}"
+            )
+            st.session_state.waypoints[idx]["value"] = wp_val
+
+        with col_wp_del:
+            st.write("")
+            st.write("")
+            if st.button("🗑️", key=f"del_{wp_key}"):
+                st.session_state.waypoints.pop(idx)
+                st.rerun()
 
         route_pref = st.radio(t["route_type"], options=[t["shortest"], t["accessible"]], horizontal=True)
         accessible_flag = (route_pref == t["accessible"])
