@@ -320,73 +320,34 @@ ROOM_POLYGONS = {
     "P_L3_Stairs": {"z": 3, "coords": [(30, -28), (50, -28), (50, -4), (30, -4)], "color": "#FF8C00"}
 }
 
-# ==============================================================================
-# Updated CAD Nodes (Including Dedicated Corridor Grid Nodes per Floor)
-# ==============================================================================
 MULTI_CAD_NODES = {
-    # --- Ground Floor (Z=0) ---
-    "A_L0_Entrance": (-40.0, 8.0, 0),
-    "A_L0_Info": (-40.0, 32.0, 0),
-    "A_L0_Lobby": (0.0, 8.0, 0),
-    "Fashion Hub": (0.0, -16.0, 0),
-    "Mega Supermarket": (0.0, 32.0, 0),
-    "A_L0_Restroom": (40.0, 32.0, 0),
-    "A_L0_Elevator": (40.0, 14.0, 0),
-    "A_L0_Escalator": (40.0, 2.0, 0),
-    "A_L0_Stairs": (40.0, -16.0, 0),
-    # Ground Floor Corridor Nodes (Grid Bypasses)
-    "H_L0_West": (-20.0, 8.0, 0),
-    "H_L0_East": (20.0, 8.0, 0),
-    "H_L0_North": (0.0, 20.0, 0),
-    "H_L0_South": (0.0, -4.0, 0),
+    # Ground Floor
+    "A_L0_Entrance": (-40.0, 8.0, 0), "A_L0_Info": (-40.0, 32.0, 0), "A_L0_Lobby": (0.0, 8.0, 0),
+    "Fashion Hub": (0.0, -16.0, 0), "Mega Supermarket": (0.0, 32.0, 0), "A_L0_Restroom": (40.0, 32.0, 0),
+    "A_L0_Elevator": (40.0, 14.0, 0), "A_L0_Escalator": (40.0, 2.0, 0), "A_L0_Stairs": (40.0, -16.0, 0),
+    "H_L0_West": (-20.0, 8.0, 0), "H_L0_East": (20.0, 8.0, 0), "H_L0_North": (0.0, 20.0, 0), "H_L0_South": (0.0, -4.0, 0),
 
-    # --- 1st Floor (Z=1) ---
-    "A_L1_Hallway": (0.0, 8.0, 1),
-    "Book Nook": (-15.0, -16.0, 1),
-    "Tech Gadgets": (15.0, -16.0, 1),
-    "Jewel Box": (0.0, 32.0, 1),
-    "A_L1_Restroom": (40.0, 32.0, 1),
-    "A_L1_Elevator": (40.0, 14.0, 1),
-    "A_L1_Escalator": (40.0, 2.0, 1),
-    "A_L1_Stairs": (40.0, -16.0, 1),
-    # 1st Floor Corridor Nodes
-    "H_L1_West": (-20.0, 8.0, 1),
-    "H_L1_East": (20.0, 8.0, 1),
-    "H_L1_South_West": (-15.0, -4.0, 1),
-    "H_L1_South_East": (15.0, -4.0, 1),
+    # 1st Floor
+    "A_L1_Hallway": (0.0, 8.0, 1), "Book Nook": (-15.0, -16.0, 1), "Tech Gadgets": (15.0, -16.0, 1),
+    "Jewel Box": (0.0, 32.0, 1), "A_L1_Restroom": (40.0, 32.0, 1), "A_L1_Elevator": (40.0, 14.0, 1),
+    "A_L1_Escalator": (40.0, 2.0, 1), "A_L1_Stairs": (40.0, -16.0, 1),
+    "H_L1_West": (-20.0, 8.0, 1), "H_L1_East": (20.0, 8.0, 1), "H_L1_South_West": (-15.0, -4.0, 1), "H_L1_South_East": (15.0, -4.0, 1),
 
-    # --- 2nd Floor (Z=2) ---
-    "B_L2_Corridor": (0.0, 8.0, 2),
-    "VR World & Arcade": (-40.0, 8.0, 2),
-    "Cineplex Theater": (0.0, 32.0, 2),
-    "Sky Food Court": (-15.0, -16.0, 2),
-    "Gourmet Bites": (15.0, -16.0, 2),
-    "B_L2_Restroom": (40.0, 32.0, 2),
-    "B_L2_Elevator": (40.0, 14.0, 2),
-    "B_L2_Escalator": (40.0, 2.0, 2),
-    "B_L2_Stairs": (40.0, -16.0, 2),
-    # 2nd Floor Corridor Nodes
-    "H_L2_West": (-20.0, 8.0, 2),
-    "H_L2_East": (20.0, 8.0, 2),
-    "H_L2_South_West": (-15.0, -4.0, 2),
-    "H_L2_South_East": (15.0, -4.0, 2),
+    # 2nd Floor
+    "B_L2_Corridor": (0.0, 8.0, 2), "VR World & Arcade": (-40.0, 8.0, 2), "Cineplex Theater": (0.0, 32.0, 2),
+    "Sky Food Court": (-15.0, -16.0, 2), "Gourmet Bites": (15.0, -16.0, 2), "B_L2_Restroom": (40.0, 32.0, 2),
+    "B_L2_Elevator": (40.0, 14.0, 2), "B_L2_Escalator": (40.0, 2.0, 2), "B_L2_Stairs": (40.0, -16.0, 2),
+    "H_L2_West": (-20.0, 8.0, 2), "H_L2_East": (20.0, 8.0, 2), "H_L2_South_West": (-15.0, -4.0, 2), "H_L2_South_East": (15.0, -4.0, 2),
 
-    # --- Rooftop Parking (Z=3) ---
-    "P_L3_Aisle_Main": (0.0, 8.0, 3),
-    "P_L3_Driveway_Entrance": (-40.0, 2.0, 3),
-    "P_L3_Driveway_Exit": (-40.0, 14.0, 3),
+    # Rooftop Parking
+    "P_L3_Aisle_Main": (0.0, 8.0, 3), "P_L3_Driveway_Entrance": (-40.0, 2.0, 3), "P_L3_Driveway_Exit": (-40.0, 14.0, 3),
     "P1": (-22.5, -16.0, 3), "P2": (-7.5, -16.0, 3), "P3": (7.5, -16.0, 3), "P4": (22.5, -16.0, 3),
     "P5": (-22.5, 32.0, 3), "P6": (-7.5, 32.0, 3), "P7": (7.5, 32.0, 3), "P8": (22.5, 32.0, 3),
-    "P_L3_Elevator": (40.0, 14.0, 3),
-    "P_L3_Escalator": (40.0, 2.0, 3),
-    "P_L3_Stairs": (40.0, -16.0, 3)
+    "P_L3_Elevator": (40.0, 14.0, 3), "P_L3_Escalator": (40.0, 2.0, 3), "P_L3_Stairs": (40.0, -16.0, 3)
 }
 
-# ==============================================================================
-# Updated Mesh Graph (Direct Hallway-to-Hallway Connectivity)
-# ==============================================================================
 MULTI_CAD_GRAPH = {
-    # --- Ground Floor Connections ---
+    # Ground Floor
     "A_L0_Entrance": {"H_L0_West": 20.0, "Fashion Hub": 27.5},
     "A_L0_Info": {"H_L0_West": 28.0, "A_L0_Entrance": 24.0},
     "H_L0_West": {"A_L0_Entrance": 20.0, "A_L0_Info": 28.0, "A_L0_Lobby": 20.0, "H_L0_North": 23.3, "H_L0_South": 23.3},
@@ -401,36 +362,33 @@ MULTI_CAD_GRAPH = {
     "A_L0_Escalator": {"H_L0_East": 20.8, "A_L1_Escalator": 12.0},
     "A_L0_Stairs": {"H_L0_East": 31.2, "A_L1_Stairs": 15.0},
 
-    # --- 1st Floor Connections ---
+    # 1st Floor
     "A_L1_Hallway": {"H_L1_West": 20.0, "H_L1_East": 20.0, "Jewel Box": 24.0, "H_L1_South_West": 18.0, "H_L1_South_East": 18.0},
     "H_L1_West": {"A_L1_Hallway": 20.0, "H_L1_South_West": 13.0},
     "H_L1_East": {"A_L1_Hallway": 20.0, "A_L1_Restroom": 28.0, "A_L1_Elevator": 20.8, "A_L1_Escalator": 20.8, "A_L1_Stairs": 31.2},
     "Jewel Box": {"A_L1_Hallway": 24.0},
     "H_L1_South_West": {"H_L1_West": 13.0, "A_L1_Hallway": 18.0, "Book Nook": 12.0},
     "H_L1_South_East": {"H_L1_East": 13.0, "A_L1_Hallway": 18.0, "Tech Gadgets": 12.0},
-    "Book Nook": {"H_L1_South_West": 12.0},
-    "Tech Gadgets": {"H_L1_South_East": 12.0},
+    "Book Nook": {"H_L1_South_West": 12.0}, "Tech Gadgets": {"H_L1_South_East": 12.0},
     "A_L1_Restroom": {"H_L1_East": 28.0},
     "A_L1_Elevator": {"H_L1_East": 20.8, "A_L0_Elevator": 15.0, "B_L2_Elevator": 15.0},
     "A_L1_Escalator": {"H_L1_East": 20.8, "A_L0_Escalator": 12.0, "B_L2_Escalator": 12.0},
     "A_L1_Stairs": {"H_L1_East": 31.2, "A_L0_Stairs": 15.0, "B_L2_Stairs": 15.0},
 
-    # --- 2nd Floor Connections ---
+    # 2nd Floor
     "B_L2_Corridor": {"H_L2_West": 20.0, "H_L2_East": 20.0, "Cineplex Theater": 24.0, "H_L2_South_West": 18.0, "H_L2_South_East": 18.0},
     "H_L2_West": {"B_L2_Corridor": 20.0, "VR World & Arcade": 20.0, "H_L2_South_West": 13.0},
-    "VR World & Arcade": {"H_L2_West": 20.0},
-    "Cineplex Theater": {"B_L2_Corridor": 24.0},
+    "VR World & Arcade": {"H_L2_West": 20.0}, "Cineplex Theater": {"B_L2_Corridor": 24.0},
     "H_L2_South_West": {"H_L2_West": 13.0, "B_L2_Corridor": 18.0, "Sky Food Court": 12.0},
     "H_L2_South_East": {"H_L2_East": 13.0, "B_L2_Corridor": 18.0, "Gourmet Bites": 12.0},
-    "Sky Food Court": {"H_L2_South_West": 12.0},
-    "Gourmet Bites": {"H_L2_South_East": 12.0},
+    "Sky Food Court": {"H_L2_South_West": 12.0}, "Gourmet Bites": {"H_L2_South_East": 12.0},
     "H_L2_East": {"B_L2_Corridor": 20.0, "B_L2_Restroom": 28.0, "B_L2_Elevator": 20.8, "B_L2_Escalator": 20.8, "B_L2_Stairs": 31.2},
     "B_L2_Restroom": {"H_L2_East": 28.0},
     "B_L2_Elevator": {"H_L2_East": 20.8, "A_L1_Elevator": 15.0, "P_L3_Elevator": 15.0},
     "B_L2_Escalator": {"H_L2_East": 20.8, "A_L1_Escalator": 12.0, "P_L3_Escalator": 12.0},
     "B_L2_Stairs": {"H_L2_East": 31.2, "A_L1_Stairs": 15.0, "P_L3_Stairs": 15.0},
 
-    # --- Rooftop Parking Connections ---
+    # Rooftop Parking
     "P1": {"P_L3_Aisle_Main": 20.0}, "P2": {"P_L3_Aisle_Main": 20.0}, "P3": {"P_L3_Aisle_Main": 20.0}, "P4": {"P_L3_Aisle_Main": 20.0},
     "P5": {"P_L3_Aisle_Main": 20.0}, "P6": {"P_L3_Aisle_Main": 20.0}, "P7": {"P_L3_Aisle_Main": 20.0}, "P8": {"P_L3_Aisle_Main": 20.0},
     "P_L3_Aisle_Main": {
@@ -484,53 +442,50 @@ def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
             if line_segments_intersect(p1, p2, w1, w2): return False
     return True
 
-def resolve_click_to_dynamic_node(click_x, click_y, floor_z, graph, node_coords):
-    """Creates a dynamic virtual node at exact clicked coordinates and links it to ALL visible nodes on the floor."""
-    temp_node_id = f"Dynamic_Point_({click_x:.2f}_{click_y:.2f}_Z{floor_z})"
-    node_coords[temp_node_id] = (click_x, click_y, floor_z)
-    graph[temp_node_id] = {}
-
-    for node_id, coords in list(node_coords.items()):
-        if node_id == temp_node_id: continue
-        nx, ny, nz = coords
-        if int(nz) == int(floor_z):
-            if has_line_of_sight_3d(temp_node_id, node_id, node_coords, WALL_SEGMENTS_BY_FLOOR):
-                dist = math.hypot(click_x - nx, click_y - ny)
-                graph[temp_node_id][node_id] = dist
-                if node_id not in graph: graph[node_id] = {}
-                graph[node_id][temp_node_id] = dist
-                
-    return temp_node_id
-
 def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
     """
-    Resolves all start, waypoint, and destination points, connecting dynamic clicked 
-    points DIRECTLY to each other if they share line-of-sight without routing through lobby.
+    Resolves route sequence while ignoring room center nodes. Dynamic click points
+    connect directly to each other if visible, or route purely through hallway grid nodes.
     """
     resolved_sequence = []
-    
+    room_center_nodes = set(ROOM_POLYGONS.keys())
+
     for pt in route_sequence:
         if isinstance(pt, tuple) and len(pt) == 3:
             px, py, pz = pt
-            node_id = resolve_click_to_dynamic_node(px, py, pz, graph_copy, nodes_copy)
-            resolved_sequence.append(node_id)
+            temp_id = f"Dynamic_Point_({px:.2f}_{py:.2f}_Z{pz})"
+            nodes_copy[temp_id] = (px, py, pz)
+            graph_copy[temp_id] = {}
+
+            # Connect dynamic point ONLY to hallway grid nodes (ignoring room centers)
+            for n_id, coords in list(nodes_copy.items()):
+                if n_id == temp_id or n_id in room_center_nodes:
+                    continue
+                if int(coords[2]) == int(pz):
+                    if has_line_of_sight_3d(temp_id, n_id, nodes_copy, WALL_SEGMENTS_BY_FLOOR):
+                        dist = math.hypot(px - coords[0], py - coords[1])
+                        graph_copy[temp_id][n_id] = dist
+                        if n_id not in graph_copy:
+                            graph_copy[n_id] = {}
+                        graph_copy[n_id][temp_id] = dist
+
+            resolved_sequence.append(temp_id)
         else:
             resolved_sequence.append(pt)
 
+    # Link consecutive dynamic click points directly if line of sight is clear
     for i in range(len(resolved_sequence) - 1):
-        node_a = resolved_sequence[i]
-        node_b = resolved_sequence[i + 1]
-        
-        if node_a in nodes_copy and node_b in nodes_copy:
-            za = nodes_copy[node_a][2]
-            zb = nodes_copy[node_b][2]
-            if za == zb and has_line_of_sight_3d(node_a, node_b, nodes_copy, WALL_SEGMENTS_BY_FLOOR):
-                ax, ay, _ = nodes_copy[node_a]
-                bx, by, _ = nodes_copy[node_b]
-                dist = math.hypot(ax - bx, ay - by)
-                graph_copy[node_a][node_b] = dist
-                if node_b not in graph_copy: graph_copy[node_b] = {}
-                graph_copy[node_b][node_a] = dist
+        nA, nB = resolved_sequence[i], resolved_sequence[i + 1]
+        if nA in nodes_copy and nB in nodes_copy:
+            if nodes_copy[nA][2] == nodes_copy[nB][2]:
+                if has_line_of_sight_3d(nA, nB, nodes_copy, WALL_SEGMENTS_BY_FLOOR):
+                    ax, ay, _ = nodes_copy[nA]
+                    bx, by, _ = nodes_copy[nB]
+                    dist = math.hypot(ax - bx, ay - by)
+                    graph_copy[nA][nB] = dist
+                    if nB not in graph_copy:
+                        graph_copy[nB] = {}
+                    graph_copy[nB][nA] = dist
 
     return resolved_sequence
 
