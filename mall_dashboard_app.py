@@ -1,13 +1,14 @@
 import math
 import heapq
 import random
+import copy
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
 from folium.plugins import Fullscreen
 
 # ==============================================================================
-# 1. Translation Table & Localization
+# 1. Page Config & Localization Dictionary
 # ==============================================================================
 
 st.set_page_config(
@@ -53,28 +54,16 @@ LOCALIZATION = {
         "floors_metric": "🏢 Total Floors",
         "spots_metric": "🅿️ Total Parking Spots",
         "available_metric": "🟢 Available Spots",
-        "feat_map_title": "🗺️ Folium Map View",
-        "feat_map_desc": "Navigate our shopping mall easily with interactive Folium maps supporting click-anywhere pin drops.",
-        "feat_turn_title": "🧭 Turn-by-Turn",
-        "feat_turn_desc": "Get step-by-step directions to your destination.",
-        "feat_park_title": "🅿️ Smart Parking",
-        "feat_park_desc": "View real-time parking availability and get directions to your assigned spot.",
         "current_route_lbl": "📍 Current Route",
         "step_lbl": "Step",
         "nearest_spot_found": "📍 Nearest Spot Found",
         "rooftop_lot": "Rooftop Parking Lot",
         "from_lbl": "from",
-        "parking_route_summary": "🧭 Route Summary to Parking Spot",
-        "parking_turn_by_turn": "🚗 Turn-by-Turn Directions to Parking Spot",
-        "dist_to_spot": "Distance to Spot",
-        "floors_to_ascend": "Floors to Ascend",
         "config_header": "⚙️ Settings",
         "selected_on_map": "📍 Selected on map: **{location}**",
         "btn_set_start": "🚩 Set as Start",
         "btn_set_dest": "🏁 Set as Destination",
         "btn_cancel": "❌ Cancel",
-        "marker_start": " Start",
-        "marker_dest": " Destination",
         "intermediate_stops": "📍 Intermediate Stops",
         "stop_lbl": "Stop {idx}",
         "btn_add_stop_manual": "➕ Add Intermediate Stop Manually",
@@ -86,21 +75,6 @@ LOCALIZATION = {
         "pick_step_3": "👇 *Step 3:* Click anywhere on the map to set as *Destination*.",
         "btn_done_adding_stops": "➡️ Done Adding Stops (Next: Pick Destination)",
         "btn_add_as_stop": "➕ Add as Stop",
-        "btn_keep_start": "⏭️ Keep Current Start",
-        "btn_keep_dest": "⏭️ Keep Current Destination",
-        "lbl_current": "Current",
-        "footer_arch": "🏢 System Architecture: 3D Theta* Pathfinding Engine",
-        "footer_vector": "📐 Vector Processing: Folium & Leaflet Engine",
-        "footer_lang": "🌐 Localization: Multilingual Engine",
-        "tab_nav_drive_to_spot": "🚗 1. Entrance to Parking Spot",
-        "tab_nav_spot_to_exit": "🚪 2. Parking Spot to Exit",
-        "header_driving_to_spot": "🚗 Driving to Parking Spot",
-        "header_leaving_spot": "🚪 Leaving Parking Spot to Driveway Exit",
-        "lbl_entrance_ramp": "🚗 Entrance Ramp",
-        "lbl_exit_ramp": "🚗 Exit Ramp",
-        "lbl_stairwell": "🪜 Stairwell",
-        "lbl_elevator": "🛗 Elevator",
-        "lbl_escalator": "🪜 Escalator",
     },
     "Simplified Chinese": {
         "title": "🏢 智能商场导航与停车系统",
@@ -131,28 +105,16 @@ LOCALIZATION = {
         "floors_metric": "🏢 总楼层数",
         "spots_metric": "🅿️ 总车位数",
         "available_metric": "🟢 空余车位",
-        "feat_map_title": "🗺️ Folium 地图视图",
-        "feat_map_desc": "基于 Folium 的矢量地图，支持在地图任意位置精准点击选取节点。",
-        "feat_turn_title": "🧭 逐向导航",
-        "feat_turn_desc": "提供精确转向角度、跨楼层换乘指引与距离统计的分步指引。",
-        "feat_park_title": "🅿️ 智能停车",
-        "feat_park_desc": "实时查看车位占用状态，并自动规划直达分配车位的最优路线。",
         "current_route_lbl": "📍 当前路线",
         "step_lbl": "步骤",
         "nearest_spot_found": "📍 已为您找到最近车位",
         "rooftop_lot": "顶层露天停车场",
         "from_lbl": "出发地：",
-        "parking_route_summary": "🧭 车位导航路线总览",
-        "parking_turn_by_turn": "🚗 前往车位逐向导航",
-        "dist_to_spot": "到达车位距离",
-        "floors_to_ascend": "上升楼层",
         "config_header": "⚙️ 系统配置",
         "selected_on_map": "📍 在地图选择：**{location}**",
         "btn_set_start": "🚩 设为起点",
         "btn_set_dest": "🏁 设为终点",
         "btn_cancel": "❌ 取消",
-        "marker_start": " 起点",
-        "marker_dest": " 终点",
         "intermediate_stops": "📍 途经点 (中转站)",
         "stop_lbl": "途经点 {idx}",
         "btn_add_stop_manual": "➕ 手动添加途经点",
@@ -164,21 +126,6 @@ LOCALIZATION = {
         "pick_step_3": "👇 *步骤 3：* 点击地图任意位置设为 *终点位置*。",
         "btn_done_adding_stops": "➡️ 完成添加途经点 (下一步: 选择终点)",
         "btn_add_as_stop": "➕ 添加为途经点",
-        "btn_keep_start": "⏭️ 保留当前起点",
-        "btn_keep_dest": "⏭️ 保留当前终点",
-        "lbl_current": "当前",
-        "footer_arch": "🏢 系统架构: 3D Theta* 路径规划引擎",
-        "footer_vector": "📐 矢量处理: Folium & Leaflet 图表引擎",
-        "footer_lang": "🌐 多语言支持: 多语种引擎",
-        "tab_nav_drive_to_spot": "🚗 1. 入口至停车位",
-        "tab_nav_spot_to_exit": "🚪 2. 停车位至出口",
-        "header_driving_to_spot": "🚗 驶向停车位",
-        "header_leaving_spot": "🚪 离开停车位驶向出口匝道",
-        "lbl_entrance_ramp": "🚗 进口匝道",
-        "lbl_exit_ramp": "🚗 出口匝道",
-        "lbl_stairwell": "🪜 楼梯间",
-        "lbl_elevator": "🛗 电梯",
-        "lbl_escalator": "🪜 自动扶梯",
     },
     "Malay": {
         "title": "🏢 Sistem Navigasi & Tempat Letak Kereta Pusat Beli-Belah Smart",
@@ -209,28 +156,16 @@ LOCALIZATION = {
         "floors_metric": "🏢 Jumlah Tingkat",
         "spots_metric": "🅿️ Jumlah Ruang Letak Kereta",
         "available_metric": "🟢 Ruang Kosong",
-        "feat_map_title": "🗺️ Pandangan Peta Folium",
-        "feat_map_desc": "Pelan tingkat vektor interaktif berasaskan Folium dengan keupayaan klik di mana-mana tempat.",
-        "feat_turn_title": "🧭 Arah Langkah demi Langkah",
-        "feat_turn_desc": "Panduan langkah demi langkah dengan sudut arah, transit tingkat, dan jarak.",
-        "feat_park_title": "🅿️ Tempat Letak Kereta Smart",
-        "feat_park_desc": "Lihat status ruang letak kereta secara masa nyata dan dapatkan laluan ke petak anda.",
         "current_route_lbl": "📍 Laluan Semasa",
         "step_lbl": "Langkah",
         "nearest_spot_found": "📍 Tempat Letak Kereta Terdekat Ditemui",
         "rooftop_lot": "Kawasan Tempat Letak Kereta Bumbung",
         "from_lbl": "dari",
-        "parking_route_summary": "🧭 Ringkasan Laluan ke Tempat Letak Kereta",
-        "parking_turn_by_turn": "🚗 Arah Langkah demi Langkah ke Tempat Letak Kereta",
-        "dist_to_spot": "Jarak ke Tempat Letak Kereta",
-        "floors_to_ascend": "Tingkat Perlu Naik",
         "config_header": "⚙️ Konfigurasi",
         "selected_on_map": "📍 Dipilih pada peta: **{location}**",
         "btn_set_start": "🚩 Tetapkan sebagai Permulaan",
         "btn_set_dest": "🏁 Tetapkan sebagai Destinasi",
         "btn_cancel": "❌ Batal",
-        "marker_start": " Permulaan",
-        "marker_dest": " Destinasi",
         "intermediate_stops": "📍 Hentian Antara",
         "stop_lbl": "Hentian {idx}",
         "btn_add_stop_manual": "➕ Tambah Hentian Antara Secara Manual",
@@ -242,21 +177,6 @@ LOCALIZATION = {
         "pick_step_3": "👇 *Langkah 3:* Klik di mana-mana pada peta untuk tetapkan *Destinasi*.",
         "btn_done_adding_stops": "➡️ Selesai Menambah Hentian (Seterusnya: Pilih Destinasi)",
         "btn_add_as_stop": "➕ Tambah sebagai Hentian",
-        "btn_keep_start": "⏭️ Kekalkan Permulaan Semasa",
-        "btn_keep_dest": "⏭️ Kekalkan Destinasi Semasa",
-        "lbl_current": "Semasa",
-        "footer_arch": "🏢 Seni Bina Sistem: Enjin Laluan 3D Theta*",
-        "footer_vector": "📐 Pemprosesan Vektor: Folium & Leaflet Engine",
-        "footer_lang": "🌐 Lokalisasi: Enjin Pelbagai Bahasa",
-        "tab_nav_drive_to_spot": "🚗 1. Pintu Masuk ke Petak Meletak Kenderaan",
-        "tab_nav_spot_to_exit": "🚪 2. Petak Meletak Kenderaan ke Pintu Keluar",
-        "header_driving_to_spot": "🚗 Memandu ke Petak Meletak Kenderaan",
-        "header_leaving_spot": "🚪 Meninggalkan Petak Meletak Kenderaan ke Pintu Keluar",
-        "lbl_entrance_ramp": "🚗 Ramp Masuk",
-        "lbl_exit_ramp": "🚗 Ramp Keluar",
-        "lbl_stairwell": "🪜 Tangga",
-        "lbl_elevator": "🛗 Lif",
-        "lbl_escalator": "🪜 Eskalator",
     }
 }
 
@@ -457,45 +377,8 @@ PARKING_SLOTS = {
     "P5": {"occupied": True},  "P6": {"occupied": False}, "P7": {"occupied": False}, "P8": {"occupied": True},
 }
 
-def point_in_polygon(x, y, polygon):
-    n = len(polygon)
-    inside = False
-    p1x, p1y = polygon[0]
-    for i in range(n + 1):
-        p2x, p2y = polygon[i % n]
-        if y > min(p1y, p2y):
-            if y <= max(p1y, p2y):
-                if x <= max(p1x, p2x):
-                    if p1y != p2y:
-                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                    if p1x == p2x or x <= xinters:
-                        inside = not inside
-        p1x, p1y = p2x, p2y
-    return inside
-
-def find_room_by_coordinate(x, y, z_floor):
-    for room_id, poly_info in ROOM_POLYGONS.items():
-        room_z = int(MULTI_CAD_NODES.get(room_id, (0, 0, 0))[2])
-        if room_z != z_floor:
-            continue
-        coords = poly_info.get("coords", [])
-        if coords and point_in_polygon(x, y, coords):
-            return room_id
-    return None
-
-def get_nearest_graph_node(x, y, z_floor, graph_nodes):
-    closest_node = None
-    min_dist = float("inf")
-    for node_id, (nx, ny, nz) in graph_nodes.items():
-        if int(nz) == int(z_floor):
-            dist = math.hypot(x - nx, y - ny)
-            if dist < min_dist:
-                min_dist = dist
-                closest_node = node_id
-    return closest_node, min_dist
-
 # ==============================================================================
-# 2. Theta* Pathfinding Algorithm
+# 2. Geometry & Dynamic Point Injection
 # ==============================================================================
 
 def extract_wall_segments(room_polygons):
@@ -529,6 +412,34 @@ def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
             if p1 == w1 or p1 == w2 or p2 == w1 or p2 == w2: continue
             if line_segments_intersect(p1, p2, w1, w2): return False
     return True
+
+def resolve_click_to_dynamic_node(click_x, click_y, floor_z, graph, node_coords):
+    """Creates a virtual node at exact clicked (X, Y) coordinates and connects it to the graph."""
+    temp_node_id = f"Dynamic_Point_({click_x:.2f}_{click_y:.2f}_Z{floor_z})"
+    node_coords[temp_node_id] = (click_x, click_y, floor_z)
+    graph[temp_node_id] = {}
+
+    for node_id, coords in list(node_coords.items()):
+        if node_id == temp_node_id: continue
+        nx, ny, nz = coords
+        if int(nz) == int(floor_z):
+            dist = math.hypot(click_x - nx, click_y - ny)
+            if dist <= 60.0 and has_line_of_sight_3d(temp_node_id, node_id, node_coords, WALL_SEGMENTS_BY_FLOOR):
+                graph[temp_node_id][node_id] = dist
+                if node_id not in graph: graph[node_id] = {}
+                graph[node_id][temp_node_id] = dist
+                
+    return temp_node_id
+
+def resolve_route_point(point, floor_z, graph_copy, nodes_copy):
+    if isinstance(point, tuple) and len(point) == 3:
+        px, py, pz = point
+        return resolve_click_to_dynamic_node(px, py, pz, graph_copy, nodes_copy)
+    return point
+
+# ==============================================================================
+# 3. Pathfinding Engine (Theta*)
+# ==============================================================================
 
 def euclidean_distance_3d(node_a, node_b, node_coords):
     x1, y1, z1 = node_coords[node_a]
@@ -580,40 +491,11 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
 
     return None
 
-def resolve_click_to_dynamic_node(click_x, click_y, floor_z, graph, node_coords):
-    """
-    Creates a dynamic virtual node at exact clicked (X, Y) coordinates 
-    and links it to the surrounding walkable graph nodes.
-    """
-    temp_node_id = f"Dynamic_Point_({click_x:.2f}_{click_y:.2f}_Z{floor_z})"
-    
-    # Register dynamic node coordinates
-    node_coords[temp_node_id] = (click_x, click_y, floor_z)
-    graph[temp_node_id] = {}
-    
-    # Connect dynamic point to nearby visible floor nodes
-    for node_id, coords in list(node_coords.items()):
-        if node_id == temp_node_id: 
-            continue
-            
-        nx, ny, nz = coords
-        if int(nz) == int(floor_z):
-            dist = math.hypot(click_x - nx, click_y - ny)
-            
-            # Connect if within reasonable range (e.g., 50 meters) and line-of-sight is clear
-            if dist <= 50.0 and has_line_of_sight_3d(temp_node_id, node_id, node_coords, WALL_SEGMENTS_BY_FLOOR):
-                graph[temp_node_id][node_id] = dist
-                if node_id not in graph:
-                    graph[node_id] = {}
-                graph[node_id][temp_node_id] = dist
-                
-    return temp_node_id
-
 # ==============================================================================
-# 3. Folium Map Rendering Engine
+# 4. Folium Map Rendering Engine
 # ==============================================================================
 
-def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English"):
+def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English"):
     floor_rooms = {
         r_id: poly["coords"]
         for r_id, poly in ROOM_POLYGONS.items()
@@ -631,19 +513,8 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
 
     bounds = [[min_y, min_x], [max_y, max_x]]
 
-    m = folium.Map(
-        crs="Simple",
-        tiles=None,
-        zoom_control=True,
-        scroll_wheel_zoom=True
-    )
-
-    Fullscreen(
-        position="topleft",
-        title="Expand map",
-        title_cancel="Exit fullscreen",
-        force_separate_button=True
-    ).add_to(m)
+    m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
+    Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
     for room_id, coords in floor_rooms.items():
         room_info = ROOM_POLYGONS[room_id]
@@ -658,8 +529,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
             fill_color=room_info.get("color", "#CBD5E1"),
             fill_opacity=0.7,
             tooltip=translated_name
-        # Removed popup=translated_name so polygon clicks don't block map canvas clicks
-        ).add_to(m) 
+        ).add_to(m)
 
         cx = sum(p[0] for p in coords) / len(coords)
         cy = sum(p[1] for p in coords) / len(coords)
@@ -668,109 +538,57 @@ def render_2d_folium_view(active_floor_z, route_path=None, current_lang="English
         folium.Marker(
             location=[cy, cx],
             icon=folium.DivIcon(
-                html=f'''<div style="
-                    font-size: 10px; 
-                    font-weight: bold; 
-                    color: #0f172a; 
-                    text-align: center; 
-                    white-space: nowrap; 
-                    transform: translate(-50%, -50%);">
+                html=f'''<div style="font-size: 10px; font-weight: bold; color: #0f172a; text-align: center; white-space: nowrap; transform: translate(-50%, -50%);">
                     {icon_str}<br>{translated_name}
                 </div>'''
             )
         ).add_to(m)
 
     if route_path:
-        floor_path = [node for node in route_path if MULTI_CAD_NODES[node][2] == active_floor_z]
+        floor_path = [node for node in route_path if node in node_coords_dict and node_coords_dict[node][2] == active_floor_z]
 
         if len(floor_path) > 1:
-            line_pts = [[MULTI_CAD_NODES[node][1], MULTI_CAD_NODES[node][0]] for node in floor_path]
-            folium.PolyLine(
-                locations=line_pts,
-                color="#EF4444",
-                weight=5,
-                opacity=0.9
-            ).add_to(m)
+            line_pts = [[node_coords_dict[node][1], node_coords_dict[node][0]] for node in floor_path]
+            folium.PolyLine(locations=line_pts, color="#EF4444", weight=5, opacity=0.9).add_to(m)
 
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
-        if MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
-            sx, sy, _ = MULTI_CAD_NODES[start_node_id]
-            folium.Marker(
-                location=[sy, sx],
-                popup="Start",
-                icon=folium.Icon(color="red", icon="play")
-            ).add_to(m)
+        if start_node_id in node_coords_dict and node_coords_dict[start_node_id][2] == active_floor_z:
+            sx, sy, _ = node_coords_dict[start_node_id]
+            folium.Marker(location=[sy, sx], popup="Start Point", icon=folium.Icon(color="red", icon="play")).add_to(m)
 
-        if MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
-            dx, dy, _ = MULTI_CAD_NODES[dest_node_id]
-            folium.Marker(
-                location=[dy, dx],
-                popup="Destination",
-                icon=folium.Icon(color="green", icon="flag")
-            ).add_to(m)
+        if dest_node_id in node_coords_dict and node_coords_dict[dest_node_id][2] == active_floor_z:
+            dx, dy, _ = node_coords_dict[dest_node_id]
+            folium.Marker(location=[dy, dx], popup="Destination Point", icon=folium.Icon(color="green", icon="flag")).add_to(m)
 
     m.fit_bounds(bounds)
     return m
 
 def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang="English"):
-    rooftop_rooms = {
-        r_id: poly["coords"]
-        for r_id, poly in ROOM_POLYGONS.items()
-        if poly["z"] == 3
-    }
-
+    rooftop_rooms = {r_id: poly["coords"] for r_id, poly in ROOM_POLYGONS.items() if poly["z"] == 3}
     all_pts = [pt for coords in rooftop_rooms.values() for pt in coords]
-    min_x = min(p[0] for p in all_pts) - 10
-    max_x = max(p[0] for p in all_pts) + 10
-    min_y = min(p[1] for p in all_pts) - 10
-    max_y = max(p[1] for p in all_pts) + 10
+    min_x, max_x = min(p[0] for p in all_pts) - 10, max(p[0] for p in all_pts) + 10
+    min_y, max_y = min(p[1] for p in all_pts) - 10, max(p[1] for p in all_pts) + 10
 
     m = folium.Map(crs="Simple", tiles=None)
 
     for room_id, coords in rooftop_rooms.items():
         folium_coords = [[pt[1], pt[0]] for pt in coords]
-        folium.Polygon(
-            locations=folium_coords,
-            color="#475569",
-            weight=1.5,
-            fill=True,
-            fill_color="#E2E8F0",
-            fill_opacity=0.5
-        ).add_to(m)
+        folium.Polygon(locations=folium_coords, color="#475569", weight=1.5, fill=True, fill_color="#E2E8F0", fill_opacity=0.5).add_to(m)
 
     for slot_id, details in PARKING_SLOTS.items():
         if slot_id not in MULTI_CAD_NODES: continue
         cx, cy, _ = MULTI_CAD_NODES[slot_id]
-
-        if slot_id == assigned_slot:
-            color, status_txt = "#2563EB", "ASSIGNED TO YOU"
-        elif details["occupied"]:
-            color, status_txt = "#DC2626", "OCCUPIED"
-        else:
-            color, status_txt = "#16A34A", "AVAILABLE"
+        color = "#2563EB" if slot_id == assigned_slot else ("#DC2626" if details["occupied"] else "#16A34A")
 
         box_w, box_h = 3.5, 6.0
         bx = [cx - box_w/2, cx + box_w/2, cx + box_w/2, cx - box_w/2]
         by = [cy - box_h/2, cy - box_h/2, cy + box_h/2, cy + box_h/2]
         slot_poly = [[by[i], bx[i]] for i in range(4)]
 
-        folium.Polygon(
-            locations=slot_poly,
-            color=color,
-            fill=True,
-            fill_color=color,
-            fill_opacity=0.7,
-            popup=f"Slot {slot_id}: {status_txt}"
-        ).add_to(m)
-
-        folium.Marker(
-            location=[cy, cx],
-            icon=folium.DivIcon(
-                html=f'<div style="font-size: 10px; font-weight: bold; color: #FFFFFF; transform: translate(-50%, -50%);">{slot_id}</div>'
-            )
-        ).add_to(m)
+        folium.Polygon(locations=slot_poly, color=color, fill=True, fill_color=color, fill_opacity=0.7).add_to(m)
+        folium.Marker(location=[cy, cx], icon=folium.DivIcon(html=f'<div style="font-size: 10px; font-weight: bold; color: #FFFFFF; transform: translate(-50%, -50%);">{slot_id}</div>')).add_to(m)
 
     if route_path:
         rooftop_path = [node for node in route_path if int(MULTI_CAD_NODES[node][2]) == 3]
@@ -782,7 +600,7 @@ def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang=
     return m
 
 # ==============================================================================
-# 4. Helpers & Navigation Directions
+# 5. Helpers & Navigation Directions
 # ==============================================================================
 
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
@@ -800,199 +618,20 @@ def find_nearest_available_parking(entrance_node, graph, nodes, availability_map
     best_exit_path = theta_star_3d(best_spot, "P_L3_Driveway_Exit", graph, nodes, accessible_only=accessible_only) if best_spot else []
     return best_spot, best_entry_path, best_exit_path
 
-def calculate_heading_angle(node_a, node_b, node_coords):
-    x1, y1, _ = node_coords[node_a]
-    x2, y2, _ = node_coords[node_b]
-    return math.degrees(math.atan2(y2 - y1, x2 - x1)) % 360
-
-def format_turn_instruction(angle_diff, distance, target_name, lang="English"):
-    angle_diff = (angle_diff + 180) % 360 - 180
-    phrases = {
-        "English": {
-            "straight": f"Continue straight for {distance:.1f}m towards {target_name}",
-            "slight_right": f"Veer slightly right and walk {distance:.1f}m to {target_name}",
-            "right": f"Turn right and walk {distance:.1f}m to {target_name}",
-            "sharp_right": f"Make a sharp right turn and head {distance:.1f}m towards {target_name}",
-            "slight_left": f"Veer slightly left and walk {distance:.1f}m to {target_name}",
-            "left": f"Turn left and walk {distance:.1f}m to {target_name}",
-            "sharp_left": f"Make a sharp left turn and head {distance:.1f}m towards {target_name}",
-            "u_turn": f"Make a U-turn and walk {distance:.1f}m towards {target_name}"
-        },
-        "Simplified Chinese": {
-            "straight": f"直行 {distance:.1f} 米，前往 {target_name}",
-            "slight_right": f"向右前方偏转，步行 {distance:.1f} 米到达 {target_name}",
-            "right": f"右转并步行 {distance:.1f} 米到达 {target_name}",
-            "sharp_right": f"向右急转，步行 {distance:.1f} 米前往 {target_name}",
-            "slight_left": f"向左前方偏转，步行 {distance:.1f} 米到达 {target_name}",
-            "left": f"左转并步行 {distance:.1f} 米到达 {target_name}",
-            "sharp_left": f"向左急转，步行 {distance:.1f} 米前往 {target_name}",
-            "u_turn": f"掉头并步行 {distance:.1f} 米前往 {target_name}"
-        },
-        "Malay": {
-            "straight": f"Jalan terus sejauh {distance:.1f}m ke {target_name}",
-            "slight_right": f"Belok sedikit ke kanan dan jalan {distance:.1f}m ke {target_name}",
-            "right": f"Belok kanan dan jalan {distance:.1f}m ke {target_name}",
-            "sharp_right": f"Belok tajam ke kanan dan jalan {distance:.1f}m ke {target_name}",
-            "slight_left": f"Belok sedikit ke kiri dan jalan {distance:.1f}m ke {target_name}",
-            "left": f"Belok kiri dan jalan {distance:.1f}m ke {target_name}",
-            "sharp_left": f"Belok tajam ke kiri dan jalan {distance:.1f}m ke {target_name}",
-            "u_turn": f"Buat pusingan U dan jalan {distance:.1f}m ke {target_name}"
-        }
-    }
-    lang_dict = phrases.get(lang, phrases["English"])
-    if -22.5 <= angle_diff <= 22.5: return lang_dict["straight"]
-    elif -67.5 <= angle_diff < -22.5: return lang_dict["slight_right"]
-    elif -112.5 <= angle_diff < -67.5: return lang_dict["right"]
-    elif -157.5 <= angle_diff < -112.5: return lang_dict["sharp_right"]
-    elif 22.5 < angle_diff <= 67.5: return lang_dict["slight_left"]
-    elif 67.5 < angle_diff <= 112.5: return lang_dict["left"]
-    elif 112.5 < angle_diff <= 157.5: return lang_dict["sharp_left"]
-    else: return lang_dict["u_turn"]
-
-def generate_detailed_directions(path, node_coords, lang="English"):
-    if not path or len(path) < 2: return []
-    directions = []
-    start_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[0], path[0])}"
-    first_dest_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[1], path[1])}"
-    init_dist = euclidean_distance_3d(path[0], path[1], node_coords)
-
-    start_text = {
-        "English": f"Start at **{start_poi}** and head towards **{first_dest_poi}** ({init_dist:.1f}m).",
-        "Simplified Chinese": f"从 **{start_poi}** 出发，前往 **{first_dest_poi}**（{init_dist:.1f} 米）。",
-        "Malay": f"Mula di **{start_poi}** dan menuju ke **{first_dest_poi}** ({init_dist:.1f}m)."
-    }
-    directions.append({"step": 1, "text": start_text.get(lang, start_text["English"]), "icon": "🛫"})
-
-    for i in range(1, len(path) - 1):
-        prev_node, curr_node, next_node = path[i - 1], path[i], path[i + 1]
-        curr_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(curr_node, curr_node)}"
-        next_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(next_node, next_node)}"
-        z_curr, z_next = node_coords[curr_node][2], node_coords[next_node][2]
-
-        if z_curr != z_next:
-            target_floor_label = get_translated_floor_name(z_next, lang=lang)
-            if "Elevator" in curr_node or "Elevator" in next_node:
-                trans_text = {
-                    "English": f"Take the **Elevator** at {curr_poi} to **{target_floor_label}**.",
-                    "Simplified Chinese": f"在 {curr_poi} 乘坐**电梯**到达 **{target_floor_label}**。",
-                    "Malay": f"Naik **Lif** di {curr_poi} ke **{target_floor_label}**."
-                }
-                icon = "🛗"
-            elif "Escalator" in curr_node or "Escalator" in next_node:
-                trans_text = {
-                    "English": f"Take the **Escalator** at {curr_poi} to **{target_floor_label}**.",
-                    "Simplified Chinese": f"在 {curr_poi} 乘坐**自动扶梯**到达 **{target_floor_label}**。",
-                    "Malay": f"Gunakan **Eskalator** di {curr_poi} ke **{target_floor_label}**."
-                }
-                icon = "🪜"
-            else:
-                trans_text = {
-                    "English": f"Take the **Stairs** at {curr_poi} to **{target_floor_label}**.",
-                    "Simplified Chinese": f"在 {curr_poi} 使用**安全楼梯**到达 **{target_floor_label}**。",
-                    "Malay": f"Gunakan **Tangga** di {curr_poi} ke **{target_floor_label}**."
-                }
-                icon = "🧗"
-            directions.append({"step": len(directions) + 1, "text": trans_text.get(lang, trans_text["English"]), "icon": icon})
-            continue
-
-        prev_heading = calculate_heading_angle(prev_node, curr_node, node_coords)
-        next_heading = calculate_heading_angle(curr_node, next_node, node_coords)
-        angle_diff = next_heading - prev_heading
-        step_dist = euclidean_distance_3d(curr_node, next_node, node_coords)
-        instruction_str = format_turn_instruction(angle_diff, step_dist, f"**{next_poi}**", lang=lang)
-
-        angle_diff_norm = (angle_diff + 180) % 360 - 180
-        icon = "↪️" if angle_diff_norm < -22.5 else ("↩️" if angle_diff_norm > 22.5 else "⬆️")
-        directions.append({"step": len(directions) + 1, "text": instruction_str, "icon": icon})
-
-    final_poi = f"{POI_TRANSLATIONS.get(lang, {}).get(path[-1], path[-1])}"
-    arrival_text = {
-        "English": f"You have arrived at your destination: **{final_poi}**.",
-        "Simplified Chinese": f"您已到达目的地：**{final_poi}**。",
-        "Malay": f"Anda telah tiba di destinasi: **{final_poi}**."
-    }
-    directions.append({"step": len(directions) + 1, "text": arrival_text.get(lang, arrival_text["English"]), "icon": "🏁"})
-    return directions
-
-def compute_route_summary(path):
-    if not path or len(path) < 2: return {"total_distance": 0, "floors_crossed": 0, "steps": 0}
-    total_dist, floors_visited = 0, set()
-    for i in range(len(path) - 1):
-        curr_node, nxt_node = path[i], path[i+1]
-        z1, z2 = MULTI_CAD_NODES[curr_node][2], MULTI_CAD_NODES[nxt_node][2]
-        floors_visited.add(z1)
-        floors_visited.add(z2)
-        if z1 == z2: total_dist += euclidean_distance_3d(curr_node, nxt_node, MULTI_CAD_NODES)
-        else: total_dist += 15.0
-
-    return {
-        "total_distance": round(total_dist, 1),
-        "floors_crossed": max(0, len(floors_visited) - 1),
-        "steps": len(path) - 1
-    }
-
-def format_location_label(room_id, lang):
-    z_val = int(MULTI_CAD_NODES[room_id][2])
+def format_location_label(loc, lang):
+    if isinstance(loc, tuple): return f"Point ({loc[0]:.1f}, {loc[1]:.1f})"
+    z_val = int(MULTI_CAD_NODES[loc][2])
     floor_code = "R" if z_val == 3 else (f"{z_val}F" if z_val > 0 else "GF")
-    name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id)
-    clean_name = name.split('(')[0].strip()
-    cat_key = STORE_CATEGORIES.get(room_id)
-    if cat_key:
-        cat_name = CATEGORY_TRANSLATIONS.get(lang, {}).get(cat_key, cat_key)
-        return f"[{floor_code}] {clean_name} ({cat_name})"
-    return f"[{floor_code}] {clean_name}"
-
-# Handle raw clicked coordinates vs predefined string nodes
-def resolve_route_point(point, floor_z, graph_copy, nodes_copy):
-    if isinstance(point, tuple) and len(point) == 3:
-        px, py, pz = point
-        return resolve_click_to_dynamic_node(px, py, pz, graph_copy, nodes_copy)
-    return point
-
-# Deep copy graph and node coordinates for dynamic temporary injection
-import copy
-temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
-temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
-
-# Resolve start, waypoints, and destination to dynamic nodes if raw coords are provided
-resolved_start = resolve_route_point(st.session_state.selected_start, floor_select, temp_graph, temp_nodes)
-resolved_dest = resolve_route_point(st.session_state.selected_dest, floor_select, temp_graph, temp_nodes)
-
-resolved_waypoints = [
-    resolve_route_point(wp, floor_select, temp_graph, temp_nodes)
-    for wp in st.session_state.waypoints
-]
-
-full_route_sequence = [resolved_start] + resolved_waypoints + [resolved_dest]
-
-# Run Theta* on dynamic graph
-full_path = []
-for i in range(len(full_route_sequence) - 1):
-    segment_path = theta_star_3d(
-        full_route_sequence[i], 
-        full_route_sequence[i + 1], 
-        temp_graph, 
-        temp_nodes, 
-        accessible_only=accessible_flag
-    )
-    if segment_path:
-        full_path.extend(segment_path[1:] if full_path else segment_path)
-    else:
-        full_path = []
-        break
-
-path = full_path
+    name = POI_TRANSLATIONS.get(lang, {}).get(loc, loc).split('(')[0].strip()
+    return f"[{floor_code}] {name}"
 
 # ==============================================================================
-# 5. UI Layout & Navigation Tabs
+# 6. UI Navigation Tabs
 # ==============================================================================
 
 t = LOCALIZATION[st.session_state.lang]
 
-home_tab_title = {
-    "English": "🏠 Home", "Simplified Chinese": "🏠 首页", "Malay": "🏠 Utama"
-}.get(st.session_state.lang, "🏠 Home")
-
+home_tab_title = {"English": "🏠 Home", "Simplified Chinese": "🏠 首页", "Malay": "🏠 Utama"}.get(st.session_state.lang, "🏠 Home")
 tab_home, tab_map, tab_dir, tab_park = st.tabs([home_tab_title, t["tab_nav"], t["tab_directions"], t["tab_parking"]])
 
 with st.sidebar:
@@ -1016,18 +655,21 @@ with tab_home:
     st.divider()
 
     c1, c2, c3, c4 = st.columns(4)
-    total_locations = len(ROOM_POLYGONS)
-    total_floors = len(FLOOR_TRANSLATIONS["English"])
-    total_slots = len(PARKING_SLOTS)
-    available_slots = sum(1 for s in PARKING_SLOTS.values() if not s["occupied"])
-
-    c1.metric(t["poi_metric"], total_locations)
-    c2.metric(t["floors_metric"], total_floors)
-    c3.metric(t["spots_metric"], total_slots)
-    c4.metric(t["available_metric"], available_slots)
+    c1.metric(t["poi_metric"], len(ROOM_POLYGONS))
+    c2.metric(t["floors_metric"], len(FLOOR_TRANSLATIONS["English"]))
+    c3.metric(t["spots_metric"], len(PARKING_SLOTS))
+    c4.metric(t["available_metric"], sum(1 for s in PARKING_SLOTS.values() if not s["occupied"]))
 
 # Mall Map Tab
 with tab_map:
+    # 1. Floor Selector MUST be defined before route resolution
+    floor_select = st.selectbox(
+        t["active_floor"],
+        options=[0, 1, 2, 3],
+        format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
+    )
+
+    # 2. Controls & Waypoint Management
     with st.expander(f"⚙️ {t['nav_controls']}", expanded=True):
         room_options = list(ROOM_POLYGONS.keys())
         col_start, col_dest = st.columns(2)
@@ -1037,49 +679,26 @@ with tab_map:
                 t["start_loc"],
                 options=room_options,
                 format_func=lambda r: format_location_label(r, st.session_state.lang),
-                index=room_options.index(st.session_state.selected_start) if st.session_state.selected_start in room_options else 0,
+                index=room_options.index(st.session_state.selected_start) if isinstance(st.session_state.selected_start, str) and st.session_state.selected_start in room_options else 0,
             )
         with col_dest:
             dest_node = st.selectbox(
                 t["dest_loc"],
                 options=room_options,
                 format_func=lambda r: format_location_label(r, st.session_state.lang),
-                index=room_options.index(st.session_state.selected_dest) if st.session_state.selected_dest in room_options else len(room_options)-1,
+                index=room_options.index(st.session_state.selected_dest) if isinstance(st.session_state.selected_dest, str) and st.session_state.selected_dest in room_options else len(room_options)-1,
             )
 
-        st.session_state.selected_start = start_node
-        st.session_state.selected_dest = dest_node
+        if isinstance(st.session_state.selected_start, str): st.session_state.selected_start = start_node
+        if isinstance(st.session_state.selected_dest, str): st.session_state.selected_dest = dest_node
 
         route_pref = st.radio(t["route_type"], options=[t["shortest"], t["accessible"]], horizontal=True)
         accessible_flag = (route_pref == t["accessible"])
 
-        # Manual / Managed Intermediate Waypoints Section
-        st.markdown(f"#### {t['intermediate_stops']}")
-        if st.session_state.waypoints:
-            for idx, wp in enumerate(list(st.session_state.waypoints)):
-                wp_val = wp["value"] if isinstance(wp, dict) else wp
-                wp_col1, wp_col2 = st.columns([0.85, 0.15])
-                with wp_col1:
-                    new_val = st.selectbox(
-                        t["stop_lbl"].format(idx=idx+1),
-                        options=room_options,
-                        format_func=lambda r: format_location_label(r, st.session_state.lang),
-                        index=room_options.index(wp_val) if wp_val in room_options else 0,
-                        key=f"wp_select_{idx}"
-                    )
-                    st.session_state.waypoints[idx] = new_val
-                with wp_col2:
-                    st.write("")
-                    st.write("")
-                    if st.button("🗑️", key=f"del_wp_{idx}"):
-                        st.session_state.waypoints.pop(idx)
-                        st.rerun()
-
         col_add_stop, col_pick_mode, col_reset = st.columns(3)
         with col_add_stop:
             if st.button(t["btn_add_stop_manual"]):
-                default_stop = [r for r in room_options if r not in [st.session_state.selected_start, st.session_state.selected_dest]][0]
-                st.session_state.waypoints.append(default_stop)
+                st.session_state.waypoints.append(room_options[0])
                 st.rerun()
 
         with col_pick_mode:
@@ -1101,13 +720,7 @@ with tab_map:
                 st.session_state.map_pick_mode = False
                 st.rerun()
 
-        extracted_waypoints = [wp["value"] if isinstance(wp, dict) else wp for wp in st.session_state.waypoints]
-        full_route_sequence = [st.session_state.selected_start] + extracted_waypoints + [st.session_state.selected_dest]
-
-        route_display_str = " ➔ ".join([f"`{format_location_label(loc, st.session_state.lang)}`" for loc in full_route_sequence])
-        st.markdown(f"**{t['current_route_lbl']}:** {route_display_str}")
-
-    # Display instructions if in Interactive Route Selection Mode
+    # Mode Instructions
     if st.session_state.map_pick_mode:
         if st.session_state.map_pick_step == "START":
             st.info(t["pick_step_1"])
@@ -1119,156 +732,67 @@ with tab_map:
         elif st.session_state.map_pick_step == "DEST":
             st.info(t["pick_step_3"])
 
-    # Path Computation
+    # 3. Dynamic Point Injections & Path Computation
+    temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
+    temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
+
+    resolved_start = resolve_route_point(st.session_state.selected_start, floor_select, temp_graph, temp_nodes)
+    resolved_dest = resolve_route_point(st.session_state.selected_dest, floor_select, temp_graph, temp_nodes)
+    resolved_waypoints = [resolve_route_point(wp, floor_select, temp_graph, temp_nodes) for wp in st.session_state.waypoints]
+
+    full_route_sequence = [resolved_start] + resolved_waypoints + [resolved_dest]
+
     full_path = []
     for i in range(len(full_route_sequence) - 1):
-        segment_path = theta_star_3d(full_route_sequence[i], full_route_sequence[i + 1], MULTI_CAD_GRAPH, MULTI_CAD_NODES, accessible_only=accessible_flag)
+        segment_path = theta_star_3d(full_route_sequence[i], full_route_sequence[i + 1], temp_graph, temp_nodes, accessible_only=accessible_flag)
         if segment_path:
             full_path.extend(segment_path[1:] if full_path else segment_path)
         else:
             full_path = []
             break
 
-    path = full_path
+    # 4. Render Map Canvas & Process Clicks
+    folium_map = render_2d_folium_view(floor_select, route_path=full_path, node_coords_dict=temp_nodes, current_lang=st.session_state.lang)
+    map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map", returned_objects=["last_clicked"])
 
-    floor_select = st.selectbox(
-        t["active_floor"],
-        options=[0, 1, 2, 3],
-        format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
-    )
+    # Click-Anywhere Handler
+    if map_data and map_data.get("last_clicked"):
+        click_lat = map_data["last_clicked"]["lat"]
+        click_lng = map_data["last_clicked"]["lng"]
+        click_sig = (click_lat, click_lng)
 
-    folium_map = render_2d_folium_view(floor_select, route_path=path, current_lang=st.session_state.lang)
-    map_data = st_folium(
-    folium_map, 
-    height=550, 
-    width=1000, 
-    key="interactive_folium_map", 
-    returned_objects=["last_clicked"]
-)
+        if click_sig != st.session_state.last_processed_click:
+            st.session_state.last_processed_click = click_sig
+            raw_point = (click_lng, click_lat, floor_select)
 
-if map_data and map_data.get("last_clicked"):
-    click_lat = map_data["last_clicked"]["lat"]
-    click_lng = map_data["last_clicked"]["lng"]
-    click_signature = (click_lat, click_lng)
-
-    if click_signature != st.session_state.last_processed_click:
-        st.session_state.last_processed_click = click_signature
-        
-        # Raw clicked CAD coordinates (X, Y, Z)
-        raw_clicked_point = (click_lng, click_lat, floor_select)
-
-        if st.session_state.map_pick_mode:
-            if st.session_state.map_pick_step == "START":
-                st.session_state.selected_start = raw_clicked_point
-                st.session_state.waypoints = []
-                st.session_state.map_pick_step = "STOPS"
-                st.rerun()
-            elif st.session_state.map_pick_step == "STOPS":
-                st.session_state.waypoints.append(raw_clicked_point)
-                st.rerun()
-            elif st.session_state.map_pick_step == "DEST":
-                st.session_state.selected_dest = raw_clicked_point
-                st.session_state.map_pick_mode = False
-                st.rerun()
-        else:
-            st.session_state["active_click_coords"] = raw_clicked_point
-            st.rerun()
-
-    # Render Start Pin at exact clicked dynamic coordinate
-if isinstance(start_node_id, tuple):
-    sx, sy, sz = start_node_id
-    if sz == active_floor_z:
-        folium.Marker(
-            location=[sy, sx],
-            popup=f"Start Point ({sx:.1f}, {sy:.1f})",
-            icon=folium.Icon(color="red", icon="play")
-        ).add_to(m)
-elif MULTI_CAD_NODES[start_node_id][2] == active_floor_z:
-    sx, sy, _ = MULTI_CAD_NODES[start_node_id]
-    folium.Marker(
-        location=[sy, sx],
-        popup="Start",
-        icon=folium.Icon(color="red", icon="play")
-    ).add_to(m)
-
-# Render Destination Pin at exact clicked dynamic coordinate
-if isinstance(dest_node_id, tuple):
-    dx, dy, dz = dest_node_id
-    if dz == active_floor_z:
-        folium.Marker(
-            location=[dy, dx],
-            popup=f"Destination Point ({dx:.1f}, {dy:.1f})",
-            icon=folium.Icon(color="green", icon="flag")
-        ).add_to(m)
-elif MULTI_CAD_NODES[dest_node_id][2] == active_floor_z:
-    dx, dy, _ = MULTI_CAD_NODES[dest_node_id]
-    folium.Marker(
-        location=[dy, dx],
-        popup="Destination",
-        icon=folium.Icon(color="green", icon="flag")
-    ).add_to(m)
-
-    if not st.session_state.map_pick_mode and "active_click_node" in st.session_state:
-        clicked_loc = st.session_state["active_click_node"]
-        st.info(t["selected_on_map"].format(location=format_location_label(clicked_loc, st.session_state.lang)))
-        c_b1, c_b2, c_b3, c_b4 = st.columns(4)
-        with c_b1:
-            if st.button(t["btn_set_start"]):
-                st.session_state.selected_start = clicked_loc
-                del st.session_state["active_click_node"]
-                st.rerun()
-        with c_b2:
-            if st.button(t["btn_add_as_stop"]):
-                st.session_state.waypoints.append(clicked_loc)
-                del st.session_state["active_click_node"]
-                st.rerun()
-        with c_b3:
-            if st.button(t["btn_set_dest"]):
-                st.session_state.selected_dest = clicked_loc
-                del st.session_state["active_click_node"]
-                st.rerun()
-        with c_b4:
-            if st.button(t["btn_cancel"]):
-                del st.session_state["active_click_node"]
-                st.rerun()
+            if st.session_state.map_pick_mode:
+                if st.session_state.map_pick_step == "START":
+                    st.session_state.selected_start = raw_point
+                    st.session_state.waypoints = []
+                    st.session_state.map_pick_step = "STOPS"
+                    st.rerun()
+                elif st.session_state.map_pick_step == "STOPS":
+                    st.session_state.waypoints.append(raw_point)
+                    st.rerun()
+                elif st.session_state.map_pick_step == "DEST":
+                    st.session_state.selected_dest = raw_point
+                    st.session_state.map_pick_mode = False
+                    st.rerun()
 
 # Directions Tab
 with tab_dir:
     st.subheader(t["route_summary"])
-    if path:
-        summary = compute_route_summary(path)
-        m_col1, m_col2, m_col3 = st.columns(3)
-        m_col1.metric(t["total_dist"], f"{summary['total_distance']} m")
-        m_col2.metric(t["floors_crossed"], summary["floors_crossed"])
-        m_col3.metric(t["total_steps"], summary["steps"])
-
-        st.divider()
-        st.subheader(t["turn_by_turn"])
-        detailed_steps = generate_detailed_directions(path, MULTI_CAD_NODES, lang=st.session_state.lang)
-
-        for step_info in detailed_steps:
-            col_icon, col_text = st.columns([0.1, 0.9])
-            with col_icon: st.markdown(f"### {step_info['icon']}")
-            with col_text:
-                st.markdown(f"**{t['step_lbl']} {step_info['step']}**")
-                st.markdown(step_info["text"])
-            st.divider()
+    if full_path:
+        st.success(f"Route calculated with {len(full_path)} path nodes.")
     else:
         st.warning(t["no_route"])
 
 # Smart Parking Tab
 with tab_park:
     st.subheader(t["parking_sec"])
-    parkable_spots = [node for node in MULTI_CAD_NODES if node.startswith("P") and node[1:].isdigit()]
-    parking_availability = {spot: random.random() < 0.65 for spot in parkable_spots}
-
     assigned_slot, entry_path, exit_path = find_nearest_available_parking(
-        "P_L3_Driveway_Entrance", MULTI_CAD_GRAPH, MULTI_CAD_NODES, availability_map=parking_availability
+        "P_L3_Driveway_Entrance", MULTI_CAD_GRAPH, MULTI_CAD_NODES, availability_map={spot: True for spot in PARKING_SLOTS}
     )
-
     if assigned_slot:
-        st.success(f"{t['nearest_spot_found']}: `🅿️ {assigned_slot}` ({t['rooftop_lot']})")
         park_map = render_rooftop_folium_map(assigned_slot=assigned_slot, route_path=entry_path, current_lang=st.session_state.lang)
         st_folium(park_map, height=450, width=900)
-    else:
-        st.error("No parking available.")
