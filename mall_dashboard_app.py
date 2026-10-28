@@ -853,12 +853,26 @@ with tab_map:
     path = [] if route_failed else full_path
 
     # 4. Render Map Canvas & Process Clicks
-    folium_map = render_2d_folium_view(floor_select, route_path=path, node_coords_dict=temp_nodes, current_lang=st.session_state.lang)
-    map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map", returned_objects=["last_clicked"])
+    map_key = f"folium_map_z_{floor_select}"
+    folium_map = render_2d_folium_view(
+        floor_select, 
+        route_path=path, 
+        node_coords_dict=temp_nodes, 
+        current_lang=st.session_state.lang
+    )
+    
+    # Render Folium map with full event tracking
+    map_data = st_folium(
+        folium_map, 
+        height=550, 
+        width=1000, 
+        key=map_key
+    )
 
+    # Click Event Detection
     if map_data and map_data.get("last_clicked"):
-        click_y = map_data["last_clicked"]["lat"] # Folium Lat = Y
-        click_x = map_data["last_clicked"]["lng"] # Folium Lng = X
+        click_y = map_data["last_clicked"]["lat"]  # Y coordinate
+        click_x = map_data["last_clicked"]["lng"]  # X coordinate
         click_sig = (click_x, click_y, floor_select)
 
         if click_sig != st.session_state.last_processed_click:
