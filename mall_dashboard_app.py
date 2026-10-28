@@ -414,28 +414,61 @@ def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
     return True
 
 def resolve_click_to_dynamic_node(click_x, click_y, floor_z, graph, node_coords):
-    """Creates a virtual node at exact clicked (X, Y) coordinates and connects directly to all visible floor nodes."""
+    """Creates a dynamic virtual node at exact clicked coordinates and links it to ALL visible nodes on the floor."""
     temp_node_id = f"Dynamic_Point_({click_x:.2f}_{click_y:.2f}_Z{floor_z})"
     node_coords[temp_node_id] = (click_x, click_y, floor_z)
     graph[temp_node_id] = {}
 
+    # Connect to existing graph nodes if there is a clear line of sight
     for node_id, coords in list(node_coords.items()):
-        if node_id == temp_node_id: continue
+        if node_id == temp_node_id: 
+            continue
         nx, ny, nz = coords
         if int(nz) == int(floor_z):
-            dist = math.hypot(click_x - nx, click_y - ny)
             if has_line_of_sight_3d(temp_node_id, node_id, node_coords, WALL_SEGMENTS_BY_FLOOR):
+                dist = math.hypot(click_x - nx, click_y - ny)
                 graph[temp_node_id][node_id] = dist
-                if node_id not in graph: graph[node_id] = {}
+                if node_id not in graph: 
+                    graph[node_id] = {}
                 graph[node_id][temp_node_id] = dist
                 
     return temp_node_id
 
-def resolve_route_point(point, floor_z, graph_copy, nodes_copy):
-    if isinstance(point, tuple) and len(point) == 3:
-        px, py, pz = point
-        return resolve_click_to_dynamic_node(px, py, pz, graph_copy, nodes_copy)
-    return point
+
+def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
+    """
+    Resolves all start, waypoint, and destination points, connecting dynamic clicked 
+    points DIRECTLY to each other if they share line-of-sight.
+    """
+    resolved_sequence = []
+    
+    # 1. Resolve each point in the sequence into the node dictionary
+    for pt in route_sequence:
+        if isinstance(pt, tuple) and len(pt) == 3:
+            px, py, pz = pt
+            node_id = resolve_click_to_dynamic_node(px, py, pz, graph_copy, nodes_copy)
+            resolved_sequence.append(node_id)
+        else:
+            resolved_sequence.append(pt)
+
+    # 2. Directly connect adjacent dynamic points if line of sight is clear
+    for i in range(len(resolved_sequence) - 1):
+        node_a = resolved_sequence[i]
+        node_b = resolved_sequence[i + 1]
+        
+        if node_a in nodes_copy and node_b in nodes_copy:
+            za = nodes_copy[node_a][2]
+            zb = nodes_copy[node_b][2]
+            if za == zb and has_line_of_sight_3d(node_a, node_b, nodes_copy, WALL_SEGMENTS_BY_FLOOR):
+                ax, ay, _ = nodes_copy[node_a]
+                bx, by, _ = nodes_copy[node_b]
+                dist = math.hypot(ax - bx, ay - by)
+                graph_copy[node_a][node_b] = dist
+                if node_b not in graph_copy: 
+                    graph_copy[node_b] = {}
+                graph_copy[node_b][node_a] = dist
+
+    return resolved_sequence
 
 # ==============================================================================
 # 3. Pathfinding Engine (Theta*)
