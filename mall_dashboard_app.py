@@ -540,8 +540,8 @@ PARKING_SLOTS = {
 # ------------------------------------------------------------------------------
 # Entry/exit points (doors)
 # room id -> (x, y, node the door opens onto). Each (x, y) sits on the room's
-# boundary. Rooms that don't touch a corridor open onto the neighbouring room
-# they are actually reached through.
+# boundary. The restrooms and stairwells have their door on the left (west) wall
+# and connect straight to the corridor, not through the elevator or escalator.
 # ------------------------------------------------------------------------------
 DOORS = {
     # Ground Floor
@@ -551,8 +551,8 @@ DOORS = {
     "A_L0_Info": (-40.0, 20.0, "A_L0_Entrance"),
     "A_L0_Elevator": (30.0, 14.0, "H_L0_East"),
     "A_L0_Escalator": (30.0, 2.0, "H_L0_East"),
-    "A_L0_Stairs": (40.0, -4.0, "A_L0_Escalator"),
-    "A_L0_Restroom": (40.0, 20.0, "A_L0_Elevator"),
+    "A_L0_Stairs": (30.0, -16.0, "H_L0_East"),
+    "A_L0_Restroom": (30.0, 32.0, "H_L0_East"),
 
     # 1st Floor
     "Jewel Box": (0.0, 20.0, "A_L1_Hallway"),
@@ -560,8 +560,8 @@ DOORS = {
     "Tech Gadgets": (15.0, -4.0, "H_L1_South_East"),
     "A_L1_Elevator": (30.0, 14.0, "H_L1_East"),
     "A_L1_Escalator": (30.0, 2.0, "H_L1_East"),
-    "A_L1_Stairs": (40.0, -4.0, "A_L1_Escalator"),
-    "A_L1_Restroom": (40.0, 20.0, "A_L1_Elevator"),
+    "A_L1_Stairs": (30.0, -16.0, "H_L1_East"),
+    "A_L1_Restroom": (30.0, 32.0, "H_L1_East"),
 
     # 2nd Floor
     "Cineplex Theater": (0.0, 20.0, "B_L2_Corridor"),
@@ -570,8 +570,8 @@ DOORS = {
     "Gourmet Bites": (15.0, -4.0, "H_L2_South_East"),
     "B_L2_Elevator": (30.0, 14.0, "H_L2_East"),
     "B_L2_Escalator": (30.0, 2.0, "H_L2_East"),
-    "B_L2_Stairs": (40.0, -4.0, "B_L2_Escalator"),
-    "B_L2_Restroom": (40.0, 20.0, "B_L2_Elevator"),
+    "B_L2_Stairs": (30.0, -16.0, "H_L2_East"),
+    "B_L2_Restroom": (30.0, 32.0, "H_L2_East"),
 
     # Rooftop Parking
     "P_L3_Driveway_Entrance": (-30.0, 2.0, "P_L3_Aisle_Main"),
@@ -582,7 +582,7 @@ DOORS = {
     "P7": (7.5, 20.0, "P_L3_Aisle_Main"), "P8": (22.5, 20.0, "P_L3_Aisle_Main"),
     "P_L3_Elevator": (30.0, 14.0, "P_L3_Aisle_Main"),
     "P_L3_Escalator": (30.0, 2.0, "P_L3_Aisle_Main"),
-    "P_L3_Stairs": (40.0, -4.0, "P_L3_Escalator"),
+    "P_L3_Stairs": (30.0, -16.0, "P_L3_Aisle_Main"),
 }
 
 def install_doors(nodes, graph, doors, rooms):
