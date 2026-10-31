@@ -442,10 +442,30 @@ def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
             if line_segments_intersect(p1, p2, w1, w2): return False
     return True
 
+def find_room_at(px, py, pz):
+    """Return the id of the room polygon on floor pz that contains point (px, py), or None."""
+    for room_id, info in ROOM_POLYGONS.items():
+        if int(info["z"]) != int(pz):
+            continue
+        coords = info["coords"]
+        inside = False
+        j = len(coords) - 1
+        for i in range(len(coords)):
+            xi, yi = coords[i]
+            xj, yj = coords[j]
+            if (yi > py) != (yj > py) and px < (xj - xi) * (py - yi) / (yj - yi) + xi:
+                inside = not inside
+            j = i
+        if inside:
+            return room_id
+    return None
+
 def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
     """
-    Resolves route sequence. Connects dynamic click points directly to each other 
-    if line-of-sight is clear, or to any visible nodes on the floor.
+    Resolves route sequence. Connects dynamic click points directly to each other
+    if line-of-sight is clear, or to any visible nodes on the floor. A click inside
+    a room bypasses that room's centre node and links straight to the nodes the
+    centre connects to, so the route goes only to the clicked point.
     """
     resolved_sequence = []
 
@@ -456,17 +476,30 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
             nodes_copy[temp_id] = (px, py, pz)
             graph_copy[temp_id] = {}
 
-            # Connect dynamic point to all visible nodes on the floor
+            def link(n_id):
+                nx, ny, _ = nodes_copy[n_id]
+                dist = math.hypot(px - nx, py - ny)
+                graph_copy[temp_id][n_id] = dist
+                graph_copy.setdefault(n_id, {})[temp_id] = dist
+
+            skip_nodes = {temp_id}
+            room_id = find_room_at(px, py, pz)
+
+            # Click is inside a room: bypass the room's centre node and
+            # connect straight to the nodes the centre connects to.
+            if room_id and room_id in MULTI_CAD_GRAPH:
+                skip_nodes.add(room_id)
+                for nb in MULTI_CAD_GRAPH[room_id]:
+                    if nb in nodes_copy and int(nodes_copy[nb][2]) == int(pz):
+                        link(nb)
+
+            # Also connect to any other node with clear line of sight
             for n_id, coords in list(nodes_copy.items()):
-                if n_id == temp_id:
+                if n_id in skip_nodes or n_id.startswith("Dynamic_Point_"):
                     continue
                 if int(coords[2]) == int(pz):
                     if has_line_of_sight_3d(temp_id, n_id, nodes_copy, WALL_SEGMENTS_BY_FLOOR):
-                        dist = math.hypot(px - coords[0], py - coords[1])
-                        graph_copy[temp_id][n_id] = dist
-                        if n_id not in graph_copy:
-                            graph_copy[n_id] = {}
-                        graph_copy[n_id][temp_id] = dist
+                        link(n_id)
 
             resolved_sequence.append(temp_id)
         else:
@@ -481,10 +514,8 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
                     ax, ay, _ = nodes_copy[nA]
                     bx, by, _ = nodes_copy[nB]
                     dist = math.hypot(ax - bx, ay - by)
-                    graph_copy[nA][nB] = dist
-                    if nB not in graph_copy:
-                        graph_copy[nB] = {}
-                    graph_copy[nB][nA] = dist
+                    graph_copy.setdefault(nA, {})[nB] = dist
+                    graph_copy.setdefault(nB, {})[nA] = dist
 
     return resolved_sequence
 
@@ -524,7 +555,7 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
 
             p_curr = parent[current]
             same_floor = (node_coords[p_curr][2] == node_coords[neighbor][2])
-            
+
             if same_floor and has_line_of_sight_3d(p_curr, neighbor, node_coords, WALL_SEGMENTS_BY_FLOOR):
                 candidate_g = g_score[p_curr] + euclidean_distance_3d(p_curr, neighbor, node_coords)
                 if candidate_g < g_score[neighbor]:
@@ -609,7 +640,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             sx, sy, _ = node_coords_dict[start_node_id]
             folium.Marker(location=[sy, sx], popup="Start Point", icon=folium.Icon(color="red", icon="play")).add_to(m)
 
-        if dest_node_id in node_coords_dict and node_coords_dict[dest_node_id][2] == active_floor_z:
+        if len(route_path) > 1 and dest_node_id in node_coords_dict and node_coords_dict[dest_node_id][2] == active_floor_z:
             dx, dy, _ = node_coords_dict[dest_node_id]
             folium.Marker(location=[dy, dx], popup="Destination Point", icon=folium.Icon(color="green", icon="flag")).add_to(m)
 
@@ -784,7 +815,11 @@ with tab_map:
     temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
     temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
 
-    raw_sequence = [st.session_state.selected_start] + st.session_state.waypoints + [st.session_state.selected_dest]
+    if st.session_state.map_pick_mode:
+        # Destination isn't chosen yet, so the route ends at the last clicked point
+        raw_sequence = [st.session_state.selected_start] + st.session_state.waypoints
+    else:
+        raw_sequence = [st.session_state.selected_start] + st.session_state.waypoints + [st.session_state.selected_dest]
     full_route_sequence = resolve_all_route_points(raw_sequence, floor_select, temp_graph, temp_nodes)
 
     full_path = []
@@ -806,6 +841,10 @@ with tab_map:
         else:
             route_failed = True
             break
+
+    # Only the start has been picked so far: show just the start marker
+    if len(full_route_sequence) == 1:
+        full_path = [full_route_sequence[0]]
 
     path = [] if route_failed else full_path
 
