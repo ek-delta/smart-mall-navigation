@@ -105,6 +105,7 @@ LOCALIZATION = {
         "lbl_elevator": "🛗 Elevator",
         "lbl_escalator": "🪜 Escalator",
         "no_parking": "⚠️ No available parking spots found on the Rooftop layer.",
+        "show_doors": "Show entry/exit points",
     },
     "Simplified Chinese": {
         "title": "🏢 智能商场导航与停车系统",
@@ -186,6 +187,7 @@ LOCALIZATION = {
         "lbl_elevator": "🛗 电梯",
         "lbl_escalator": "🪜 自动扶梯",
         "no_parking": "⚠️ 屋顶停车场暂无可用车位。",
+        "show_doors": "显示出入口",
     },
     "Malay": {
         "title": "🏢 Sistem Navigasi & Tempat Letak Kereta Pusat Beli-Belah Smart",
@@ -267,6 +269,7 @@ LOCALIZATION = {
         "lbl_elevator": "🛗 Lif",
         "lbl_escalator": "🪜 Eskalator",
         "no_parking": "⚠️ Tiada ruang letak kereta kosong di aras bumbung.",
+        "show_doors": "Tunjuk titik masuk/keluar",
     }
 }
 
@@ -340,7 +343,13 @@ JUNCTION_LABELS = {
     "Simplified Chinese": "走廊交汇处",
     "Malay": "Persimpangan Koridor",
 }
+DOOR_LABELS = {
+    "English": "Entry/Exit",
+    "Simplified Chinese": "出入口",
+    "Malay": "Pintu Masuk/Keluar",
+}
 DYNAMIC_PREFIX = "Dynamic_Point_"
+DOOR_PREFIX = "Door_"
 
 STORE_CATEGORIES = {
     "Fashion Hub": "Apparel", "Tech Gadgets": "Electronics", "Jewel Box": "Jewelry",
@@ -528,6 +537,82 @@ PARKING_SLOTS = {
     "P5": {"occupied": True},  "P6": {"occupied": False}, "P7": {"occupied": False}, "P8": {"occupied": True},
 }
 
+# ------------------------------------------------------------------------------
+# Entry/exit points (doors)
+# room id -> (x, y, node the door opens onto). Each (x, y) sits on the room's
+# boundary. Rooms that don't touch a corridor open onto the neighbouring room
+# they are actually reached through.
+# ------------------------------------------------------------------------------
+DOORS = {
+    # Ground Floor
+    "Fashion Hub": (0.0, -4.0, "H_L0_South"),
+    "Mega Supermarket": (0.0, 20.0, "H_L0_North"),
+    "A_L0_Entrance": (-30.0, 8.0, "H_L0_West"),
+    "A_L0_Info": (-40.0, 20.0, "A_L0_Entrance"),
+    "A_L0_Elevator": (30.0, 14.0, "H_L0_East"),
+    "A_L0_Escalator": (30.0, 2.0, "H_L0_East"),
+    "A_L0_Stairs": (40.0, -4.0, "A_L0_Escalator"),
+    "A_L0_Restroom": (40.0, 20.0, "A_L0_Elevator"),
+
+    # 1st Floor
+    "Jewel Box": (0.0, 20.0, "A_L1_Hallway"),
+    "Book Nook": (-15.0, -4.0, "H_L1_South_West"),
+    "Tech Gadgets": (15.0, -4.0, "H_L1_South_East"),
+    "A_L1_Elevator": (30.0, 14.0, "H_L1_East"),
+    "A_L1_Escalator": (30.0, 2.0, "H_L1_East"),
+    "A_L1_Stairs": (40.0, -4.0, "A_L1_Escalator"),
+    "A_L1_Restroom": (40.0, 20.0, "A_L1_Elevator"),
+
+    # 2nd Floor
+    "Cineplex Theater": (0.0, 20.0, "B_L2_Corridor"),
+    "VR World & Arcade": (-30.0, 8.0, "H_L2_West"),
+    "Sky Food Court": (-15.0, -4.0, "H_L2_South_West"),
+    "Gourmet Bites": (15.0, -4.0, "H_L2_South_East"),
+    "B_L2_Elevator": (30.0, 14.0, "H_L2_East"),
+    "B_L2_Escalator": (30.0, 2.0, "H_L2_East"),
+    "B_L2_Stairs": (40.0, -4.0, "B_L2_Escalator"),
+    "B_L2_Restroom": (40.0, 20.0, "B_L2_Elevator"),
+
+    # Rooftop Parking
+    "P_L3_Driveway_Entrance": (-30.0, 2.0, "P_L3_Aisle_Main"),
+    "P_L3_Driveway_Exit": (-30.0, 14.0, "P_L3_Aisle_Main"),
+    "P1": (-22.5, -4.0, "P_L3_Aisle_Main"), "P2": (-7.5, -4.0, "P_L3_Aisle_Main"),
+    "P3": (7.5, -4.0, "P_L3_Aisle_Main"), "P4": (22.5, -4.0, "P_L3_Aisle_Main"),
+    "P5": (-22.5, 20.0, "P_L3_Aisle_Main"), "P6": (-7.5, 20.0, "P_L3_Aisle_Main"),
+    "P7": (7.5, 20.0, "P_L3_Aisle_Main"), "P8": (22.5, 20.0, "P_L3_Aisle_Main"),
+    "P_L3_Elevator": (30.0, 14.0, "P_L3_Aisle_Main"),
+    "P_L3_Escalator": (30.0, 2.0, "P_L3_Aisle_Main"),
+    "P_L3_Stairs": (40.0, -4.0, "P_L3_Escalator"),
+}
+
+def install_doors(nodes, graph, doors, rooms):
+    """Add a door node per room and reroute the room's same-floor links through it."""
+    # Pass 1: drop direct same-floor links of every door room (floor-to-floor links stay)
+    for room_id in doors:
+        z = rooms[room_id]["z"]
+        for nb in list(graph.get(room_id, {})):
+            if nb in nodes and nodes[nb][2] == z:
+                graph[room_id].pop(nb)
+                graph.get(nb, {}).pop(room_id, None)
+
+    # Pass 2: room <-> door <-> the node the door opens onto
+    for room_id, (dx, dy, link) in doors.items():
+        z = rooms[room_id]["z"]
+        door_id = f"{DOOR_PREFIX}{room_id}"
+        nodes[door_id] = (float(dx), float(dy), z)
+
+        rx, ry, _ = nodes[room_id]
+        lx, ly, _ = nodes[link]
+        d_room = math.hypot(dx - rx, dy - ry)
+        d_link = math.hypot(dx - lx, dy - ly)
+
+        graph.setdefault(room_id, {})[door_id] = d_room
+        graph.setdefault(door_id, {})[room_id] = d_room
+        graph[door_id][link] = d_link
+        graph.setdefault(link, {})[door_id] = d_link
+
+install_doors(MULTI_CAD_NODES, MULTI_CAD_GRAPH, DOORS, ROOM_POLYGONS)
+
 # ==============================================================================
 # 2. Dynamic Line of Sight & Routing Logic
 # ==============================================================================
@@ -606,22 +691,28 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
 
             skip_nodes = {temp_id}
             room_id = find_room_at(px, py, pz)
+            room_door = f"{DOOR_PREFIX}{room_id}" if room_id else None
 
-            # Click is inside a room: bypass the room's centre node and
-            # connect straight to the nodes the centre connects to.
-            if room_id and room_id in MULTI_CAD_GRAPH:
-                skip_nodes.add(room_id)
-                for nb in MULTI_CAD_GRAPH[room_id]:
-                    if nb in nodes_copy and int(nodes_copy[nb][2]) == int(pz):
-                        link(nb)
+            if room_door and room_door in nodes_copy:
+                # Click is inside a room with a door: the only way in or out
+                # is through that room's entry/exit point.
+                link(room_door)
+            else:
+                # Click is in a corridor/hub: bypass the room's centre node and
+                # connect straight to the nodes the centre connects to.
+                if room_id and room_id in MULTI_CAD_GRAPH:
+                    skip_nodes.add(room_id)
+                    for nb in MULTI_CAD_GRAPH[room_id]:
+                        if nb in nodes_copy and int(nodes_copy[nb][2]) == int(pz):
+                            link(nb)
 
-            # Also connect to any other node with clear line of sight
-            for n_id, coords in list(nodes_copy.items()):
-                if n_id in skip_nodes or n_id.startswith(DYNAMIC_PREFIX):
-                    continue
-                if int(coords[2]) == int(pz):
-                    if has_line_of_sight_3d(temp_id, n_id, nodes_copy, WALL_SEGMENTS_BY_FLOOR):
-                        link(n_id)
+                # Also connect to any other node with clear line of sight
+                for n_id, coords in list(nodes_copy.items()):
+                    if n_id in skip_nodes or n_id.startswith(DYNAMIC_PREFIX):
+                        continue
+                    if int(coords[2]) == int(pz):
+                        if has_line_of_sight_3d(temp_id, n_id, nodes_copy, WALL_SEGMENTS_BY_FLOOR):
+                            link(n_id)
 
             resolved_sequence.append(temp_id)
         else:
@@ -699,8 +790,20 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
 # 4. Map Rendering (Folium 2D, Plotly 3D, Folium Rooftop)
 # ==============================================================================
 
+def add_door_markers_2d(m, floor_z, lang="English", radius=5):
+    door_lbl = DOOR_LABELS.get(lang, DOOR_LABELS["English"])
+    for room_id, (dx, dy, _link) in DOORS.items():
+        if int(ROOM_POLYGONS[room_id]["z"]) != int(floor_z):
+            continue
+        name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id).split("(")[0].strip()
+        folium.CircleMarker(
+            location=[dy, dx], radius=radius, color="#065F46", weight=2,
+            fill=True, fill_color="#34D399", fill_opacity=1.0,
+            tooltip=f"{name} – {door_lbl}"
+        ).add_to(m)
+
 def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
-                          stop_ids=None, show_dest=True):
+                          stop_ids=None, show_dest=True, show_doors=True):
     floor_rooms = {
         r_id: poly["coords"]
         for r_id, poly in ROOM_POLYGONS.items()
@@ -749,6 +852,9 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             )
         ).add_to(m)
 
+    if show_doors:
+        add_door_markers_2d(m, active_floor_z, current_lang)
+
     if route_path:
         floor_path = [node for node in route_path if node in node_coords_dict and node_coords_dict[node][2] == active_floor_z]
 
@@ -776,7 +882,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
     m.fit_bounds(bounds)
     return m
 
-def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="English"):
+def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="English", show_doors=True):
     node_coords = node_coords or MULTI_CAD_NODES
     fig = go.Figure()
     lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION["English"])
@@ -796,6 +902,24 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
             mode="lines",
             line=dict(color=info["color"], width=4),
             name=translated_name,
+            showlegend=False
+        ))
+
+    if show_doors:
+        door_lbl = DOOR_LABELS.get(current_lang, DOOR_LABELS["English"])
+        d_x, d_y, d_z, d_text = [], [], [], []
+        for room_id, (dx, dy, _link) in DOORS.items():
+            name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id).split("(")[0].strip()
+            d_x.append(dx)
+            d_y.append(dy)
+            d_z.append(ROOM_POLYGONS[room_id]["z"] * 40)
+            d_text.append(f"{name} – {door_lbl}")
+        fig.add_trace(go.Scatter3d(
+            x=d_x, y=d_y, z=d_z,
+            mode="markers",
+            marker=dict(size=4, color="#10B981"),
+            hovertext=d_text,
+            hoverinfo="text",
             showlegend=False
         ))
 
@@ -930,6 +1054,7 @@ def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang=
             line_pts = [[MULTI_CAD_NODES[n][1], MULTI_CAD_NODES[n][0]] for n in rooftop_path]
             folium.PolyLine(locations=line_pts, color=route_color, weight=4).add_to(m)
 
+    add_door_markers_2d(m, 3, current_lang, radius=3)
     add_parking_infrastructure_markers(m, current_lang)
 
     m.fit_bounds([[min_y, min_x], [max_y, max_x]])
@@ -980,6 +1105,10 @@ def get_node_display_name(node_id, lang, node_coords):
     if node_id.startswith(DYNAMIC_PREFIX):
         x, y, z = node_coords[node_id]
         return f"📍{POINT_LABELS.get(lang, 'Point')} ({x:.1f}, {y:.1f})"
+    if node_id.startswith(DOOR_PREFIX):
+        room_id = node_id[len(DOOR_PREFIX):]
+        room_name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id).split("(")[0].strip()
+        return f"{room_name} ({DOOR_LABELS.get(lang, DOOR_LABELS['English'])})"
     if node_id.startswith("H_L"):
         return JUNCTION_LABELS.get(lang, JUNCTION_LABELS["English"])
     return POI_TRANSLATIONS.get(lang, {}).get(node_id, node_id)
@@ -1044,8 +1173,20 @@ def format_turn_instruction(angle_diff, distance, target_name, lang="English"):
     else:
         return lang_dict["u_turn"]
 
+def dedupe_path(path, node_coords):
+    """Drop consecutive nodes at identical coordinates (e.g. a door sitting on a corridor junction)."""
+    cleaned = []
+    for node in path or []:
+        if cleaned and node_coords[cleaned[-1]] == node_coords[node]:
+            if node == path[-1]:
+                cleaned[-1] = node
+            continue
+        cleaned.append(node)
+    return cleaned
+
 def generate_detailed_directions(path, node_coords, lang="English"):
-    if not path or len(path) < 2: return []
+    path = dedupe_path(path, node_coords)
+    if len(path) < 2: return []
 
     directions = []
 
@@ -1122,7 +1263,8 @@ def generate_detailed_directions(path, node_coords, lang="English"):
     return directions
 
 def compute_route_summary(path, node_coords):
-    if not path or len(path) < 2: return {"total_distance": 0, "floors_crossed": 0, "steps": 0}
+    path = dedupe_path(path, node_coords)
+    if len(path) < 2: return {"total_distance": 0, "floors_crossed": 0, "steps": 0}
 
     total_dist = 0
     floors_visited = set()
@@ -1486,6 +1628,7 @@ with tab_map:
 
     # ---- View mode and interactive-pick controls ----
     view_type = st.radio(t["view_mode"], options=[t["view_2d"], t["view_3d"]], horizontal=True)
+    show_doors = st.checkbox(t["show_doors"], value=True)
 
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
     with col_btn_pick:
@@ -1559,6 +1702,7 @@ with tab_map:
             current_lang=st.session_state.lang,
             stop_ids=stop_ids,
             show_dest=not st.session_state.map_pick_mode,
+            show_doors=show_doors,
         )
         map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map", returned_objects=["last_clicked"])
 
@@ -1590,7 +1734,7 @@ with tab_map:
                     st.session_state.selected_dest = raw_point
                     st.rerun()
     else:
-        fig_3d = render_3d_isometric_view(route_path=path, node_coords=temp_nodes, current_lang=st.session_state.lang)
+        fig_3d = render_3d_isometric_view(route_path=path, node_coords=temp_nodes, current_lang=st.session_state.lang, show_doors=show_doors)
         st.plotly_chart(fig_3d, use_container_width=True)
 
 # ------------------------------------------------------------------------------
