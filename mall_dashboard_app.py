@@ -835,7 +835,60 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     bounds = [[min_y, min_x], [max_y, max_x]]
 
-    m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
+    m = folium.Map(
+        crs="Simple",
+        tiles=None,
+        zoom_control=True,
+        scroll_wheel_zoom=True
+    )
+    
+    # --------------------------------------------------------------------------
+    # 1. Restore Grid Lines & Pink/Black Plotly Background
+    # --------------------------------------------------------------------------
+    grid_css = """
+    <style>
+    .leaflet-container {
+        background-color: #FFB6C1 !important; /* Plotly pink map background */
+    }
+    </style>
+    """
+    m.get_root().html.add_child(folium.Element(grid_css))
+
+    # Draw coordinate grid lines spaced every 10 units
+    grid_step = 10
+    grid_group = folium.FeatureGroup(name="Coordinate Grid", show=True)
+    
+    # Vertical gridlines & labels
+    start_x = int(math.floor(min_x / grid_step)) * grid_step
+    end_x = int(math.ceil(max_x / grid_step)) * grid_step
+    for x in range(start_x, end_x + grid_step, grid_step):
+        line_color = "#000000" if x == 0 else "rgba(0, 0, 0, 0.25)"
+        weight = 2 if x == 0 else 1
+        folium.PolyLine(
+            locations=[[min_y, x], [max_y, x]],
+            color=line_color,
+            weight=weight,
+            dash_array="3, 3" if x != 0 else None
+        ).add_to(grid_group)
+        
+    # Horizontal gridlines & labels
+    start_y = int(math.floor(min_y / grid_step)) * grid_step
+    end_y = int(math.ceil(max_y / grid_step)) * grid_step
+    for y in range(start_y, end_y + grid_step, grid_step):
+        line_color = "#000000" if y == 0 else "rgba(0, 0, 0, 0.25)"
+        weight = 2 if y == 0 else 1
+        folium.PolyLine(
+            locations=[[y, min_x], [y, max_x]],
+            color=line_color,
+            weight=weight,
+            dash_array="3, 3" if y != 0 else None
+        ).add_to(grid_group)
+
+    grid_group.add_to(m)
+
+    # --------------------------------------------------------------------------
+    # 2. Render Rooms, Doors, Route Path, and Markers
+    # --------------------------------------------------------------------------
     Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
     for room_id, coords in floor_rooms.items():
