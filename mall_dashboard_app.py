@@ -6,6 +6,7 @@ import folium
 import plotly.graph_objects as go
 from streamlit_folium import st_folium
 from folium.plugins import Fullscreen
+import streamlit.components.v1 as components
 
 # ==============================================================================
 # 1. Page Config & Localization Dictionary
@@ -17,6 +18,31 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+def inject_scroll_lock():
+    components.html(
+        """
+        <script>
+            // 1. Restore scroll position on page load / rerun
+            const scrollY = sessionStorage.getItem("st_scroll_y");
+            const scrollX = sessionStorage.getItem("st_scroll_x");
+            if (scrollY !== null && scrollX !== null) {
+                window.parent.scrollTo(parseInt(scrollX), parseInt(scrollY));
+            }
+
+            # Verification: Attach listener to parent Streamlit window to store position before unload/rerun
+            window.parent.addEventListener("scroll", () => {
+                sessionStorage.setItem("st_scroll_y", window.parent.scrollY);
+                sessionStorage.setItem("st_scroll_x", window.parent.scrollX);
+            });
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+# Inject the scroll lock at the top of the app layout
+inject_scroll_lock()
 
 LANG_OPTION_LABELS = {
     "English": {"English": "English", "Simplified Chinese": "Simplified Chinese", "Malay": "Malay"},
