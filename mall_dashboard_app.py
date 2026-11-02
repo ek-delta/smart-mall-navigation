@@ -36,7 +36,7 @@ def inject_scroll_lock():
                 sessionStorage.setItem("st_scroll_x", window.parent.scrollX);
             });
         </script>
-        ,
+        
         height=0,
         width=0,
     )
