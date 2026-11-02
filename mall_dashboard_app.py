@@ -4,7 +4,7 @@ import copy
 import streamlit as st
 import plotly.graph_objects as go
 from streamlit_folium import st_folium
-from folium.plugins import Fullscreen, MousePosition, MeasureControl
+from folium.plugins import Fullscreen, MousePosition, LocateControl
 import folium
 
 # ==============================================================================
@@ -880,7 +880,6 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     bounds = [[min_y, min_x], [max_y, max_x]]
 
-    # Initialize Simple CRS Map
     m = folium.Map(
         location=[(min_y + max_y) / 2, (min_x + max_x) / 2],
         crs="Simple", 
@@ -889,10 +888,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         scroll_wheel_zoom=True
     )
     
-    # 1. Native Leaflet Fullscreen Toggle (Top-Left Toolbar)
-    Fullscreen(position="topleft", title="Fullscreen", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
-
-    # 2. Dynamic Real-Time Coordinate Gauge (Bottom-Right, Meter Coordinates)
+    # Dynamic meter coordinates gauge at bottom right
     MousePosition(
         position="bottomright",
         separator=" | Y (m): ",
@@ -901,15 +897,9 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         prefix="X (m): "
     ).add_to(m)
 
-    # 3. Native Measure Control Tool (Pan, Zoom, & Distance Measurement)
-    MeasureControl(
-        position="topright",
-        primary_length_unit="meters",
-        secondary_length_unit=None,
-        primary_area_unit=None
-    ).add_to(m)
+    Fullscreen(position="topleft", title="Fullscreen", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
-    # Render Room Polygons, Icons, and Route Path
+    # Render Room Polygons & Store Labels
     for room_id, coords in floor_rooms.items():
         room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
@@ -1785,30 +1775,53 @@ with tab_map:
 
     with map_container:
         if view_type == t["view_2d"]:
+        col_floor, col_autoscale, col_download = st.columns([0.5, 0.25, 0.25])
+
+        with col_floor:
             floor_select = st.selectbox(
                 t["active_floor"],
                 options=[0, 1, 2, 3],
                 format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
             )
 
-            folium_map = render_2d_folium_view(
-                floor_select,
-                route_path=path,
-                node_coords_dict=temp_nodes,
-                current_lang=st.session_state.lang,
-                stop_ids=stop_ids,
-                show_dest=not st.session_state.map_pick_mode,
-                show_doors=show_doors,
+        with col_autoscale:
+            st.write("")
+            st.write("")
+            if st.button("🏠 Autoscale Map", use_container_width=True):
+                # Triggering a rerun resets the map zoom/bounds back to fit_bounds default
+                st.rerun()
+
+        with col_download:
+            st.write("")
+            st.write("")
+            # Prepare map data summary text download
+            route_str = " -> ".join([str(n) for n in path]) if 'path' in locals() and path else "No active route"
+            map_info_text = f"Floor: {get_translated_floor_name(floor_select, st.session_state.lang)}\nRoute: {route_str}\n"
+            st.download_button(
+                label="📷 Download Map Data",
+                data=map_info_text,
+                file_name=f"mall_map_floor_{floor_select}.txt",
+                mime="text/plain",
+                use_container_width=True
             )
-            
-            map_data = st_folium(
-                folium_map,
-                height=550,
-                width=None,
-                use_container_width=True,
-                key="interactive_folium_map",
-                returned_objects=["last_clicked"]
-            )
+
+        folium_map = render_2d_folium_view(
+            floor_select,
+            route_path=path,
+            node_coords_dict=temp_nodes,
+            current_lang=st.session_state.lang,
+            stop_ids=stop_ids,
+            show_dest=not st.session_state.map_pick_mode,
+            show_doors=show_doors,
+        )
+
+        map_data = st_folium(
+            folium_map, 
+            height=550, 
+            use_container_width=True, 
+            key="interactive_folium_map", 
+            returned_objects=["last_clicked"]
+        )
 
             if map_data and map_data.get("last_clicked"):
                 click_lat = map_data["last_clicked"]["lat"]
