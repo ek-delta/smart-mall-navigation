@@ -838,39 +838,65 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
     m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
     Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
-    # --------------------------------------------------------------------------
-    # Plotly-style Coordinates & Metric Grid Overlay
-    # --------------------------------------------------------------------------
-    # 1. Real-time cursor X, Y display (matching Plotly meter coordinates)
+    # Real-time cursor X, Y display
     MousePosition(
         position="bottomright",
         separator=" | ",
         empty_string="X: 0.0, Y: 0.0",
-        lng_first=True,  # Displays X first, then Y
+        lng_first=True,
         num_digits=1,
         prefix="Coordinate (m): X=",
     ).add_to(m)
 
-    # 2. Draw vertical gridlines every 10 meters
-    for x in range(int(min_x), int(max_x) + 1, 10):
+    # --------------------------------------------------------------------------
+    # Gridlines and Plotly-style Numeric Axis Ticks
+    # --------------------------------------------------------------------------
+    grid_step = 10  # Meters between gridlines and ticks
+
+    # 1. Vertical gridlines & X-axis tick labels (Top edge)
+    for x in range(int(min_x), int(max_x) + 1, grid_step):
         folium.PolyLine(
             locations=[[min_y, x], [max_y, x]],
             color="#94A3B8",
             weight=1,
             dash_array="3, 6",
             opacity=0.4,
-            tooltip=f"X = {x}m"
         ).add_to(m)
 
-    # 3. Draw horizontal gridlines every 10 meters
-    for y in range(int(min_y), int(max_y) + 1, 10):
+        # X-axis tick label placed along the top boundary line (max_y)
+        folium.Marker(
+            location=[max_y - 1, x],
+            icon=folium.DivIcon(
+                html=f'''<div style="font-size: 10px; font-weight: bold; color: #475569;
+                    background: rgba(255, 255, 255, 0.85); border: 1px solid #CBD5E1;
+                    border-radius: 3px; padding: 1px 3px; text-align: center;
+                    transform: translate(-50%, -100%); white-space: nowrap;">
+                    {x}m
+                </div>'''
+            )
+        ).add_to(m)
+
+    # 2. Horizontal gridlines & Y-axis tick labels (Left edge)
+    for y in range(int(min_y), int(max_y) + 1, grid_step):
         folium.PolyLine(
             locations=[[y, min_x], [y, max_x]],
             color="#94A3B8",
             weight=1,
             dash_array="3, 6",
             opacity=0.4,
-            tooltip=f"Y = {y}m"
+        ).add_to(m)
+
+        # Y-axis tick label placed along the left boundary line (min_x)
+        folium.Marker(
+            location=[y, min_x + 1],
+            icon=folium.DivIcon(
+                html=f'''<div style="font-size: 10px; font-weight: bold; color: #475569;
+                    background: rgba(255, 255, 255, 0.85); border: 1px solid #CBD5E1;
+                    border-radius: 3px; padding: 1px 3px; text-align: center;
+                    transform: translate(-100%, -50%); white-space: nowrap;">
+                    {y}m
+                </div>'''
+            )
         ).add_to(m)
 
     # --------------------------------------------------------------------------
@@ -917,7 +943,6 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
-        # Intermediate stops
         for idx, stop_id in enumerate(stop_ids or [], start=1):
             if stop_id in node_coords_dict and node_coords_dict[stop_id][2] == active_floor_z:
                 stx, sty, _ = node_coords_dict[stop_id]
