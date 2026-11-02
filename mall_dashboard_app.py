@@ -4,7 +4,7 @@ import copy
 import streamlit as st
 import plotly.graph_objects as go
 from streamlit_folium import st_folium
-from folium.plugins import Fullscreen, MousePosition
+from folium.plugins import Fullscreen, MousePosition, MeasureControl
 import folium
 
 # ==============================================================================
