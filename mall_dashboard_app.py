@@ -826,71 +826,62 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     all_pts = [pt for coords in floor_rooms.values() for pt in coords]
     if all_pts:
-        min_x = min(p[0] for p in all_pts) - 10
-        max_x = max(p[0] for p in all_pts) + 10
-        min_y = min(p[1] for p in all_pts) - 10
-        max_y = max(p[1] for p in all_pts) + 10
+        min_x = math.floor(min(p[0] for p in all_pts) - 10)
+        max_x = math.ceil(max(p[0] for p in all_pts) + 10)
+        min_y = math.floor(min(p[1] for p in all_pts) - 10)
+        max_y = math.ceil(max(p[1] for p in all_pts) + 10)
     else:
         min_x, max_x, min_y, max_y = -60, 60, -35, 55
 
     bounds = [[min_y, min_x], [max_y, max_x]]
 
-    m = folium.Map(
-        crs="Simple",
-        tiles=None,
-        zoom_control=True,
-        scroll_wheel_zoom=True
-    )
-    
-    # --------------------------------------------------------------------------
-    # 1. Restore Grid Lines & Pink/Black Plotly Background
-    # --------------------------------------------------------------------------
-    grid_css = """
-    <style>
-    .leaflet-container {
-        background-color: #FFB6C1 !important; /* Plotly pink map background */
-    }
-    </style>
-    """
-    m.get_root().html.add_child(folium.Element(grid_css))
-
-    # Draw coordinate grid lines spaced every 10 units
-    grid_step = 10
-    grid_group = folium.FeatureGroup(name="Coordinate Grid", show=True)
-    
-    # Vertical gridlines & labels
-    start_x = int(math.floor(min_x / grid_step)) * grid_step
-    end_x = int(math.ceil(max_x / grid_step)) * grid_step
-    for x in range(start_x, end_x + grid_step, grid_step):
-        line_color = "#000000" if x == 0 else "rgba(0, 0, 0, 0.25)"
-        weight = 2 if x == 0 else 1
-        folium.PolyLine(
-            locations=[[min_y, x], [max_y, x]],
-            color=line_color,
-            weight=weight,
-            dash_array="3, 3" if x != 0 else None
-        ).add_to(grid_group)
-        
-    # Horizontal gridlines & labels
-    start_y = int(math.floor(min_y / grid_step)) * grid_step
-    end_y = int(math.ceil(max_y / grid_step)) * grid_step
-    for y in range(start_y, end_y + grid_step, grid_step):
-        line_color = "#000000" if y == 0 else "rgba(0, 0, 0, 0.25)"
-        weight = 2 if y == 0 else 1
-        folium.PolyLine(
-            locations=[[y, min_x], [y, max_x]],
-            color=line_color,
-            weight=weight,
-            dash_array="3, 3" if y != 0 else None
-        ).add_to(grid_group)
-
-    grid_group.add_to(m)
-
-    # --------------------------------------------------------------------------
-    # 2. Render Rooms, Doors, Route Path, and Markers
-    # --------------------------------------------------------------------------
+    m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
     Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
+    # --------------------------------------------------------------------------
+    # Grid Lines & Axis Number Annotations (Replicating Plotly Grid)
+    # --------------------------------------------------------------------------
+    grid_step = 10  # Grid spacing interval in meters
+
+    # Vertical Grid Lines (X-axis lines & labels)
+    for x in range(min_x, max_x + 1, grid_step):
+        folium.PolyLine(
+            locations=[[min_y, x], [max_y, x]],
+            color="#CBD5E1",
+            weight=1,
+            dash_array="3, 3",
+            opacity=0.6
+        ).add_to(m)
+        
+        # X-Axis Coordinate Number Markers along bottom boundary
+        folium.Marker(
+            location=[min_y, x],
+            icon=folium.DivIcon(
+                html=f'<div style="font-size: 9px; font-weight: bold; color: #64748B; text-align: center; transform: translate(-50%, 4px);">{x}m</div>'
+            )
+        ).add_to(m)
+
+    # Horizontal Grid Lines (Y-axis lines & labels)
+    for y in range(min_y, max_y + 1, grid_step):
+        folium.PolyLine(
+            locations=[[y, min_x], [y, max_x]],
+            color="#CBD5E1",
+            weight=1,
+            dash_array="3, 3",
+            opacity=0.6
+        ).add_to(m)
+        
+        # Y-Axis Coordinate Number Markers along left boundary
+        folium.Marker(
+            location=[y, min_x],
+            icon=folium.DivIcon(
+                html=f'<div style="font-size: 9px; font-weight: bold; color: #64748B; text-align: right; transform: translate(-100%, -50%); padding-right: 4px;">{y}m</div>'
+            )
+        ).add_to(m)
+
+    # --------------------------------------------------------------------------
+    # Room Polygons & POI Markers
+    # --------------------------------------------------------------------------
     for room_id, coords in floor_rooms.items():
         room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
@@ -948,7 +939,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     m.fit_bounds(bounds)
     return m
-
+                              
 def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="English", show_doors=True):
     node_coords = node_coords or MULTI_CAD_NODES
     fig = go.Figure()
