@@ -838,7 +838,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
     m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
     Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
-    # Real-time cursor X, Y display
+    # 1. Real-time cursor coordinates box
     MousePosition(
         position="bottomright",
         separator=" | ",
@@ -848,59 +848,118 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         prefix="Coordinate (m): X=",
     ).add_to(m)
 
-    # --------------------------------------------------------------------------
-    # Gridlines and Plotly-style Numeric Axis Ticks
-    # --------------------------------------------------------------------------
-    grid_step = 10  # Meters between gridlines and ticks
-
-    # 1. Vertical gridlines & X-axis tick labels (Top edge)
-    for x in range(int(min_x), int(max_x) + 1, grid_step):
+    # 2. Draw static metric background gridlines
+    for x in range(int(min_x), int(max_x) + 1, 10):
         folium.PolyLine(
             locations=[[min_y, x], [max_y, x]],
             color="#94A3B8",
             weight=1,
             dash_array="3, 6",
-            opacity=0.4,
+            opacity=0.35,
         ).add_to(m)
 
-        # X-axis tick label placed along the top boundary line (max_y)
-        folium.Marker(
-            location=[max_y - 1, x],
-            icon=folium.DivIcon(
-                html=f'''<div style="font-size: 10px; font-weight: bold; color: #475569;
-                    background: rgba(255, 255, 255, 0.85); border: 1px solid #CBD5E1;
-                    border-radius: 3px; padding: 1px 3px; text-align: center;
-                    transform: translate(-50%, -100%); white-space: nowrap;">
-                    {x}m
-                </div>'''
-            )
-        ).add_to(m)
-
-    # 2. Horizontal gridlines & Y-axis tick labels (Left edge)
-    for y in range(int(min_y), int(max_y) + 1, grid_step):
+    for y in range(int(min_y), int(max_y) + 1, 10):
         folium.PolyLine(
             locations=[[y, min_x], [y, max_x]],
             color="#94A3B8",
             weight=1,
             dash_array="3, 6",
-            opacity=0.4,
+            opacity=0.35,
         ).add_to(m)
 
-        # Y-axis tick label placed along the left boundary line (min_x)
-        folium.Marker(
-            location=[y, min_x + 1],
-            icon=folium.DivIcon(
-                html=f'''<div style="font-size: 10px; font-weight: bold; color: #475569;
-                    background: rgba(255, 255, 255, 0.85); border: 1px solid #CBD5E1;
-                    border-radius: 3px; padding: 1px 3px; text-align: center;
-                    transform: translate(-100%, -50%); white-space: nowrap;">
-                    {y}m
-                </div>'''
-            )
-        ).add_to(m)
+    # 3. Dynamic Zoom-Adaptive Edge Axis Overlay (Plotly Style)
+    axis_script = """
+    <script>
+    L.Control.DynamicAxis = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function (map) {
+            var container = L.DomUtil.create('div', 'leaflet-dynamic-axis-container');
+            container.style.position = 'absolute';
+            container.style.top = '0';
+            container.style.left = '0';
+            container.style.width = '100%';
+            container.style.height = '100%';
+            container.style.pointerEvents = 'none';
+            container.style.zIndex = '400';
+            
+            var canvas = L.DomUtil.create('canvas', 'leaflet-axis-canvas', container);
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            
+            this._canvas = canvas;
+            this._map = map;
+            
+            map.on('move zoom viewreset resize', this._updateAxis, this);
+            setTimeout(this._updateAxis.bind(this), 100);
+            return container;
+        },
+        _updateAxis: function () {
+            var map = this._map;
+            var canvas = this._canvas;
+            var size = map.getSize();
+            
+            canvas.width = size.x;
+            canvas.height = size.y;
+            var ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, size.x, size.y);
+            
+            var bounds = map.getBounds();
+            var minLng = bounds.getWest(), maxLng = bounds.getEast();
+            var minLat = bounds.getSouth(), maxLat = bounds.getNorth();
+            
+            var rangeX = maxLng - minLng;
+            var stepX = 10;
+            if (rangeX <= 30) stepX = 2;
+            else if (rangeX <= 60) stepX = 5;
+            else if (rangeX <= 120) stepX = 10;
+            else stepX = 20;
+
+            var rangeY = maxLat - minLat;
+            var stepY = 10;
+            if (rangeY <= 30) stepY = 2;
+            else if (rangeY <= 60) stepY = 5;
+            else if (rangeY <= 120) stepY = 10;
+            else stepY = 20;
+            
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1;
+
+            // Render X-axis tick labels along the top edge
+            var startX = Math.floor(minLng / stepX) * stepX;
+            for (var x = startX; x <= maxLng; x += stepX) {
+                var point = map.latLngToContainerPoint([maxLat, x]);
+                if (point.x >= 0 && point.x <= size.x) {
+                    ctx.beginPath();
+                    ctx.moveTo(point.x, 0);
+                    ctx.lineTo(point.x, 6);
+                    ctx.stroke();
+                    ctx.fillText(x.toFixed(0) + 'm', point.x - 10, 18);
+                }
+            }
+
+            // Render Y-axis tick labels along the left edge
+            var startY = Math.floor(minLat / stepY) * stepY;
+            for (var y = startY; y <= maxLat; y += stepY) {
+                var pointY = map.latLngToContainerPoint([y, minLng]);
+                if (pointY.y >= 0 && pointY.y <= size.y) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, pointY.y);
+                    ctx.lineTo(6, pointY.y);
+                    ctx.stroke();
+                    ctx.fillText(y.toFixed(0) + 'm', 8, pointY.y + 4);
+                }
+            }
+        }
+    });
+    map.addControl(new L.Control.DynamicAxis());
+    </script>
+    """
+    m.get_root().html.add_child(folium.Element(axis_script))
 
     # --------------------------------------------------------------------------
-    # Floor Plan & Route Path Rendering
+    # Render Floor Plan Polygons & Markers
     # --------------------------------------------------------------------------
     for room_id, coords in floor_rooms.items():
         room_info = ROOM_POLYGONS[room_id]
