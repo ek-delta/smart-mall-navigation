@@ -1666,6 +1666,11 @@ with tab_map:
             st.session_state.selected_dest = "A_L0_Lobby"
             st.rerun()
 
+# --------------------------------------------------------------------------
+    # Render Map View & Click Event Handler (Fixed Layout Height)
+    # --------------------------------------------------------------------------
+    
+    # 1. Fixed placeholder container for top status messages to keep height constant
     status_placeholder = st.empty()
     
     if st.session_state.map_pick_mode:
@@ -1704,7 +1709,7 @@ with tab_map:
             if view_type == t["view_3d"]:
                 st.info(t["pick_3d_notice"])
 
-    # 2. Render map view within a dedicated static container
+    # 2. Render map view within a static layout container
     map_container = st.container()
 
     with map_container:
@@ -1728,6 +1733,7 @@ with tab_map:
             map_data = st_folium(
                 folium_map,
                 height=550,
+                width=None,
                 use_container_width=True,
                 key="interactive_folium_map",
                 returned_objects=["last_clicked"]
@@ -1768,7 +1774,7 @@ with tab_map:
                 show_doors=show_doors
             )
             st.plotly_chart(fig_3d, use_container_width=True)
-
+            
 # ------------------------------------------------------------------------------
 # Directions Tab
 # ------------------------------------------------------------------------------
