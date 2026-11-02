@@ -336,7 +336,6 @@ POI_TRANSLATIONS = {
     }
 }
 
-# Labels for nodes that are not named rooms (clicked points and corridor junctions)
 POINT_LABELS = {"English": "Point", "Simplified Chinese": "自选点", "Malay": "Titik"}
 JUNCTION_LABELS = {
     "English": "Corridor Junction",
@@ -387,7 +386,10 @@ if "waypoint_counter" not in st.session_state: st.session_state.waypoint_counter
 if "map_pick_mode" not in st.session_state: st.session_state.map_pick_mode = False
 if "map_pick_step" not in st.session_state: st.session_state.map_pick_step = "START"
 if "last_processed_click" not in st.session_state: st.session_state.last_processed_click = None
-if "map_views" not in st.session_state: st.session_state.map_views = {}
+
+# Viewport persistence variables to prevent jump on clicks
+if "map_center" not in st.session_state: st.session_state.map_center = None
+if "map_zoom" not in st.session_state: st.session_state.map_zoom = None
 
 LOCATION_ICONS = {
     "Fashion": "👗", "Electronics": "📱", "Food & Beverage": "🍔",
@@ -538,15 +540,7 @@ PARKING_SLOTS = {
     "P5": {"occupied": True},  "P6": {"occupied": False}, "P7": {"occupied": False}, "P8": {"occupied": True},
 }
 
-# ------------------------------------------------------------------------------
-# Entry/exit points (doors)
-# room id -> (x, y, node the door opens onto). Each (x, y) sits on the room's
-# boundary. Each corridor runs on to x=50, so the restrooms and stairwells sit
-# alongside it like the stores (doors on the corridor-facing wall). The elevator
-# and escalator are at the east end of the corridor.
-# ------------------------------------------------------------------------------
 DOORS = {
-    # Ground Floor
     "Fashion Hub": (0.0, -4.0, "H_L0_South"),
     "Mega Supermarket": (0.0, 20.0, "H_L0_North"),
     "A_L0_Entrance": (-30.0, 8.0, "H_L0_West"),
@@ -556,7 +550,6 @@ DOORS = {
     "A_L0_Stairs": (40.0, -4.0, "H_L0_End"),
     "A_L0_Restroom": (40.0, 20.0, "H_L0_End"),
 
-    # 1st Floor
     "Jewel Box": (0.0, 20.0, "A_L1_Hallway"),
     "Book Nook": (-15.0, -4.0, "H_L1_South_West"),
     "Tech Gadgets": (15.0, -4.0, "H_L1_South_East"),
@@ -565,7 +558,6 @@ DOORS = {
     "A_L1_Stairs": (40.0, -4.0, "H_L1_End"),
     "A_L1_Restroom": (40.0, 20.0, "H_L1_End"),
 
-    # 2nd Floor
     "Cineplex Theater": (0.0, 20.0, "B_L2_Corridor"),
     "VR World & Arcade": (-30.0, 8.0, "H_L2_West"),
     "Sky Food Court": (-15.0, -4.0, "H_L2_South_West"),
@@ -575,7 +567,6 @@ DOORS = {
     "B_L2_Stairs": (40.0, -4.0, "H_L2_End"),
     "B_L2_Restroom": (40.0, 20.0, "H_L2_End"),
 
-    # Rooftop Parking
     "P_L3_Driveway_Entrance": (-30.0, 2.0, "P_L3_Aisle_Main"),
     "P_L3_Driveway_Exit": (-30.0, 14.0, "P_L3_Aisle_Main"),
     "P1": (-22.5, -4.0, "P_L3_Aisle_Main"), "P2": (-7.5, -4.0, "P_L3_Aisle_Main"),
@@ -588,8 +579,6 @@ DOORS = {
 }
 
 def install_doors(nodes, graph, doors, rooms):
-    """Add a door node per room and reroute the room's same-floor links through it."""
-    # Pass 1: drop direct same-floor links of every door room (floor-to-floor links stay)
     for room_id in doors:
         z = rooms[room_id]["z"]
         for nb in list(graph.get(room_id, {})):
@@ -597,7 +586,6 @@ def install_doors(nodes, graph, doors, rooms):
                 graph[room_id].pop(nb)
                 graph.get(nb, {}).pop(room_id, None)
 
-    # Pass 2: room <-> door <-> the node the door opens onto
     for room_id, (dx, dy, link) in doors.items():
         z = rooms[room_id]["z"]
         door_id = f"{DOOR_PREFIX}{room_id}"
@@ -613,7 +601,6 @@ def install_doors(nodes, graph, doors, rooms):
         graph[door_id][link] = d_link
         graph.setdefault(link, {})[door_id] = d_link
 
-# Hubs at the east end of each corridor (where restroom/stairwell/lift doors meet it)
 END_HUBS = {
     "H_L0_End": ((40.0, 8.0, 0), "H_L0_East"),
     "H_L1_End": ((40.0, 8.0, 1), "H_L1_East"),
@@ -665,7 +652,6 @@ def has_line_of_sight_3d(node_a, node_b, node_coords, wall_segments):
     return True
 
 def find_room_at(px, py, pz):
-    """Return the id of the room polygon on floor pz that contains point (px, py), or None."""
     for room_id, info in ROOM_POLYGONS.items():
         if int(info["z"]) != int(pz):
             continue
@@ -683,12 +669,6 @@ def find_room_at(px, py, pz):
     return None
 
 def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
-    """
-    Resolves route sequence. Connects dynamic click points directly to each other
-    if line-of-sight is clear, or to any visible nodes on the floor. A click inside
-    a room bypasses that room's centre node and links straight to the nodes the
-    centre connects to, so the route goes only to the clicked point.
-    """
     resolved_sequence = []
 
     for pt in route_sequence:
@@ -709,19 +689,14 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
             room_door = f"{DOOR_PREFIX}{room_id}" if room_id else None
 
             if room_door and room_door in nodes_copy:
-                # Click is inside a room with a door: the only way in or out
-                # is through that room's entry/exit point.
                 link(room_door)
             else:
-                # Click is in a corridor/hub: bypass the room's centre node and
-                # connect straight to the nodes the centre connects to.
                 if room_id and room_id in MULTI_CAD_GRAPH:
                     skip_nodes.add(room_id)
                     for nb in MULTI_CAD_GRAPH[room_id]:
                         if nb in nodes_copy and int(nodes_copy[nb][2]) == int(pz):
                             link(nb)
 
-                # Also connect to any other node with clear line of sight
                 for n_id, coords in list(nodes_copy.items()):
                     if n_id in skip_nodes or n_id.startswith(DYNAMIC_PREFIX):
                         continue
@@ -733,7 +708,6 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
         else:
             resolved_sequence.append(pt)
 
-    # Link consecutive dynamic click points directly if line of sight is clear
     for i in range(len(resolved_sequence) - 1):
         nA, nB = resolved_sequence[i], resolved_sequence[i + 1]
         if nA in nodes_copy and nB in nodes_copy:
@@ -802,7 +776,7 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
     return None
 
 # ==============================================================================
-# 4. Map Rendering (Folium 2D, Plotly 3D, Folium Rooftop)
+# 4. Map Rendering (Folium 2D Viewport Fixed)
 # ==============================================================================
 
 def add_door_markers_2d(m, floor_z, lang="English", radius=5):
@@ -818,7 +792,7 @@ def add_door_markers_2d(m, floor_z, lang="English", radius=5):
         ).add_to(m)
 
 def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
-                          stop_ids=None, show_dest=True, show_doors=True, saved_view=None):
+                          stop_ids=None, show_dest=True, show_doors=True):
     floor_rooms = {
         r_id: poly["coords"]
         for r_id, poly in ROOM_POLYGONS.items()
@@ -836,14 +810,19 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     bounds = [[min_y, min_x], [max_y, max_x]]
 
-    if saved_view:
-        # Restore the user's last pan/zoom so a click doesn't move the map
+    # Reuse saved center and zoom to stop view jumps on click reruns
+    if st.session_state.map_center and st.session_state.map_zoom:
         m = folium.Map(
-            location=[saved_view["lat"], saved_view["lng"]], zoom_start=saved_view["zoom"],
-            crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True
+            location=st.session_state.map_center,
+            zoom_start=st.session_state.map_zoom,
+            crs="Simple",
+            tiles=None,
+            zoom_control=True,
+            scroll_wheel_zoom=True
         )
     else:
         m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
+
     Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
     for room_id, coords in floor_rooms.items():
@@ -887,7 +866,6 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         start_node_id = route_path[0]
         dest_node_id = route_path[-1]
 
-        # Intermediate stops
         for idx, stop_id in enumerate(stop_ids or [], start=1):
             if stop_id in node_coords_dict and node_coords_dict[stop_id][2] == active_floor_z:
                 stx, sty, _ = node_coords_dict[stop_id]
@@ -901,8 +879,10 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             dx, dy, _ = node_coords_dict[dest_node_id]
             folium.Marker(location=[dy, dx], popup="Destination Point", icon=folium.Icon(color="green", icon="flag")).add_to(m)
 
-    if not saved_view:
+    # Apply fit_bounds only on initial load when state is unassigned
+    if not (st.session_state.map_center and st.session_state.map_zoom):
         m.fit_bounds(bounds)
+
     return m
 
 def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="English", show_doors=True):
@@ -1091,7 +1071,6 @@ def path_length(path, nodes):
     return sum(euclidean_distance_3d(a, b, nodes) for a, b in zip(path, path[1:]))
 
 def find_nearest_available_parking(entrance_node, graph, nodes, availability_map, accessible_only=False):
-    """availability_map maps spot id -> is_occupied (True means taken)."""
     available_spots = [spot for spot, is_occupied in availability_map.items() if not is_occupied]
     if not available_spots: return None, [], []
 
@@ -1124,7 +1103,6 @@ def format_location_label(loc, lang):
     return f"[{floor_code}] {clean_name}"
 
 def get_node_display_name(node_id, lang, node_coords):
-    """Readable name for any route node, including clicked points and corridor junctions."""
     if node_id.startswith(DYNAMIC_PREFIX):
         x, y, z = node_coords[node_id]
         return f"📍{POINT_LABELS.get(lang, 'Point')} ({x:.1f}, {y:.1f})"
@@ -1197,7 +1175,6 @@ def format_turn_instruction(angle_diff, distance, target_name, lang="English"):
         return lang_dict["u_turn"]
 
 def dedupe_path(path, node_coords):
-    """Drop consecutive nodes at identical coordinates (e.g. a door sitting on a corridor junction)."""
     cleaned = []
     for node in path or []:
         if cleaned and node_coords[cleaned[-1]] == node_coords[node]:
@@ -1261,7 +1238,6 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
         next_heading = calculate_heading_angle(curr_node, next_node, node_coords)
         if node_coords[prev_node][2] != node_coords[curr_node][2]:
-            # Just arrived from another floor: there is no meaningful incoming heading
             prev_heading = next_heading
         else:
             prev_heading = calculate_heading_angle(prev_node, curr_node, node_coords)
@@ -1327,14 +1303,12 @@ def render_direction_steps(steps, step_label):
 st.markdown(
     """
     <style>
-    /* top header bar */
     header[data-testid="stHeader"] {
-        background-color: #D32F2F !important; /* Deep Red */
+        background-color: #D32F2F !important;
     }
 
-    /* sidebar */
     section[data-testid="stSidebar"] {
-        background-color: #FF6700 !important; /* Orange */
+        background-color: #FF6700 !important;
     }
 
     section[data-testid="stSidebar"] h1,
@@ -1397,9 +1371,7 @@ with st.sidebar:
         st.session_state.lang = selected_language_key
         st.rerun()
 
-# ------------------------------------------------------------------------------
 # Home Tab
-# ------------------------------------------------------------------------------
 with tab_home:
     st.title(t["title"])
     st.caption(t["subtitle"])
@@ -1481,13 +1453,10 @@ with tab_home:
     else:
         st.info("No store categories defined.")
 
-# ------------------------------------------------------------------------------
 # Mall Map Tab
-# ------------------------------------------------------------------------------
 CUSTOM_OPTION = "__CUSTOM_POINT__"
 
 with tab_map:
-    # Migrate any legacy plain-string waypoints into {"id", "value"} objects
     if st.session_state.waypoints and not isinstance(st.session_state.waypoints[0], dict):
         migrated_wps = []
         for raw_wp in st.session_state.waypoints:
@@ -1498,7 +1467,6 @@ with tab_map:
     room_options = list(ROOM_POLYGONS.keys())
 
     def location_selectbox(label, session_key, fallback_index):
-        """Selectbox for a start/destination that may currently be a clicked map point."""
         current = st.session_state[session_key]
         is_custom = isinstance(current, tuple)
         options = ([CUSTOM_OPTION] if is_custom else []) + room_options
@@ -1524,7 +1492,6 @@ with tab_map:
         with col_dest:
             location_selectbox(t["dest_loc"], "selected_dest", len(room_options) - 1)
 
-        # ---- Intermediate stops (manual rooms or clicked points) ----
         if st.session_state.waypoints:
             st.markdown(t["intermediate_stops"])
 
@@ -1595,8 +1562,6 @@ with tab_map:
 
         extracted_waypoints = [wp["value"] for wp in st.session_state.waypoints]
 
-        # While picking on the map the destination isn't chosen yet, so the
-        # route ends at the last clicked point instead of a stale destination.
         if st.session_state.map_pick_mode:
             raw_sequence = [st.session_state.selected_start] + extracted_waypoints
         else:
@@ -1613,7 +1578,6 @@ with tab_map:
             unsafe_allow_html=True,
         )
 
-    # ---- Dynamic point injection & routing ----
     temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
     temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
     full_route_sequence = resolve_all_route_points(raw_sequence, 0, temp_graph, temp_nodes)
@@ -1638,7 +1602,6 @@ with tab_map:
             route_failed = True
             break
 
-    # Only the start has been picked so far: show just the start marker
     if len(full_route_sequence) == 1:
         full_path = [full_route_sequence[0]]
 
@@ -1649,7 +1612,6 @@ with tab_map:
     else:
         stop_ids = full_route_sequence[1:-1]
 
-    # ---- View mode and interactive-pick controls ----
     view_type = st.radio(t["view_mode"], options=[t["view_2d"], t["view_3d"]], horizontal=True)
     show_doors = st.checkbox(t["show_doors"], value=True)
 
@@ -1710,7 +1672,6 @@ with tab_map:
         if view_type == t["view_3d"]:
             st.info(t["pick_3d_notice"])
 
-    # ---- Render the selected map view ----
     if view_type == t["view_2d"]:
         floor_select = st.selectbox(
             t["active_floor"],
@@ -1726,56 +1687,55 @@ with tab_map:
             stop_ids=stop_ids,
             show_dest=not st.session_state.map_pick_mode,
             show_doors=show_doors,
-            saved_view=st.session_state.map_views.get(floor_select),
         )
+
+        # Track map center and zoom level to persist view state across reruns
         map_data = st_folium(
-            folium_map, height=550, width=1000, key=f"interactive_folium_map_{floor_select}",
+            folium_map,
+            height=550,
+            width=1000,
+            key="interactive_folium_map",
             returned_objects=["last_clicked", "center", "zoom"]
         )
 
-        # Remember the current pan/zoom for this floor (before handling the click,
-        # since the click triggers a rerun that rebuilds the map)
-        if map_data and map_data.get("center") and map_data.get("zoom") is not None:
-            st.session_state.map_views[floor_select] = {
-                "lat": map_data["center"]["lat"],
-                "lng": map_data["center"]["lng"],
-                "zoom": map_data["zoom"],
-            }
+        if map_data:
+            if map_data.get("center"):
+                st.session_state.map_center = [map_data["center"]["lat"], map_data["center"]["lng"]]
+            if map_data.get("zoom"):
+                st.session_state.map_zoom = map_data["zoom"]
 
-        if map_data and map_data.get("last_clicked"):
-            click_lat = map_data["last_clicked"]["lat"]
-            click_lng = map_data["last_clicked"]["lng"]
-            click_sig = (click_lat, click_lng)
+            if map_data.get("last_clicked"):
+                click_lat = map_data["last_clicked"]["lat"]
+                click_lng = map_data["last_clicked"]["lng"]
+                click_sig = (click_lat, click_lng)
 
-            if click_sig != st.session_state.last_processed_click:
-                st.session_state.last_processed_click = click_sig
-                raw_point = (click_lng, click_lat, floor_select)
+                if click_sig != st.session_state.last_processed_click:
+                    st.session_state.last_processed_click = click_sig
+                    raw_point = (click_lng, click_lat, floor_select)
 
-                if st.session_state.map_pick_mode:
-                    if st.session_state.map_pick_step == "START":
-                        st.session_state.selected_start = raw_point
-                        st.session_state.waypoints = []
-                        st.session_state.map_pick_step = "WAYPOINT"
-                        st.rerun()
-                    elif st.session_state.map_pick_step == "WAYPOINT":
-                        st.session_state.waypoint_counter += 1
-                        st.session_state.waypoints.append({"id": st.session_state.waypoint_counter, "value": raw_point})
-                        st.rerun()
-                    elif st.session_state.map_pick_step == "DEST":
+                    if st.session_state.map_pick_mode:
+                        if st.session_state.map_pick_step == "START":
+                            st.session_state.selected_start = raw_point
+                            st.session_state.waypoints = []
+                            st.session_state.map_pick_step = "WAYPOINT"
+                            st.rerun()
+                        elif st.session_state.map_pick_step == "WAYPOINT":
+                            st.session_state.waypoint_counter += 1
+                            st.session_state.waypoints.append({"id": st.session_state.waypoint_counter, "value": raw_point})
+                            st.rerun()
+                        elif st.session_state.map_pick_step == "DEST":
+                            st.session_state.selected_dest = raw_point
+                            st.session_state.map_pick_mode = False
+                            st.session_state.map_pick_step = "START"
+                            st.rerun()
+                    else:
                         st.session_state.selected_dest = raw_point
-                        st.session_state.map_pick_mode = False
-                        st.session_state.map_pick_step = "START"
                         st.rerun()
-                else:
-                    st.session_state.selected_dest = raw_point
-                    st.rerun()
     else:
         fig_3d = render_3d_isometric_view(route_path=path, node_coords=temp_nodes, current_lang=st.session_state.lang, show_doors=show_doors)
         st.plotly_chart(fig_3d, use_container_width=True)
 
-# ------------------------------------------------------------------------------
 # Directions Tab
-# ------------------------------------------------------------------------------
 with tab_dir:
     st.subheader(t["route_summary"])
 
@@ -1794,9 +1754,7 @@ with tab_dir:
     else:
         st.warning(t["no_route"])
 
-# ------------------------------------------------------------------------------
 # Smart Parking Tab
-# ------------------------------------------------------------------------------
 with tab_park:
     st.subheader(t["parking_sec"])
 
