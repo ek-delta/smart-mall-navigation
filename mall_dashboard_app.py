@@ -816,43 +816,47 @@ def add_door_markers_2d(m, floor_z, lang="English", radius=5):
             tooltip=f"{name} – {door_lbl}"
         ).add_to(m)
 
+def get_floor_bounds_plotly(floor_z):
+    """Matches the exact bounds logic from the Plotly CAD view."""
+    floor_rooms = [info for info in ROOM_POLYGONS.values() if info["z"] == floor_z]
+    if not floor_rooms:
+        return (-65, 65, -40, 60)
+
+    all_x = [pt[0] for room in floor_rooms for pt in room["coords"]]
+    all_y = [pt[1] for room in floor_rooms for pt in room["coords"]]
+    padding = 15
+    min_x, max_x = min(all_x) - padding, max(all_x) + padding
+    min_y, max_y = min(all_y) - padding, max(all_y) + padding
+    
+    # Matches Plotly's layout range [min_x - 5, max_x + 5] and [min_y - 5, max_y + 5]
+    return (min_x - 5, max_x + 5, min_y - 5, max_y + 5)
+
+
 def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
-    floor_rooms = {
-        r_id: poly["coords"]
-        for r_id, poly in ROOM_POLYGONS.items()
-        if poly["z"] == active_floor_z
-    }
-
-    all_pts = [pt for coords in floor_rooms.values() for pt in coords]
-    if all_pts:
-        min_x = min(p[0] for p in all_pts) - 10
-        max_x = max(p[0] for p in all_pts) + 10
-        min_y = min(p[1] for p in all_pts) - 10
-        max_y = max(p[1] for p in all_pts) + 10
-    else:
-        min_x, max_x, min_y, max_y = -60, 60, -35, 55
-
+    
+    # Get exact bounding range matching Plotly
+    min_x, max_x, min_y, max_y = get_floor_bounds_plotly(active_floor_z)
     bounds = [[min_y, min_x], [max_y, max_x]]
 
     m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
     Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
-    # 1. Real-time cursor coordinates box
+    # 1. Real-time cursor coordinate readout matching Plotly meters
     MousePosition(
         position="bottomright",
         separator=" | ",
         empty_string="X: 0.0, Y: 0.0",
         lng_first=True,
         num_digits=1,
-        prefix="Coordinate (m): X=",
+        prefix="Location (m): X=",
     ).add_to(m)
 
-    # 2. Draw static metric background gridlines
+    # 2. Plotly Gridlines matching standard 10m intervals
     for x in range(int(min_x), int(max_x) + 1, 10):
         folium.PolyLine(
             locations=[[min_y, x], [max_y, x]],
-            color="#94A3B8",
+            color="#64748B",
             weight=1,
             dash_array="3, 6",
             opacity=0.35,
@@ -861,19 +865,19 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
     for y in range(int(min_y), int(max_y) + 1, 10):
         folium.PolyLine(
             locations=[[y, min_x], [y, max_x]],
-            color="#94A3B8",
+            color="#64748B",
             weight=1,
             dash_array="3, 6",
             opacity=0.35,
         ).add_to(m)
 
-    # 3. Dynamic Zoom-Adaptive Edge Axis Overlay (Plotly Style)
-    axis_script = """
+    # 3. Dynamic Plotly-Identical Axis Labels along Map Edges
+    axis_script = f"""
     <script>
-    L.Control.DynamicAxis = L.Control.extend({
-        options: { position: 'topleft' },
-        onAdd: function (map) {
-            var container = L.DomUtil.create('div', 'leaflet-dynamic-axis-container');
+    L.Control.DynamicPlotlyAxis = L.Control.extend({{
+        options: {{ position: 'topleft' }},
+        onAdd: function (map) {{
+            var container = L.DomUtil.create('div', 'leaflet-plotly-axis-container');
             container.style.position = 'absolute';
             container.style.top = '0';
             container.style.left = '0';
@@ -882,7 +886,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             container.style.pointerEvents = 'none';
             container.style.zIndex = '400';
             
-            var canvas = L.DomUtil.create('canvas', 'leaflet-axis-canvas', container);
+            var canvas = L.DomUtil.create('canvas', 'leaflet-plotly-canvas', container);
             canvas.style.width = '100%';
             canvas.style.height = '100%';
             
@@ -892,8 +896,8 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             map.on('move zoom viewreset resize', this._updateAxis, this);
             setTimeout(this._updateAxis.bind(this), 100);
             return container;
-        },
-        _updateAxis: function () {
+        }},
+        _updateAxis: function () {{
             var map = this._map;
             var canvas = this._canvas;
             var size = map.getSize();
@@ -909,58 +913,78 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             
             var rangeX = maxLng - minLng;
             var stepX = 10;
-            if (rangeX <= 30) stepX = 2;
-            else if (rangeX <= 60) stepX = 5;
-            else if (rangeX <= 120) stepX = 10;
+            if (rangeX <= 25) stepX = 2;
+            else if (rangeX <= 50) stepX = 5;
+            else if (rangeX <= 100) stepX = 10;
             else stepX = 20;
 
             var rangeY = maxLat - minLat;
             var stepY = 10;
-            if (rangeY <= 30) stepY = 2;
-            else if (rangeY <= 60) stepY = 5;
-            else if (rangeY <= 120) stepY = 10;
+            if (rangeY <= 25) stepY = 2;
+            else if (rangeY <= 50) stepY = 5;
+            else if (rangeY <= 100) stepY = 10;
             else stepY = 20;
             
-            ctx.fillStyle = '#0f172a';
-            ctx.font = 'bold 11px sans-serif';
+            // Plotly-Style Dark Blue Axis Text styling
+            ctx.fillStyle = '#0F172A';
+            ctx.font = 'bold 11px monospace';
             ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 1.5;
 
-            // Render X-axis tick labels along the top edge
+            // Render X-Axis Ticks & Exact Number Labels along Top Edge
             var startX = Math.floor(minLng / stepX) * stepX;
-            for (var x = startX; x <= maxLng; x += stepX) {
+            for (var x = startX; x <= maxLng; x += stepX) {{
                 var point = map.latLngToContainerPoint([maxLat, x]);
-                if (point.x >= 0 && point.x <= size.x) {
+                if (point.x >= 20 && point.x <= size.x - 20) {{
                     ctx.beginPath();
                     ctx.moveTo(point.x, 0);
                     ctx.lineTo(point.x, 6);
                     ctx.stroke();
-                    ctx.fillText(x.toFixed(0) + 'm', point.x - 10, 18);
-                }
-            }
+                    
+                    // Draw white background pill for text legibility
+                    var txt = (x >= 0 ? ' ' : '') + x.toFixed(0);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                    ctx.fillRect(point.x - 12, 8, 26, 14);
+                    
+                    ctx.fillStyle = '#0F172A';
+                    ctx.fillText(txt, point.x - 10, 19);
+                }}
+            }}
 
-            // Render Y-axis tick labels along the left edge
+            // Render Y-Axis Ticks & Exact Number Labels along Left Edge
             var startY = Math.floor(minLat / stepY) * stepY;
-            for (var y = startY; y <= maxLat; y += stepY) {
+            for (var y = startY; y <= maxLat; y += stepY) {{
                 var pointY = map.latLngToContainerPoint([y, minLng]);
-                if (pointY.y >= 0 && pointY.y <= size.y) {
+                if (pointY.y >= 20 && pointY.y <= size.y - 20) {{
                     ctx.beginPath();
                     ctx.moveTo(0, pointY.y);
                     ctx.lineTo(6, pointY.y);
                     ctx.stroke();
-                    ctx.fillText(y.toFixed(0) + 'm', 8, pointY.y + 4);
-                }
-            }
-        }
-    });
-    map.addControl(new L.Control.DynamicAxis());
+                    
+                    var txtY = (y >= 0 ? ' ' : '') + y.toFixed(0);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                    ctx.fillRect(8, pointY.y - 8, 28, 14);
+                    
+                    ctx.fillStyle = '#0F172A';
+                    ctx.fillText(txtY, 10, pointY.y + 3);
+                }}
+            }}
+        }}
+    }});
+    map.addControl(new L.Control.DynamicPlotlyAxis());
     </script>
     """
     m.get_root().html.add_child(folium.Element(axis_script))
 
     # --------------------------------------------------------------------------
-    # Render Floor Plan Polygons & Markers
+    # Render Floor Polygons & Points of Interest
     # --------------------------------------------------------------------------
+    floor_rooms = {
+        r_id: poly["coords"]
+        for r_id, poly in ROOM_POLYGONS.items()
+        if poly["z"] == active_floor_z
+    }
+
     for room_id, coords in floor_rooms.items():
         room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
