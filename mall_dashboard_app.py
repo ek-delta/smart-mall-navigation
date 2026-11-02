@@ -880,7 +880,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     bounds = [[min_y, min_x], [max_y, max_x]]
 
-    # Initialize Simple CRS Map (1 unit = 1 meter)
+    # Initialize Simple CRS Map
     m = folium.Map(
         location=[(min_y + max_y) / 2, (min_x + max_x) / 2],
         crs="Simple", 
@@ -889,12 +889,10 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         scroll_wheel_zoom=True
     )
     
-    # --------------------------------------------------------------------------
-    # Ported Plotly Features: Fullscreen, Screenshot Export & Dynamic Coordinate Gauge
-    # --------------------------------------------------------------------------
-    Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
+    # 1. Native Leaflet Fullscreen Toggle (Top-Left Toolbar)
+    Fullscreen(position="topleft", title="Fullscreen", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
-    # Dynamic scaling coordinate reader at bottom edge (replacing static Plotly X/Y axis ticks)
+    # 2. Dynamic Real-Time Coordinate Gauge (Bottom-Right, Meter Coordinates)
     MousePosition(
         position="bottomright",
         separator=" | Y (m): ",
@@ -903,39 +901,15 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         prefix="X (m): "
     ).add_to(m)
 
-    # Custom HTML/JS toolbar injection matching Plotly's action bar (Download PNG, Reset, Autoscale)
-    plotly_toolbar_js = f"""
-    <div id="plotly-folium-toolbar" style="
-        position: absolute; top: 10px; right: 10px; z-index: 1000; 
-        background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 6px; 
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-family: sans-serif; display: flex; gap: 6px;">
-        <button onclick="downloadMapPNG()" title="Download plot as png" style="cursor:pointer; background:none; border:none; font-size:14px;">📷</button>
-        <button onclick="resetAxis()" title="Reset axis / Autoscale" style="cursor:pointer; background:none; border:none; font-size:14px;">🏠</button>
-    </div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script>
-    function downloadMapPNG() {{
-        var mapContainer = document.querySelector('.leaflet-container');
-        html2canvas(mapContainer).then(canvas => {{
-            var link = document.createElement('a');
-            link.download = 'mall_map_floor_{active_floor_z}.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        }});
-    }}
-    function resetAxis() {{
-        var map = window[{m.get_name()}];
-        if (map) {{
-            map.fitBounds({bounds});
-        }}
-    }}
-    </script>
-    """
-    m.get_root().html.add_child(folium.Element(plotly_toolbar_js))
+    # 3. Native Measure Control Tool (Pan, Zoom, & Distance Measurement)
+    MeasureControl(
+        position="topright",
+        primary_length_unit="meters",
+        secondary_length_unit=None,
+        primary_area_unit=None
+    ).add_to(m)
 
-    # --------------------------------------------------------------------------
     # Render Room Polygons, Icons, and Route Path
-    # --------------------------------------------------------------------------
     for room_id, coords in floor_rooms.items():
         room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
