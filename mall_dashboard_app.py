@@ -21,7 +21,7 @@ st.set_page_config(
 
 def inject_scroll_lock():
     components.html(
-        """
+        
         <script>
             // 1. Restore scroll position on page load / rerun
             const scrollY = sessionStorage.getItem("st_scroll_y");
@@ -36,7 +36,7 @@ def inject_scroll_lock():
                 sessionStorage.setItem("st_scroll_x", window.parent.scrollX);
             });
         </script>
-        """,
+        ,
         height=0,
         width=0,
     )
