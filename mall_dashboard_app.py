@@ -1647,8 +1647,6 @@ with tab_map:
 
         extracted_waypoints = [wp["value"] for wp in st.session_state.waypoints]
 
-        # While picking on the map the destination isn't chosen yet, so the
-        # route ends at the last clicked point instead of a stale destination.
         if st.session_state.map_pick_mode:
             raw_sequence = [st.session_state.selected_start] + extracted_waypoints
         else:
@@ -1690,7 +1688,6 @@ with tab_map:
             route_failed = True
             break
 
-    # Only the start has been picked so far: show just the start marker
     if len(full_route_sequence) == 1:
         full_path = [full_route_sequence[0]]
 
@@ -1701,7 +1698,7 @@ with tab_map:
     else:
         stop_ids = full_route_sequence[1:-1]
 
-    # ---- View mode and interactive-pick controls ----
+    # ---- View mode and controls ----
     view_type = st.radio(t["view_mode"], options=[t["view_2d"], t["view_3d"]], horizontal=True)
     show_doors = st.checkbox(t["show_doors"], value=True)
 
@@ -1727,13 +1724,11 @@ with tab_map:
             st.session_state.selected_dest = "A_L0_Lobby"
             st.rerun()
 
-# --------------------------------------------------------------------------
-    # Render Map View & Click Event Handler (Fixed Layout Height)
     # --------------------------------------------------------------------------
-    
-    # 1. Fixed placeholder container for top status messages to keep height constant
+    # Layout-Stabilized Map View & Interactive Selection
+    # --------------------------------------------------------------------------
     status_placeholder = st.empty()
-    
+
     if st.session_state.map_pick_mode:
         curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
         curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
@@ -1770,7 +1765,6 @@ with tab_map:
             if view_type == t["view_3d"]:
                 st.info(t["pick_3d_notice"])
 
-    # 2. Render map view within a static layout container
     map_container = st.container()
 
     with map_container:
@@ -1788,18 +1782,16 @@ with tab_map:
                 st.write("")
                 st.write("")
                 if st.button("🏠 Autoscale Map", use_container_width=True):
-                # Triggering a rerun resets the map zoom/bounds back to fit_bounds default
                     st.rerun()
 
             with col_download:
                 st.write("")
                 st.write("")
-            # Prepare map data summary text download
-                route_str = " -> ".join([str(n) for n in path]) if 'path' in locals() and path else "No active route"
-                map_info_text = f"Floor: {get_translated_floor_name(floor_select, st.session_state.lang)}\nRoute: {route_str}\n"
+                route_summary_txt = " -> ".join([str(n) for n in path]) if path else "No active route"
+                map_export_data = f"Floor: {get_translated_floor_name(floor_select, st.session_state.lang)}\nRoute: {route_summary_txt}\n"
                 st.download_button(
                     label="📷 Download Map Data",
-                    data=map_info_text,
+                    data=map_export_data,
                     file_name=f"mall_map_floor_{floor_select}.txt",
                     mime="text/plain",
                     use_container_width=True
@@ -1816,10 +1808,10 @@ with tab_map:
             )
 
             map_data = st_folium(
-                folium_map, 
-                height=550, 
-                use_container_width=True, 
-                key="interactive_folium_map", 
+                folium_map,
+                height=550,
+                use_container_width=True,
+                key="interactive_folium_map",
                 returned_objects=["last_clicked"]
             )
 
@@ -1852,9 +1844,9 @@ with tab_map:
                         st.rerun()
         else:
             fig_3d = render_3d_isometric_view(
-                route_path=path, 
-                node_coords=temp_nodes, 
-                current_lang=st.session_state.lang, 
+                route_path=path,
+                node_coords=temp_nodes,
+                current_lang=st.session_state.lang,
                 show_doors=show_doors
             )
             st.plotly_chart(fig_3d, use_container_width=True)
