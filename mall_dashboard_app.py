@@ -847,6 +847,21 @@ def get_floor_bounds_plotly(floor_z):
     return (min_x - 5, max_x + 5, min_y - 5, max_y + 5)
 
 
+def get_floor_bounds_plotly(floor_z):
+    """Matches the exact bounds logic from the Plotly CAD view."""
+    floor_rooms = [info for info in ROOM_POLYGONS.values() if info["z"] == floor_z]
+    if not floor_rooms:
+        return (-65, 65, -40, 60)
+
+    all_x = [pt[0] for room in floor_rooms for pt in room["coords"]]
+    all_y = [pt[1] for room in floor_rooms for pt in room["coords"]]
+    padding = 15
+    min_x, max_x = min(all_x) - padding, max(all_x) + padding
+    min_y, max_y = min(all_y) - padding, max(all_y) + padding
+    
+    return (min_x - 5, max_x + 5, min_y - 5, max_y + 5)
+
+
 def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
     
@@ -866,7 +881,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         prefix="Location (m): X=",
     ).add_to(m)
 
-    # 2. Gridlines (10m intervals)
+    # 2. Metric Gridlines (10m intervals) matching Plotly
     for x in range(int(min_x), int(max_x) + 1, 10):
         folium.PolyLine(
             locations=[[min_y, x], [max_y, x]],
@@ -885,11 +900,17 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             opacity=0.35,
         ).add_to(m)
 
-    # 3. Dynamic DOM-Based Plotly Axis Overlay (Guaranteed Visibility)
+    # 3. Dynamic Screen-Anchored Edge Axis Control (X at Bottom, Y at Left)
     axis_script = f"""
     <script>
-    window.addEventListener('DOMContentLoaded', function() {{
-        setTimeout(function() {{
+    (function() {{
+        function initPlotlyEdgeAxes() {{
+            var mapContainer = document.querySelector('.folium-map');
+            if (!mapContainer) {{
+                setTimeout(initPlotlyEdgeAxes, 100);
+                return;
+            }}
+
             var map = null;
             for (var key in window) {{
                 if (key.startsWith('map_') && window[key] instanceof L.Map) {{
@@ -897,63 +918,90 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
                     break;
                 }}
             }}
-            if (!map) return;
+            if (!map) {{
+                setTimeout(initPlotlyEdgeAxes, 100);
+                return;
+            }}
 
-            var axisPane = map.createPane('axisPane');
-            axisPane.style.zIndex = 650;
-            axisPane.style.pointerEvents = 'none';
+            // Parent wrapper styling
+            mapContainer.style.position = 'relative';
 
-            var axisLayer = L.layerGroup().addTo(map);
+            // Create fixed DOM overlay for Bottom X-Axis
+            var xAxisDiv = document.getElementById('plotly-x-axis-overlay');
+            if (!xAxisDiv) {{
+                xAxisDiv = document.createElement('div');
+                xAxisDiv.id = 'plotly-x-axis-overlay';
+                xAxisDiv.style.cssText = 'position:absolute; bottom:0; left:30px; right:0; height:24px; pointer-events:none; z-index:1000; overflow:hidden; font-family:monospace; font-size:11px; font-weight:bold; color:#0f172a;';
+                mapContainer.appendChild(xAxisDiv);
+            }}
 
-            function updateAxis() {{
-                axisLayer.clearLayers();
+            // Create fixed DOM overlay for Left Y-Axis
+            var yAxisDiv = document.getElementById('plotly-y-axis-overlay');
+            if (!yAxisDiv) {{
+                yAxisDiv = document.createElement('div');
+                yAxisDiv.id = 'plotly-y-axis-overlay';
+                yAxisDiv.style.cssText = 'position:absolute; top:0; left:0; width:36px; bottom:24px; pointer-events:none; z-index:1000; overflow:hidden; font-family:monospace; font-size:11px; font-weight:bold; color:#0f172a;';
+                mapContainer.appendChild(yAxisDiv);
+            }}
+
+            function updateAxes() {{
+                var size = map.getSize();
                 var bounds = map.getBounds();
-                var minLng = bounds.getWest(), maxLng = bounds.getEast();
-                var minLat = bounds.getSouth(), maxLat = bounds.getNorth();
+                
+                // Convert Simple CRS screen pixel edges back to X (lng) and Y (lat)
+                var pTopLeft = map.containerPointToLatLng([0, 0]);
+                var pBottomRight = map.containerPointToLatLng([size.x, size.y]);
 
-                var rangeX = maxLng - minLng;
+                var minX = pTopLeft.lng, maxX = pBottomRight.lng;
+                var minY = pBottomRight.lat, maxY = pTopLeft.lat;
+
+                var rangeX = maxX - minX;
                 var stepX = 10;
                 if (rangeX <= 25) stepX = 2;
                 else if (rangeX <= 50) stepX = 5;
                 else if (rangeX <= 100) stepX = 10;
                 else stepX = 20;
 
-                var rangeY = maxLat - minLat;
+                var rangeY = maxY - minY;
                 var stepY = 10;
                 if (rangeY <= 25) stepY = 2;
                 else if (rangeY <= 50) stepY = 5;
                 else if (rangeY <= 100) stepY = 10;
                 else stepY = 20;
 
-                // X-Axis Number Labels along Top Edge
-                var startX = Math.floor(minLng / stepX) * stepX;
-                for (var x = startX; x <= maxLng; x += stepX) {{
-                    var icon = L.divIcon({{
-                        className: 'plotly-x-axis-label',
-                        html: '<div style="background: rgba(15, 23, 42, 0.85); color: #FFFFFF; font-size: 11px; font-weight: bold; font-family: monospace; padding: 2px 5px; border-radius: 3px; border: 1px solid #334155; white-space: nowrap;">' + x.toFixed(0) + 'm</div>',
-                        iconSize: [40, 20],
-                        iconAnchor: [20, 0]
-                    }});
-                    L.marker([maxLat, x], {{ icon: icon, pane: 'axisPane', interactive: false }}).addTo(axisLayer);
+                // 1. Render Bottom X-Axis Labels
+                var xHTML = '';
+                var startX = Math.floor(minX / stepX) * stepX;
+                for (var x = startX; x <= maxX; x += stepX) {{
+                    var pt = map.latLngToContainerPoint([minY, x]);
+                    if (pt.x >= 30 && pt.x <= size.x - 30) {{
+                        xHTML += '<div style="position:absolute; left:' + (pt.x - 30) + 'px; bottom:2px; background:rgba(255,255,255,0.85); padding:1px 4px; border-radius:3px; border:1px solid #94a3b8; text-align:center;">' + x.toFixed(0) + 'm</div>';
+                    }}
                 }}
+                xAxisDiv.innerHTML = xHTML;
 
-                // Y-Axis Number Labels along Left Edge
-                var startY = Math.floor(minLat / stepY) * stepY;
-                for (var y = startY; y <= maxLat; y += stepY) {{
-                    var iconY = L.divIcon({{
-                        className: 'plotly-y-axis-label',
-                        html: '<div style="background: rgba(15, 23, 42, 0.85); color: #FFFFFF; font-size: 11px; font-weight: bold; font-family: monospace; padding: 2px 5px; border-radius: 3px; border: 1px solid #334155; white-space: nowrap;">' + y.toFixed(0) + 'm</div>',
-                        iconSize: [40, 20],
-                        iconAnchor: [0, 10]
-                    }});
-                    L.marker([y, minLng], {{ icon: iconY, pane: 'axisPane', interactive: false }}).addTo(axisLayer);
+                // 2. Render Left Y-Axis Labels
+                var yHTML = '';
+                var startY = Math.floor(minY / stepY) * stepY;
+                for (var y = startY; y <= maxY; y += stepY) {{
+                    var ptY = map.latLngToContainerPoint([y, minX]);
+                    if (ptY.y >= 20 && ptY.y <= size.y - 30) {{
+                        yHTML += '<div style="position:absolute; top:' + (ptY.y - 8) + 'px; left:2px; background:rgba(255,255,255,0.85); padding:1px 3px; border-radius:3px; border:1px solid #94a3b8; text-align:center;">' + y.toFixed(0) + 'm</div>';
+                    }}
                 }}
+                yAxisDiv.innerHTML = yHTML;
             }}
 
-            map.on('move zoom viewreset resize', updateAxis);
-            updateAxis();
-        }}, 300);
-    }});
+            map.on('move zoom viewreset resize', updateAxes);
+            updateAxes();
+        }}
+
+        if (document.readyState === 'complete') {{
+            initPlotlyEdgeAxes();
+        }} else {{
+            window.addEventListener('load', initPlotlyEdgeAxes);
+        }}
+    }})();
     </script>
     """
     m.get_root().html.add_child(folium.Element(axis_script))
