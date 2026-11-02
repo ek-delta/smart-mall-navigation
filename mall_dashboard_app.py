@@ -387,6 +387,7 @@ if "waypoint_counter" not in st.session_state: st.session_state.waypoint_counter
 if "map_pick_mode" not in st.session_state: st.session_state.map_pick_mode = False
 if "map_pick_step" not in st.session_state: st.session_state.map_pick_step = "START"
 if "last_processed_click" not in st.session_state: st.session_state.last_processed_click = None
+if "map_views" not in st.session_state: st.session_state.map_views = {}
 
 LOCATION_ICONS = {
     "Fashion": "👗", "Electronics": "📱", "Food & Beverage": "🍔",
@@ -817,7 +818,7 @@ def add_door_markers_2d(m, floor_z, lang="English", radius=5):
         ).add_to(m)
 
 def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
-                          stop_ids=None, show_dest=True, show_doors=True):
+                          stop_ids=None, show_dest=True, show_doors=True, saved_view=None):
     floor_rooms = {
         r_id: poly["coords"]
         for r_id, poly in ROOM_POLYGONS.items()
@@ -835,7 +836,14 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     bounds = [[min_y, min_x], [max_y, max_x]]
 
-    m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
+    if saved_view:
+        # Restore the user's last pan/zoom so a click doesn't move the map
+        m = folium.Map(
+            location=[saved_view["lat"], saved_view["lng"]], zoom_start=saved_view["zoom"],
+            crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True
+        )
+    else:
+        m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
     Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
     for room_id, coords in floor_rooms.items():
@@ -893,7 +901,8 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             dx, dy, _ = node_coords_dict[dest_node_id]
             folium.Marker(location=[dy, dx], popup="Destination Point", icon=folium.Icon(color="green", icon="flag")).add_to(m)
 
-    m.fit_bounds(bounds)
+    if not saved_view:
+        m.fit_bounds(bounds)
     return m
 
 def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="English", show_doors=True):
@@ -1717,8 +1726,21 @@ with tab_map:
             stop_ids=stop_ids,
             show_dest=not st.session_state.map_pick_mode,
             show_doors=show_doors,
+            saved_view=st.session_state.map_views.get(floor_select),
         )
-        map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map", returned_objects=["last_clicked"])
+        map_data = st_folium(
+            folium_map, height=550, width=1000, key=f"interactive_folium_map_{floor_select}",
+            returned_objects=["last_clicked", "center", "zoom"]
+        )
+
+        # Remember the current pan/zoom for this floor (before handling the click,
+        # since the click triggers a rerun that rebuilds the map)
+        if map_data and map_data.get("center") and map_data.get("zoom") is not None:
+            st.session_state.map_views[floor_select] = {
+                "lat": map_data["center"]["lat"],
+                "lng": map_data["center"]["lng"],
+                "zoom": map_data["zoom"],
+            }
 
         if map_data and map_data.get("last_clicked"):
             click_lat = map_data["last_clicked"]["lat"]
