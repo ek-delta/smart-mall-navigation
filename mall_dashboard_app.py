@@ -832,17 +832,31 @@ def get_floor_bounds_plotly(floor_z):
     return (min_x - 5, max_x + 5, min_y - 5, max_y + 5)
 
 
+def get_floor_bounds_plotly(floor_z):
+    """Matches the exact bounds logic from the Plotly CAD view."""
+    floor_rooms = [info for info in ROOM_POLYGONS.values() if info["z"] == floor_z]
+    if not floor_rooms:
+        return (-65, 65, -40, 60)
+
+    all_x = [pt[0] for room in floor_rooms for pt in room["coords"]]
+    all_y = [pt[1] for room in floor_rooms for pt in room["coords"]]
+    padding = 15
+    min_x, max_x = min(all_x) - padding, max(all_x) + padding
+    min_y, max_y = min(all_y) - padding, max(all_y) + padding
+    
+    return (min_x - 5, max_x + 5, min_y - 5, max_y + 5)
+
+
 def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
     
-    # Get exact bounding range matching Plotly
     min_x, max_x, min_y, max_y = get_floor_bounds_plotly(active_floor_z)
     bounds = [[min_y, min_x], [max_y, max_x]]
 
     m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
     Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
-    # 1. Real-time cursor coordinate readout matching Plotly meters
+    # 1. Real-time cursor readout box (Bottom-Right)
     MousePosition(
         position="bottomright",
         separator=" | ",
@@ -852,7 +866,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         prefix="Location (m): X=",
     ).add_to(m)
 
-    # 2. Plotly Gridlines matching standard 10m intervals
+    # 2. Gridlines (10m intervals)
     for x in range(int(min_x), int(max_x) + 1, 10):
         folium.PolyLine(
             locations=[[min_y, x], [max_y, x]],
@@ -871,107 +885,75 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             opacity=0.35,
         ).add_to(m)
 
-    # 3. Dynamic Plotly-Identical Axis Labels along Map Edges
+    # 3. Dynamic DOM-Based Plotly Axis Overlay (Guaranteed Visibility)
     axis_script = f"""
     <script>
-    L.Control.DynamicPlotlyAxis = L.Control.extend({{
-        options: {{ position: 'topleft' }},
-        onAdd: function (map) {{
-            var container = L.DomUtil.create('div', 'leaflet-plotly-axis-container');
-            container.style.position = 'absolute';
-            container.style.top = '0';
-            container.style.left = '0';
-            container.style.width = '100%';
-            container.style.height = '100%';
-            container.style.pointerEvents = 'none';
-            container.style.zIndex = '400';
-            
-            var canvas = L.DomUtil.create('canvas', 'leaflet-plotly-canvas', container);
-            canvas.style.width = '100%';
-            canvas.style.height = '100%';
-            
-            this._canvas = canvas;
-            this._map = map;
-            
-            map.on('move zoom viewreset resize', this._updateAxis, this);
-            setTimeout(this._updateAxis.bind(this), 100);
-            return container;
-        }},
-        _updateAxis: function () {{
-            var map = this._map;
-            var canvas = this._canvas;
-            var size = map.getSize();
-            
-            canvas.width = size.x;
-            canvas.height = size.y;
-            var ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, size.x, size.y);
-            
-            var bounds = map.getBounds();
-            var minLng = bounds.getWest(), maxLng = bounds.getEast();
-            var minLat = bounds.getSouth(), maxLat = bounds.getNorth();
-            
-            var rangeX = maxLng - minLng;
-            var stepX = 10;
-            if (rangeX <= 25) stepX = 2;
-            else if (rangeX <= 50) stepX = 5;
-            else if (rangeX <= 100) stepX = 10;
-            else stepX = 20;
+    window.addEventListener('DOMContentLoaded', function() {{
+        setTimeout(function() {{
+            var map = null;
+            for (var key in window) {{
+                if (key.startsWith('map_') && window[key] instanceof L.Map) {{
+                    map = window[key];
+                    break;
+                }}
+            }}
+            if (!map) return;
 
-            var rangeY = maxLat - minLat;
-            var stepY = 10;
-            if (rangeY <= 25) stepY = 2;
-            else if (rangeY <= 50) stepY = 5;
-            else if (rangeY <= 100) stepY = 10;
-            else stepY = 20;
-            
-            // Plotly-Style Dark Blue Axis Text styling
-            ctx.fillStyle = '#0F172A';
-            ctx.font = 'bold 11px monospace';
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 1.5;
+            var axisPane = map.createPane('axisPane');
+            axisPane.style.zIndex = 650;
+            axisPane.style.pointerEvents = 'none';
 
-            // Render X-Axis Ticks & Exact Number Labels along Top Edge
-            var startX = Math.floor(minLng / stepX) * stepX;
-            for (var x = startX; x <= maxLng; x += stepX) {{
-                var point = map.latLngToContainerPoint([maxLat, x]);
-                if (point.x >= 20 && point.x <= size.x - 20) {{
-                    ctx.beginPath();
-                    ctx.moveTo(point.x, 0);
-                    ctx.lineTo(point.x, 6);
-                    ctx.stroke();
-                    
-                    // Draw white background pill for text legibility
-                    var txt = (x >= 0 ? ' ' : '') + x.toFixed(0);
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-                    ctx.fillRect(point.x - 12, 8, 26, 14);
-                    
-                    ctx.fillStyle = '#0F172A';
-                    ctx.fillText(txt, point.x - 10, 19);
+            var axisLayer = L.layerGroup().addTo(map);
+
+            function updateAxis() {{
+                axisLayer.clearLayers();
+                var bounds = map.getBounds();
+                var minLng = bounds.getWest(), maxLng = bounds.getEast();
+                var minLat = bounds.getSouth(), maxLat = bounds.getNorth();
+
+                var rangeX = maxLng - minLng;
+                var stepX = 10;
+                if (rangeX <= 25) stepX = 2;
+                else if (rangeX <= 50) stepX = 5;
+                else if (rangeX <= 100) stepX = 10;
+                else stepX = 20;
+
+                var rangeY = maxLat - minLat;
+                var stepY = 10;
+                if (rangeY <= 25) stepY = 2;
+                else if (rangeY <= 50) stepY = 5;
+                else if (rangeY <= 100) stepY = 10;
+                else stepY = 20;
+
+                // X-Axis Number Labels along Top Edge
+                var startX = Math.floor(minLng / stepX) * stepX;
+                for (var x = startX; x <= maxLng; x += stepX) {{
+                    var icon = L.divIcon({{
+                        className: 'plotly-x-axis-label',
+                        html: '<div style="background: rgba(15, 23, 42, 0.85); color: #FFFFFF; font-size: 11px; font-weight: bold; font-family: monospace; padding: 2px 5px; border-radius: 3px; border: 1px solid #334155; white-space: nowrap;">' + x.toFixed(0) + 'm</div>',
+                        iconSize: [40, 20],
+                        iconAnchor: [20, 0]
+                    }});
+                    L.marker([maxLat, x], {{ icon: icon, pane: 'axisPane', interactive: false }}).addTo(axisLayer);
+                }}
+
+                // Y-Axis Number Labels along Left Edge
+                var startY = Math.floor(minLat / stepY) * stepY;
+                for (var y = startY; y <= maxLat; y += stepY) {{
+                    var iconY = L.divIcon({{
+                        className: 'plotly-y-axis-label',
+                        html: '<div style="background: rgba(15, 23, 42, 0.85); color: #FFFFFF; font-size: 11px; font-weight: bold; font-family: monospace; padding: 2px 5px; border-radius: 3px; border: 1px solid #334155; white-space: nowrap;">' + y.toFixed(0) + 'm</div>',
+                        iconSize: [40, 20],
+                        iconAnchor: [0, 10]
+                    }});
+                    L.marker([y, minLng], {{ icon: iconY, pane: 'axisPane', interactive: false }}).addTo(axisLayer);
                 }}
             }}
 
-            // Render Y-Axis Ticks & Exact Number Labels along Left Edge
-            var startY = Math.floor(minLat / stepY) * stepY;
-            for (var y = startY; y <= maxLat; y += stepY) {{
-                var pointY = map.latLngToContainerPoint([y, minLng]);
-                if (pointY.y >= 20 && pointY.y <= size.y - 20) {{
-                    ctx.beginPath();
-                    ctx.moveTo(0, pointY.y);
-                    ctx.lineTo(6, pointY.y);
-                    ctx.stroke();
-                    
-                    var txtY = (y >= 0 ? ' ' : '') + y.toFixed(0);
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-                    ctx.fillRect(8, pointY.y - 8, 28, 14);
-                    
-                    ctx.fillStyle = '#0F172A';
-                    ctx.fillText(txtY, 10, pointY.y + 3);
-                }}
-            }}
-        }}
+            map.on('move zoom viewreset resize', updateAxis);
+            updateAxis();
+        }}, 300);
     }});
-    map.addControl(new L.Control.DynamicPlotlyAxis());
     </script>
     """
     m.get_root().html.add_child(folium.Element(axis_script))
