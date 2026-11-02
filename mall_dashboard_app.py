@@ -2,10 +2,10 @@ import math
 import heapq
 import copy
 import streamlit as st
-import folium
 import plotly.graph_objects as go
 from streamlit_folium import st_folium
 from folium.plugins import Fullscreen, MousePosition
+import folium
 
 # ==============================================================================
 # 1. Page Config & Localization Dictionary
