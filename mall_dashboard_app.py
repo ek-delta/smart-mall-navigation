@@ -1666,90 +1666,108 @@ with tab_map:
             st.session_state.selected_dest = "A_L0_Lobby"
             st.rerun()
 
+status_placeholder = st.empty()
+    
     if st.session_state.map_pick_mode:
         curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
         curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
 
-        if st.session_state.map_pick_step == "START":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.info(f"{t['pick_step_1']} ({t['lbl_current']}: **{curr_start_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_start"], use_container_width=True):
-                    st.session_state.map_pick_step = "WAYPOINT"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "WAYPOINT":
-            col_msg, col_done = st.columns([0.72, 0.28])
-            with col_msg:
-                st.warning(t["pick_step_2"])
-            with col_done:
-                if st.button(t["btn_done_adding_stops"], type="primary", use_container_width=True):
-                    st.session_state.map_pick_step = "DEST"
-                    st.rerun()
-
-        elif st.session_state.map_pick_step == "DEST":
-            col_msg, col_skip = st.columns([0.72, 0.28])
-            with col_msg:
-                st.success(f"{t['pick_step_3']} ({t['lbl_current']}: **{curr_dest_label}**)")
-            with col_skip:
-                if st.button(t["btn_keep_dest"], use_container_width=True):
-                    st.session_state.map_pick_mode = False
-                    st.session_state.map_pick_step = "START"
-                    st.rerun()
-
-        if view_type == t["view_3d"]:
-            st.info(t["pick_3d_notice"])
-
-    # ---- Render the selected map view ----
-    if view_type == t["view_2d"]:
-        floor_select = st.selectbox(
-            t["active_floor"],
-            options=[0, 1, 2, 3],
-            format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
-        )
-
-        folium_map = render_2d_folium_view(
-            floor_select,
-            route_path=path,
-            node_coords_dict=temp_nodes,
-            current_lang=st.session_state.lang,
-            stop_ids=stop_ids,
-            show_dest=not st.session_state.map_pick_mode,
-            show_doors=show_doors,
-        )
-        map_data = st_folium(folium_map, height=550, width=1000, key="interactive_folium_map", returned_objects=["last_clicked"])
-
-        if map_data and map_data.get("last_clicked"):
-            click_lat = map_data["last_clicked"]["lat"]
-            click_lng = map_data["last_clicked"]["lng"]
-            click_sig = (click_lat, click_lng)
-
-            if click_sig != st.session_state.last_processed_click:
-                st.session_state.last_processed_click = click_sig
-                raw_point = (click_lng, click_lat, floor_select)
-
-                if st.session_state.map_pick_mode:
-                    if st.session_state.map_pick_step == "START":
-                        st.session_state.selected_start = raw_point
-                        st.session_state.waypoints = []
+        with status_placeholder.container():
+            if st.session_state.map_pick_step == "START":
+                col_msg, col_skip = st.columns([0.72, 0.28])
+                with col_msg:
+                    st.info(f"{t['pick_step_1']} ({t['lbl_current']}: **{curr_start_label}**)")
+                with col_skip:
+                    if st.button(t["btn_keep_start"], use_container_width=True, key="btn_skip_start"):
                         st.session_state.map_pick_step = "WAYPOINT"
                         st.rerun()
-                    elif st.session_state.map_pick_step == "WAYPOINT":
-                        st.session_state.waypoint_counter += 1
-                        st.session_state.waypoints.append({"id": st.session_state.waypoint_counter, "value": raw_point})
+
+            elif st.session_state.map_pick_step == "WAYPOINT":
+                col_msg, col_done = st.columns([0.72, 0.28])
+                with col_msg:
+                    st.warning(t["pick_step_2"])
+                with col_done:
+                    if st.button(t["btn_done_adding_stops"], type="primary", use_container_width=True, key="btn_done_stops"):
+                        st.session_state.map_pick_step = "DEST"
                         st.rerun()
-                    elif st.session_state.map_pick_step == "DEST":
-                        st.session_state.selected_dest = raw_point
+
+            elif st.session_state.map_pick_step == "DEST":
+                col_msg, col_skip = st.columns([0.72, 0.28])
+                with col_msg:
+                    st.success(f"{t['pick_step_3']} ({t['lbl_current']}: **{curr_dest_label}**)")
+                with col_skip:
+                    if st.button(t["btn_keep_dest"], use_container_width=True, key="btn_skip_dest"):
                         st.session_state.map_pick_mode = False
                         st.session_state.map_pick_step = "START"
                         st.rerun()
-                else:
-                    st.session_state.selected_dest = raw_point
-                    st.rerun()
-    else:
-        fig_3d = render_3d_isometric_view(route_path=path, node_coords=temp_nodes, current_lang=st.session_state.lang, show_doors=show_doors)
-        st.plotly_chart(fig_3d, use_container_width=True)
+
+            if view_type == t["view_3d"]:
+                st.info(t["pick_3d_notice"])
+
+    # 2. Render map view within a dedicated static container
+    map_container = st.container()
+
+    with map_container:
+        if view_type == t["view_2d"]:
+            floor_select = st.selectbox(
+                t["active_floor"],
+                options=[0, 1, 2, 3],
+                format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
+            )
+
+            folium_map = render_2d_folium_view(
+                floor_select,
+                route_path=path,
+                node_coords_dict=temp_nodes,
+                current_lang=st.session_state.lang,
+                stop_ids=stop_ids,
+                show_dest=not st.session_state.map_pick_mode,
+                show_doors=show_doors,
+            )
+            
+            map_data = st_folium(
+                folium_map,
+                height=550,
+                use_container_width=True,
+                key="interactive_folium_map",
+                returned_objects=["last_clicked"]
+            )
+
+            if map_data and map_data.get("last_clicked"):
+                click_lat = map_data["last_clicked"]["lat"]
+                click_lng = map_data["last_clicked"]["lng"]
+                click_sig = (click_lat, click_lng)
+
+                if click_sig != st.session_state.last_processed_click:
+                    st.session_state.last_processed_click = click_sig
+                    raw_point = (click_lng, click_lat, floor_select)
+
+                    if st.session_state.map_pick_mode:
+                        if st.session_state.map_pick_step == "START":
+                            st.session_state.selected_start = raw_point
+                            st.session_state.waypoints = []
+                            st.session_state.map_pick_step = "WAYPOINT"
+                            st.rerun()
+                        elif st.session_state.map_pick_step == "WAYPOINT":
+                            st.session_state.waypoint_counter += 1
+                            st.session_state.waypoints.append({"id": st.session_state.waypoint_counter, "value": raw_point})
+                            st.rerun()
+                        elif st.session_state.map_pick_step == "DEST":
+                            st.session_state.selected_dest = raw_point
+                            st.session_state.map_pick_mode = False
+                            st.session_state.map_pick_step = "START"
+                            st.rerun()
+                    else:
+                        st.session_state.selected_dest = raw_point
+                        st.rerun()
+        else:
+            fig_3d = render_3d_isometric_view(
+                route_path=path, 
+                node_coords=temp_nodes, 
+                current_lang=st.session_state.lang, 
+                show_doors=show_doors
+            )
+            st.plotly_chart(fig_3d, use_container_width=True)
 
 # ------------------------------------------------------------------------------
 # Directions Tab
