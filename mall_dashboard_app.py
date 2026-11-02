@@ -1775,53 +1775,53 @@ with tab_map:
 
     with map_container:
         if view_type == t["view_2d"]:
-        col_floor, col_autoscale, col_download = st.columns([0.5, 0.25, 0.25])
+            col_floor, col_autoscale, col_download = st.columns([0.5, 0.25, 0.25])
 
-        with col_floor:
-            floor_select = st.selectbox(
-                t["active_floor"],
-                options=[0, 1, 2, 3],
-                format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
-            )
+            with col_floor:
+                floor_select = st.selectbox(
+                    t["active_floor"],
+                    options=[0, 1, 2, 3],
+                    format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
+                )
 
-        with col_autoscale:
-            st.write("")
-            st.write("")
-            if st.button("🏠 Autoscale Map", use_container_width=True):
+            with col_autoscale:
+                st.write("")
+                st.write("")
+                if st.button("🏠 Autoscale Map", use_container_width=True):
                 # Triggering a rerun resets the map zoom/bounds back to fit_bounds default
-                st.rerun()
+                    st.rerun()
 
-        with col_download:
-            st.write("")
-            st.write("")
+            with col_download:
+                st.write("")
+                st.write("")
             # Prepare map data summary text download
-            route_str = " -> ".join([str(n) for n in path]) if 'path' in locals() and path else "No active route"
-            map_info_text = f"Floor: {get_translated_floor_name(floor_select, st.session_state.lang)}\nRoute: {route_str}\n"
-            st.download_button(
-                label="📷 Download Map Data",
-                data=map_info_text,
-                file_name=f"mall_map_floor_{floor_select}.txt",
-                mime="text/plain",
-                use_container_width=True
+                route_str = " -> ".join([str(n) for n in path]) if 'path' in locals() and path else "No active route"
+                map_info_text = f"Floor: {get_translated_floor_name(floor_select, st.session_state.lang)}\nRoute: {route_str}\n"
+                st.download_button(
+                    label="📷 Download Map Data",
+                    data=map_info_text,
+                    file_name=f"mall_map_floor_{floor_select}.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+
+            folium_map = render_2d_folium_view(
+                floor_select,
+                route_path=path,
+                node_coords_dict=temp_nodes,
+                current_lang=st.session_state.lang,
+                stop_ids=stop_ids,
+                show_dest=not st.session_state.map_pick_mode,
+                show_doors=show_doors,
             )
 
-        folium_map = render_2d_folium_view(
-            floor_select,
-            route_path=path,
-            node_coords_dict=temp_nodes,
-            current_lang=st.session_state.lang,
-            stop_ids=stop_ids,
-            show_dest=not st.session_state.map_pick_mode,
-            show_doors=show_doors,
-        )
-
-        map_data = st_folium(
-            folium_map, 
-            height=550, 
-            use_container_width=True, 
-            key="interactive_folium_map", 
-            returned_objects=["last_clicked"]
-        )
+            map_data = st_folium(
+                folium_map, 
+                height=550, 
+                use_container_width=True, 
+                key="interactive_folium_map", 
+                returned_objects=["last_clicked"]
+            )
 
             if map_data and map_data.get("last_clicked"):
                 click_lat = map_data["last_clicked"]["lat"]
