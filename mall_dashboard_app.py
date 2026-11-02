@@ -863,33 +863,79 @@ def get_floor_bounds_plotly(floor_z):
 
 def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
-    
-    # 1. Calculate bounds using Plotly's exact metric ranges
-    min_x, max_x, min_y, max_y = get_floor_bounds_plotly(active_floor_z)
+    floor_rooms = {
+        r_id: poly["coords"]
+        for r_id, poly in ROOM_POLYGONS.items()
+        if poly["z"] == active_floor_z
+    }
+
+    all_pts = [pt for coords in floor_rooms.values() for pt in coords]
+    if all_pts:
+        min_x = min(p[0] for p in all_pts) - 10
+        max_x = max(p[0] for p in all_pts) + 10
+        min_y = min(p[1] for p in all_pts) - 10
+        max_y = max(p[1] for p in all_pts) + 10
+    else:
+        min_x, max_x, min_y, max_y = -60, 60, -35, 55
+
     bounds = [[min_y, min_x], [max_y, max_x]]
 
-    m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
+    # Initialize Simple CRS Map (1 unit = 1 meter)
+    m = folium.Map(
+        location=[(min_y + max_y) / 2, (min_x + max_x) / 2],
+        crs="Simple", 
+        tiles=None, 
+        zoom_control=True, 
+        scroll_wheel_zoom=True
+    )
+    
+    # --------------------------------------------------------------------------
+    # Ported Plotly Features: Fullscreen, Screenshot Export & Dynamic Coordinate Gauge
+    # --------------------------------------------------------------------------
     Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
 
-    # 2. Add real-time cursor coordinate box
+    # Dynamic scaling coordinate reader at bottom edge (replacing static Plotly X/Y axis ticks)
     MousePosition(
         position="bottomright",
-        separator=" | ",
-        empty_string="X: 0.0, Y: 0.0",
+        separator=" | Y (m): ",
+        empty_string="Cursor position",
         lng_first=True,
-        num_digits=1,
-        prefix="Location (m): X=",
+        prefix="X (m): "
     ).add_to(m)
 
-    # 3. Add background metric gridlines matching Plotly's 10m grid
-    for x in range(int(min_x), int(max_x) + 1, 10):
-        folium.PolyLine([[min_y, x], [max_y, x]], color="#64748B", weight=1, dash_array="3, 6", opacity=0.35).add_to(m)
+    # Custom HTML/JS toolbar injection matching Plotly's action bar (Download PNG, Reset, Autoscale)
+    plotly_toolbar_js = f"""
+    <div id="plotly-folium-toolbar" style="
+        position: absolute; top: 10px; right: 10px; z-index: 1000; 
+        background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 6px; 
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-family: sans-serif; display: flex; gap: 6px;">
+        <button onclick="downloadMapPNG()" title="Download plot as png" style="cursor:pointer; background:none; border:none; font-size:14px;">📷</button>
+        <button onclick="resetAxis()" title="Reset axis / Autoscale" style="cursor:pointer; background:none; border:none; font-size:14px;">🏠</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script>
+    function downloadMapPNG() {{
+        var mapContainer = document.querySelector('.leaflet-container');
+        html2canvas(mapContainer).then(canvas => {{
+            var link = document.createElement('a');
+            link.download = 'mall_map_floor_{active_floor_z}.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }});
+    }}
+    function resetAxis() {{
+        var map = window[{m.get_name()}];
+        if (map) {{
+            map.fitBounds({bounds});
+        }}
+    }}
+    </script>
+    """
+    m.get_root().html.add_child(folium.Element(plotly_toolbar_js))
 
-    for y in range(int(min_y), int(max_y) + 1, 10):
-        folium.PolyLine([[y, min_x], [y, max_x]], color="#64748B", weight=1, dash_array="3, 6", opacity=0.35).add_to(m)
-
-    # 4. Render floor plan room polygons (matching Plotly room styling)
-    floor_rooms = {r_id: poly["coords"] for r_id, poly in ROOM_POLYGONS.items() if poly["z"] == active_floor_z}
+    # --------------------------------------------------------------------------
+    # Render Room Polygons, Icons, and Route Path
+    # --------------------------------------------------------------------------
     for room_id, coords in floor_rooms.items():
         room_info = ROOM_POLYGONS[room_id]
         translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
@@ -921,7 +967,6 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
     if show_doors:
         add_door_markers_2d(m, active_floor_z, current_lang)
 
-    # 5. Render route path line & start/end point markers
     if route_path:
         floor_path = [node for node in route_path if node in node_coords_dict and node_coords_dict[node][2] == active_floor_z]
 
