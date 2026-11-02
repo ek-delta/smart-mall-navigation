@@ -1666,7 +1666,7 @@ with tab_map:
             st.session_state.selected_dest = "A_L0_Lobby"
             st.rerun()
 
-status_placeholder = st.empty()
+    status_placeholder = st.empty()
     
     if st.session_state.map_pick_mode:
         curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
