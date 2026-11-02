@@ -5,7 +5,7 @@ import streamlit as st
 import folium
 import plotly.graph_objects as go
 from streamlit_folium import st_folium
-from folium.plugins import Fullscreen
+from folium.plugins import Fullscreen, MousePosition
 
 # ==============================================================================
 # 1. Page Config & Localization Dictionary
@@ -818,6 +818,39 @@ def add_door_markers_2d(m, floor_z, lang="English", radius=5):
 
 def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
+    # ... keep floor bounds calculation ...
+
+    m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True)
+    Fullscreen(position="topleft", title="Expand map", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
+
+    # Add real-time X/Y coordinate tracker matching Plotly's meter scale
+    MousePosition(
+        position="bottomright",
+        separator=" | ",
+        empty_string="X: 0.0, Y: 0.0",
+        lng_first=True,  # Displays (X, Y) instead of (Lat, Lng)
+        num_digits=1,
+        prefix="Location (m): X=",
+    ).add_to(m)
+
+    for x in range(int(min_x), int(max_x), 10):
+        folium.PolyLine(
+            locations=[[min_y, x], [max_y, x]],
+            color="#E2E8F0",
+            weight=1,
+            dash_array="3, 6",
+            opacity=0.6,
+        ).add_to(m)
+
+    for y in range(int(min_y), int(max_y), 10):
+        folium.PolyLine(
+            locations=[[y, min_x], [y, max_x]],
+            color="#E2E8F0",
+            weight=1,
+            dash_array="3, 6",
+            opacity=0.6,
+        ).add_to(m)
+        
     floor_rooms = {
         r_id: poly["coords"]
         for r_id, poly in ROOM_POLYGONS.items()
