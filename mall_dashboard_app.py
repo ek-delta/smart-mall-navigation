@@ -981,18 +981,27 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
     else:
         x_rng, y_rng = [-60, 60], [-35, 55]
 
-    axis_style = dict(showgrid=False, zeroline=False, showticklabels=False, showline=False, ticks="")
+    # Numbered axes: Plotly re-spaces the tick intervals automatically as you zoom
+    axis_style = dict(
+        showgrid=True, gridcolor="rgba(100,116,139,0.18)", gridwidth=1,
+        zeroline=False,
+        showline=True, linecolor="#64748B", linewidth=1,
+        showticklabels=True, ticks="outside", ticklen=4, tickcolor="#64748B",
+        tickfont=dict(size=11, color="#64748B"),
+        automargin=True,
+    )
     fig.update_layout(
-        height=620,
-        margin=dict(l=0, r=0, t=10, b=0),
+        height=640,
+        margin=dict(l=10, r=10, t=10, b=10),
         showlegend=False,
         plot_bgcolor="#F8FAFC",
         dragmode="pan",
         clickmode="event+select",
         hovermode="closest",
         uirevision=f"floor_{floor_z}",   # same value every rerun -> pan/zoom is kept
-        xaxis=dict(range=x_rng, **axis_style),
-        yaxis=dict(range=y_rng, scaleanchor="x", scaleratio=1, **axis_style),
+        xaxis=dict(range=x_rng, title=dict(text="X (m)", font=dict(size=12, color="#64748B")), **axis_style),
+        yaxis=dict(range=y_rng, scaleanchor="x", scaleratio=1,
+                   title=dict(text="Y (m)", font=dict(size=12, color="#64748B")), **axis_style),
     )
     return fig
 
