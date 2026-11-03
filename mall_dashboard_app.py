@@ -892,7 +892,9 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         lab_x.append(sum(pt[0] for pt in coords) / len(coords))
         lab_y.append(sum(pt[1] for pt in coords) / len(coords))
         name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        lab_text.append(f"{get_location_icon(room_id)}<br>{name}")
+        # Names already carry their own emoji; only add an icon when one is missing
+        has_emoji = bool(name) and ord(name[0]) >= 0x1F000
+        lab_text.append(name if has_emoji else f"{get_location_icon(room_id)}{name}")
     fig.add_trace(go.Scatter(
         x=lab_x, y=lab_y, mode="text", text=lab_text, textposition="middle center",
         textfont=dict(size=10, color=LABEL_COLOR),
