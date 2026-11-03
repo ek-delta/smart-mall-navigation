@@ -1208,10 +1208,20 @@ def find_nearest_available_parking(entrance_node, graph, nodes, availability_map
     best_exit_path = theta_star_3d(best_spot, "P_L3_Driveway_Exit", graph, nodes, accessible_only=accessible_only) if best_spot else []
     return best_spot, best_entry_path, best_exit_path
 
+def describe_point(x, y, z, lang):
+    """Name of the POI/room that a clicked map point falls in, or None."""
+    room_id = find_room_at(x, y, z)
+    if not room_id:
+        return None
+    return POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id).split("(")[0].strip()
+
 def format_location_label(loc, lang):
     if isinstance(loc, tuple):
         point_lbl = POINT_LABELS.get(lang, "Point")
-        return f"[{floor_code_for(loc[2])}] {point_lbl} ({loc[0]:.1f}, {loc[1]:.1f})"
+        poi_name = describe_point(loc[0], loc[1], loc[2], lang)
+        coords_txt = f"{point_lbl} ({loc[0]:.1f}, {loc[1]:.1f})"
+        prefix = f"[{floor_code_for(loc[2])}]"
+        return f"{prefix} {poi_name} – {coords_txt}" if poi_name else f"{prefix} {coords_txt}"
 
     floor_code = floor_code_for(MULTI_CAD_NODES[loc][2])
     name = POI_TRANSLATIONS.get(lang, {}).get(loc, loc)
@@ -1227,7 +1237,9 @@ def get_node_display_name(node_id, lang, node_coords):
     """Readable name for any route node, including clicked points and corridor junctions."""
     if node_id.startswith(DYNAMIC_PREFIX):
         x, y, z = node_coords[node_id]
-        return f"📍{POINT_LABELS.get(lang, 'Point')} ({x:.1f}, {y:.1f})"
+        coords_txt = f"{POINT_LABELS.get(lang, 'Point')} ({x:.1f}, {y:.1f})"
+        poi_name = describe_point(x, y, z, lang)
+        return f"{poi_name} – {coords_txt}" if poi_name else f"📍{coords_txt}"
     if node_id.startswith(DOOR_PREFIX):
         room_id = node_id[len(DOOR_PREFIX):]
         room_name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id).split("(")[0].strip()
