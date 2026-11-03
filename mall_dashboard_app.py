@@ -411,7 +411,7 @@ ROOM_POLYGONS = {
     "Fashion Hub": {"z": 0, "coords": [(-30, -28), (30, -28), (30, -4), (-30, -4)], "color": "#E6E6FA"},
     "A_L0_Info": {"z": 0, "coords": [(-50, 20), (-30, 20), (-30, 44), (-50, 44)], "color": "#ADD8E6"},
     "A_L0_Entrance": {"z": 0, "coords": [(-50, -4), (-30, -4), (-30, 20), (-50, 20)], "color": "#708090"},
-    "A_L0_Restroom": {"z": 0, "coords": [(30, 20), (50, 20), (50, 44), (30, 44)], "color": "#E0FFFF"},
+    "A_L0_Restroom": {"z": 0, "coords": [(36, 20), (46, 20), (46, 28), (36, 28)], "color": "#E0FFFF"},
     "A_L0_Elevator": {"z": 0, "coords": [(50, 14), (56, 14), (56, 20), (50, 20)], "color": "#FFD700"},
     "A_L0_Escalator": {"z": 0, "coords": [(50, 1), (62, 1), (62, 6), (50, 6)], "color": "#FFA07A"},
     "A_L0_Stairs": {"z": 0, "coords": [(37, -12), (45, -12), (45, -4), (37, -4)], "color": "#FF8C00"},
@@ -420,7 +420,7 @@ ROOM_POLYGONS = {
     "A_L1_Hallway": {"z": 1, "coords": [(-30, -4), (50, -4), (50, 20), (-30, 20)], "color": "#87CEFA"},
     "Book Nook": {"z": 1, "coords": [(-30, -28), (0, -28), (0, -4), (-30, -4)], "color": "#F5DEB3"},
     "Tech Gadgets": {"z": 1, "coords": [(0, -28), (30, -28), (30, -4), (0, -4)], "color": "#9370DB"},
-    "A_L1_Restroom": {"z": 1, "coords": [(30, 20), (50, 20), (50, 44), (30, 44)], "color": "#E0FFFF"},
+    "A_L1_Restroom": {"z": 1, "coords": [(36, 20), (46, 20), (46, 28), (36, 28)], "color": "#E0FFFF"},
     "A_L1_Elevator": {"z": 1, "coords": [(50, 14), (56, 14), (56, 20), (50, 20)], "color": "#FFD700"},
     "A_L1_Escalator": {"z": 1, "coords": [(50, 1), (62, 1), (62, 6), (50, 6)], "color": "#FFA07A"},
     "A_L1_Stairs": {"z": 1, "coords": [(37, -12), (45, -12), (45, -4), (37, -4)], "color": "#FF8C00"},
@@ -430,7 +430,7 @@ ROOM_POLYGONS = {
     "B_L2_Corridor": {"z": 2, "coords": [(-30, -4), (50, -4), (50, 20), (-30, 20)], "color": "#5F9EA0"},
     "Sky Food Court": {"z": 2, "coords": [(-30, -28), (0, -28), (0, -4), (-30, -4)], "color": "#FF7F50"},
     "Gourmet Bites": {"z": 2, "coords": [(0, -28), (30, -28), (30, -4), (0, -4)], "color": "#F4A460"},
-    "B_L2_Restroom": {"z": 2, "coords": [(30, 20), (50, 20), (50, 44), (30, 44)], "color": "#E0FFFF"},
+    "B_L2_Restroom": {"z": 2, "coords": [(36, 20), (46, 20), (46, 28), (36, 28)], "color": "#E0FFFF"},
     "B_L2_Elevator": {"z": 2, "coords": [(50, 14), (56, 14), (56, 20), (50, 20)], "color": "#FFD700"},
     "B_L2_Escalator": {"z": 2, "coords": [(50, 1), (62, 1), (62, 6), (50, 6)], "color": "#FFA07A"},
     "B_L2_Stairs": {"z": 2, "coords": [(37, -12), (45, -12), (45, -4), (37, -4)], "color": "#FF8C00"},
@@ -454,19 +454,19 @@ ROOM_POLYGONS = {
 MULTI_CAD_NODES = {
     # Ground Floor
     "A_L0_Entrance": (-40.0, 8.0, 0), "A_L0_Info": (-40.0, 32.0, 0), "A_L0_Lobby": (0.0, 8.0, 0),
-    "Fashion Hub": (0.0, -16.0, 0), "Mega Supermarket": (0.0, 32.0, 0), "A_L0_Restroom": (40.0, 32.0, 0),
+    "Fashion Hub": (0.0, -16.0, 0), "Mega Supermarket": (0.0, 32.0, 0), "A_L0_Restroom": (41.0, 24.0, 0),
     "A_L0_Elevator": (53.0, 17.0, 0), "A_L0_Escalator": (56.0, 3.5, 0), "A_L0_Stairs": (41.0, -8.0, 0),
     "H_L0_West": (-20.0, 8.0, 0), "H_L0_East": (20.0, 8.0, 0), "H_L0_North": (0.0, 20.0, 0), "H_L0_South": (0.0, -4.0, 0),
 
     # 1st Floor
     "A_L1_Hallway": (0.0, 8.0, 1), "Book Nook": (-15.0, -16.0, 1), "Tech Gadgets": (15.0, -16.0, 1),
-    "Jewel Box": (0.0, 32.0, 1), "A_L1_Restroom": (40.0, 32.0, 1), "A_L1_Elevator": (53.0, 17.0, 1),
+    "Jewel Box": (0.0, 32.0, 1), "A_L1_Restroom": (41.0, 24.0, 1), "A_L1_Elevator": (53.0, 17.0, 1),
     "A_L1_Escalator": (56.0, 3.5, 1), "A_L1_Stairs": (41.0, -8.0, 1),
     "H_L1_West": (-20.0, 8.0, 1), "H_L1_East": (20.0, 8.0, 1), "H_L1_South_West": (-15.0, -4.0, 1), "H_L1_South_East": (15.0, -4.0, 1),
 
     # 2nd Floor
     "B_L2_Corridor": (0.0, 8.0, 2), "VR World & Arcade": (-40.0, 8.0, 2), "Cineplex Theater": (0.0, 32.0, 2),
-    "Sky Food Court": (-15.0, -16.0, 2), "Gourmet Bites": (15.0, -16.0, 2), "B_L2_Restroom": (40.0, 32.0, 2),
+    "Sky Food Court": (-15.0, -16.0, 2), "Gourmet Bites": (15.0, -16.0, 2), "B_L2_Restroom": (41.0, 24.0, 2),
     "B_L2_Elevator": (53.0, 17.0, 2), "B_L2_Escalator": (56.0, 3.5, 2), "B_L2_Stairs": (41.0, -8.0, 2),
     "H_L2_West": (-20.0, 8.0, 2), "H_L2_East": (20.0, 8.0, 2), "H_L2_South_West": (-15.0, -4.0, 2), "H_L2_South_East": (15.0, -4.0, 2),
 
@@ -542,8 +542,8 @@ PARKING_SLOTS = {
 # room id -> (x, y, node the door opens onto). Each (x, y) sits on the room's
 # boundary. Each corridor runs on to x=50, so the restrooms and stairwells sit
 # alongside it like the stores (doors on the corridor-facing wall). The elevator
-# and escalator are at the east end of the corridor; all three are drawn at a
-# realistic (small) size.
+# and escalator are at the east end of the corridor; the restroom, stairwell,
+# elevator and escalator are all drawn at a realistic (small) size.
 # ------------------------------------------------------------------------------
 DOORS = {
     # Ground Floor
@@ -554,7 +554,7 @@ DOORS = {
     "A_L0_Elevator": (50.0, 17.0, "H_L0_End"),
     "A_L0_Escalator": (50.0, 3.5, "H_L0_End"),
     "A_L0_Stairs": (41.0, -4.0, "H_L0_End"),
-    "A_L0_Restroom": (40.0, 20.0, "H_L0_End"),
+    "A_L0_Restroom": (41.0, 20.0, "H_L0_End"),
 
     # 1st Floor
     "Jewel Box": (0.0, 20.0, "A_L1_Hallway"),
@@ -563,7 +563,7 @@ DOORS = {
     "A_L1_Elevator": (50.0, 17.0, "H_L1_End"),
     "A_L1_Escalator": (50.0, 3.5, "H_L1_End"),
     "A_L1_Stairs": (41.0, -4.0, "H_L1_End"),
-    "A_L1_Restroom": (40.0, 20.0, "H_L1_End"),
+    "A_L1_Restroom": (41.0, 20.0, "H_L1_End"),
 
     # 2nd Floor
     "Cineplex Theater": (0.0, 20.0, "B_L2_Corridor"),
@@ -573,7 +573,7 @@ DOORS = {
     "B_L2_Elevator": (50.0, 17.0, "H_L2_End"),
     "B_L2_Escalator": (50.0, 3.5, "H_L2_End"),
     "B_L2_Stairs": (41.0, -4.0, "H_L2_End"),
-    "B_L2_Restroom": (40.0, 20.0, "H_L2_End"),
+    "B_L2_Restroom": (41.0, 20.0, "H_L2_End"),
 
     # Rooftop Parking
     "P_L3_Driveway_Entrance": (-30.0, 2.0, "P_L3_Aisle_Main"),
