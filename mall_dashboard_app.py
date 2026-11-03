@@ -1,11 +1,11 @@
 import math
 import heapq
 import copy
+import functools
 import streamlit as st
+import folium
 import plotly.graph_objects as go
 from streamlit_folium import st_folium
-from folium.plugins import Fullscreen, MousePosition, LocateControl
-import folium
 
 # ==============================================================================
 # 1. Page Config & Localization Dictionary
@@ -36,7 +36,7 @@ LOCALIZATION = {
         "shortest": "Shortest Path",
         "accessible": "Accessible (Elevators Only)",
         "view_mode": "Map Display Mode",
-        "view_2d": "2D Folium Map Plan",
+        "view_2d": "2D Map Plan",
         "view_3d": "3D Isometric View",
         "active_floor": "Select Floor",
         "tab_nav": "🗺️ Mall Map",
@@ -87,6 +87,7 @@ LOCALIZATION = {
         "pick_step_2": "👇 *Step 2:* Click anywhere on the map to add *Intermediate Stops* (or click button below when ready for Destination).",
         "pick_step_3": "👇 *Step 3:* Click anywhere on the map to set as *Destination*.",
         "pick_3d_notice": "Interactive map selection works on the 2D map. Switch to the 2D view to click points.",
+        "map_nav_hint": "🖱️ Drag to pan · scroll to zoom · double-click to reset the view · click to choose a point (snaps to the nearest 1 m).",
         "btn_done_adding_stops": "➡️ Done Adding Stops (Next: Pick Destination)",
         "btn_add_as_stop": "➕ Add as Stop",
         "btn_keep_start": "⏭️ Keep Current Start",
@@ -118,7 +119,7 @@ LOCALIZATION = {
         "shortest": "最短路线",
         "accessible": "无障碍路线 (仅限电梯)",
         "view_mode": "地图显示模式",
-        "view_2d": "2D Folium 交互地图",
+        "view_2d": "2D 平面图",
         "view_3d": "3D 等轴测视图",
         "active_floor": "选择楼层",
         "tab_nav": "🗺️ 导航地图",
@@ -169,6 +170,7 @@ LOCALIZATION = {
         "pick_step_2": "👇 *步骤 2：* 点击地图任意位置添加 *途经点*（若已添加完毕，请点击下方按钮选择终点）。",
         "pick_step_3": "👇 *步骤 3：* 点击地图任意位置设为 *终点位置*。",
         "pick_3d_notice": "交互式地图选点仅支持 2D 地图，请切换到 2D 视图后再点击。",
+        "map_nav_hint": "🖱️ 拖动平移 · 滚轮缩放 · 双击重置视图 · 点击选点（吸附到最近的 1 米）。",
         "btn_done_adding_stops": "➡️ 完成添加途经点 (下一步: 选择终点)",
         "btn_add_as_stop": "➕ 添加为途经点",
         "btn_keep_start": "⏭️ 保留当前起点",
@@ -200,7 +202,7 @@ LOCALIZATION = {
         "shortest": "Laluan Terpendek",
         "accessible": "Mesra OKU (Lif Sahaja)",
         "view_mode": "Mod Paparan Peta",
-        "view_2d": "Pelan Peta Interaktif Folium 2D",
+        "view_2d": "Pelan Peta 2D",
         "view_3d": "Pandangan Isometrik 3D",
         "active_floor": "Pilih Tingkat",
         "tab_nav": "🗺️ Peta Navigasi",
@@ -251,6 +253,7 @@ LOCALIZATION = {
         "pick_step_2": "👇 *Langkah 2:* Klik di mana-mana pada peta untuk tambah *Hentian Antara* (atau klik butang di bawah apabila sedia untuk Destinasi).",
         "pick_step_3": "👇 *Langkah 3:* Klik di mana-mana pada peta untuk tetapkan *Destinasi*.",
         "pick_3d_notice": "Pemilihan peta interaktif berfungsi pada peta 2D. Tukar ke paparan 2D untuk mengklik titik.",
+        "map_nav_hint": "🖱️ Seret untuk alih · skrol untuk zum · klik dua kali untuk set semula paparan · klik untuk pilih titik (dipadankan ke 1 m terdekat).",
         "btn_done_adding_stops": "➡️ Selesai Menambah Hentian (Seterusnya: Pilih Destinasi)",
         "btn_add_as_stop": "➕ Tambah sebagai Hentian",
         "btn_keep_start": "⏭️ Kekalkan Permulaan Semasa",
@@ -728,6 +731,13 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
                         if has_line_of_sight_3d(temp_id, n_id, nodes_copy, WALL_SEGMENTS_BY_FLOOR):
                             link(n_id)
 
+            if not graph_copy[temp_id]:
+                # Degenerate click (e.g. exactly on a wall): attach to the nearest node on this floor
+                same_floor = [n for n, c in nodes_copy.items()
+                              if n != temp_id and not n.startswith(DYNAMIC_PREFIX) and int(c[2]) == int(pz)]
+                if same_floor:
+                    link(min(same_floor, key=lambda n: math.hypot(px - nodes_copy[n][0], py - nodes_copy[n][1])))
+
             resolved_sequence.append(temp_id)
         else:
             resolved_sequence.append(pt)
@@ -816,147 +826,176 @@ def add_door_markers_2d(m, floor_z, lang="English", radius=5):
             tooltip=f"{name} – {door_lbl}"
         ).add_to(m)
 
-def get_floor_bounds_plotly(floor_z):
-    """Matches the exact bounds logic from the Plotly CAD view."""
-    floor_rooms = [info for info in ROOM_POLYGONS.values() if info["z"] == floor_z]
-    if not floor_rooms:
-        return (-65, 65, -40, 60)
+def hex_to_rgba(hex_color, alpha=0.75):
+    h = hex_color.lstrip("#")
+    return f"rgba({int(h[0:2], 16)},{int(h[2:4], 16)},{int(h[4:6], 16)},{alpha})"
 
-    all_x = [pt[0] for room in floor_rooms for pt in room["coords"]]
-    all_y = [pt[1] for room in floor_rooms for pt in room["coords"]]
-    padding = 15
-    min_x, max_x = min(all_x) - padding, max(all_x) + padding
-    min_y, max_y = min(all_y) - padding, max(all_y) + padding
-    
-    # Matches Plotly's layout range [min_x - 5, max_x + 5] and [min_y - 5, max_y + 5]
-    return (min_x - 5, max_x + 5, min_y - 5, max_y + 5)
+CLICK_GRID_STEP = 1.0  # metres between invisible click targets
 
+@functools.lru_cache(maxsize=8)
+def build_click_grid(floor_z, step=CLICK_GRID_STEP):
+    """Invisible grid of points over the floor plan. Plotly only reports clicks on
+    points, so a dense grid lets a click land (almost) anywhere inside the building."""
+    rects = []
+    for info in ROOM_POLYGONS.values():
+        if int(info["z"]) != int(floor_z):
+            continue
+        xs = [pt[0] for pt in info["coords"]]
+        ys = [pt[1] for pt in info["coords"]]
+        rects.append((min(xs), max(xs), min(ys), max(ys)))
+    if not rects:
+        return (), ()
 
-def get_floor_bounds_plotly(floor_z):
-    """Matches the exact bounds logic from the Plotly CAD view."""
-    floor_rooms = [info for info in ROOM_POLYGONS.values() if info["z"] == floor_z]
-    if not floor_rooms:
-        return (-65, 65, -40, 60)
+    min_x = min(r[0] for r in rects)
+    max_x = max(r[1] for r in rects)
+    min_y = min(r[2] for r in rects)
+    max_y = max(r[3] for r in rects)
 
-    all_x = [pt[0] for room in floor_rooms for pt in room["coords"]]
-    all_y = [pt[1] for room in floor_rooms for pt in room["coords"]]
-    padding = 15
-    min_x, max_x = min(all_x) - padding, max(all_x) + padding
-    min_y, max_y = min(all_y) - padding, max(all_y) + padding
-    
-    return (min_x - 5, max_x + 5, min_y - 5, max_y + 5)
+    # Cell centres (offset by half a step) so no point sits exactly on a wall
+    gx, gy = [], []
+    for i in range(int(round((max_x - min_x) / step))):
+        x = min_x + (i + 0.5) * step
+        for j in range(int(round((max_y - min_y) / step))):
+            y = min_y + (j + 0.5) * step
+            if any(r[0] <= x <= r[1] and r[2] <= y <= r[3] for r in rects):
+                gx.append(x)
+                gy.append(y)
+    return tuple(gx), tuple(gy)
 
-
-def get_floor_bounds_plotly(floor_z):
-    """Ported directly from the Plotly CAD bounds calculation."""
-    floor_rooms = [info for info in ROOM_POLYGONS.values() if info["z"] == floor_z]
-    if not floor_rooms:
-        return (-65, 65, -40, 60)
-
-    all_x = [pt[0] for room in floor_rooms for pt in room["coords"]]
-    all_y = [pt[1] for room in floor_rooms for pt in room["coords"]]
-    padding = 15
-    min_x, max_x = min(all_x) - padding, max(all_x) + padding
-    min_y, max_y = min(all_y) - padding, max(all_y) + padding
-    return (min_x - 5, max_x + 5, min_y - 5, max_y + 5)
-
-
-def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
+def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
-    floor_rooms = {
-        r_id: poly["coords"]
-        for r_id, poly in ROOM_POLYGONS.items()
-        if poly["z"] == active_floor_z
-    }
+    """2D floor plan. The view (pan/zoom) is kept across reruns via `uirevision`,
+    so clicking a point no longer moves the map."""
+    fig = go.Figure()
+    lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION["English"])
+    floor_z = int(active_floor_z)
+    LABEL_COLOR = "#0f172a"
 
-    all_pts = [pt for coords in floor_rooms.values() for pt in coords]
-    if all_pts:
-        min_x = min(p[0] for p in all_pts) - 10
-        max_x = max(p[0] for p in all_pts) + 10
-        min_y = min(p[1] for p in all_pts) - 10
-        max_y = max(p[1] for p in all_pts) + 10
-    else:
-        min_x, max_x, min_y, max_y = -60, 60, -35, 55
+    floor_rooms = {r_id: info for r_id, info in ROOM_POLYGONS.items() if int(info["z"]) == floor_z}
 
-    bounds = [[min_y, min_x], [max_y, max_x]]
+    # Room outlines + fills (not clickable, so clicks fall through to the grid)
+    for room_id, info in floor_rooms.items():
+        coords = info["coords"]
+        fig.add_trace(go.Scatter(
+            x=[pt[0] for pt in coords] + [coords[0][0]],
+            y=[pt[1] for pt in coords] + [coords[0][1]],
+            mode="lines", fill="toself",
+            fillcolor=hex_to_rgba(info.get("color", "#CBD5E1")),
+            line=dict(color="#334155", width=1.5),
+            hoverinfo="skip", showlegend=False,
+        ))
 
-    m = folium.Map(
-        location=[(min_y + max_y) / 2, (min_x + max_x) / 2],
-        crs="Simple", 
-        tiles=None, 
-        zoom_control=True, 
-        scroll_wheel_zoom=True
-    )
-    
-    # Dynamic meter coordinates gauge at bottom right
-    MousePosition(
-        position="bottomright",
-        separator=" | Y (m): ",
-        empty_string="Cursor position",
-        lng_first=True,
-        prefix="X (m): "
-    ).add_to(m)
+    # Room labels
+    lab_x, lab_y, lab_text = [], [], []
+    for room_id, info in floor_rooms.items():
+        coords = info["coords"]
+        lab_x.append(sum(pt[0] for pt in coords) / len(coords))
+        lab_y.append(sum(pt[1] for pt in coords) / len(coords))
+        name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        lab_text.append(f"{get_location_icon(room_id)}<br>{name}")
+    fig.add_trace(go.Scatter(
+        x=lab_x, y=lab_y, mode="text", text=lab_text, textposition="middle center",
+        textfont=dict(size=10, color=LABEL_COLOR),
+        hoverinfo="skip", showlegend=False,
+        unselected=dict(textfont=dict(color=LABEL_COLOR)),
+    ))
 
-    Fullscreen(position="topleft", title="Fullscreen", title_cancel="Exit fullscreen", force_separate_button=True).add_to(m)
-
-    # Render Room Polygons & Store Labels
-    for room_id, coords in floor_rooms.items():
-        room_info = ROOM_POLYGONS[room_id]
-        translated_name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        folium_coords = [[pt[1], pt[0]] for pt in coords]
-
-        folium.Polygon(
-            locations=folium_coords,
-            color="#334155",
-            weight=2,
-            fill=True,
-            fill_color=room_info.get("color", "#CBD5E1"),
-            fill_opacity=0.7,
-            tooltip=translated_name
-        ).add_to(m)
-
-        cx = sum(p[0] for p in coords) / len(coords)
-        cy = sum(p[1] for p in coords) / len(coords)
-        icon_str = get_location_icon(room_id)
-
-        folium.Marker(
-            location=[cy, cx],
-            icon=folium.DivIcon(
-                html=f'''<div style="font-size: 10px; font-weight: bold; color: #0f172a; text-align: center; white-space: nowrap; transform: translate(-50%, -50%);">
-                    {icon_str}<br>{translated_name}
-                </div>'''
-            )
-        ).add_to(m)
-
+    # Entry/exit points
     if show_doors:
-        add_door_markers_2d(m, active_floor_z, current_lang)
+        door_lbl = DOOR_LABELS.get(current_lang, DOOR_LABELS["English"])
+        d_x, d_y, d_text = [], [], []
+        for room_id, (dx, dy, _link) in DOORS.items():
+            if int(ROOM_POLYGONS[room_id]["z"]) != floor_z:
+                continue
+            name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id).split("(")[0].strip()
+            d_x.append(dx)
+            d_y.append(dy)
+            d_text.append(f"{name} – {door_lbl}")
+        if d_x:
+            fig.add_trace(go.Scatter(
+                x=d_x, y=d_y, mode="markers", text=d_text, hoverinfo="text",
+                marker=dict(size=9, color="#34D399", line=dict(color="#065F46", width=2)),
+                showlegend=False,
+            ))
 
+    # Route, stops, start, destination
     if route_path:
-        floor_path = [node for node in route_path if node in node_coords_dict and node_coords_dict[node][2] == active_floor_z]
+        on_floor = lambda n: n in node_coords_dict and int(node_coords_dict[n][2]) == floor_z
+        floor_path = [n for n in route_path if on_floor(n)]
 
         if len(floor_path) > 1:
-            line_pts = [[node_coords_dict[node][1], node_coords_dict[node][0]] for node in floor_path]
-            folium.PolyLine(locations=line_pts, color="#EF4444", weight=5, opacity=0.9).add_to(m)
+            fig.add_trace(go.Scatter(
+                x=[node_coords_dict[n][0] for n in floor_path],
+                y=[node_coords_dict[n][1] for n in floor_path],
+                mode="lines", line=dict(color="#EF4444", width=5),
+                hoverinfo="skip", showlegend=False,
+            ))
 
-        start_node_id = route_path[0]
-        dest_node_id = route_path[-1]
+        stop_nodes = [(i, n) for i, n in enumerate(stop_ids or [], start=1) if on_floor(n)]
+        if stop_nodes:
+            fig.add_trace(go.Scatter(
+                x=[node_coords_dict[n][0] for _, n in stop_nodes],
+                y=[node_coords_dict[n][1] for _, n in stop_nodes],
+                mode="markers+text", text=[str(i) for i, _ in stop_nodes], textposition="top center",
+                textfont=dict(size=12, color="#C2410C"),
+                marker=dict(size=13, symbol="diamond", color="#F97316", line=dict(color="#FFFFFF", width=2)),
+                hoverinfo="skip", showlegend=False,
+                unselected=dict(textfont=dict(color="#C2410C")),
+            ))
 
-        for idx, stop_id in enumerate(stop_ids or [], start=1):
-            if stop_id in node_coords_dict and node_coords_dict[stop_id][2] == active_floor_z:
-                stx, sty, _ = node_coords_dict[stop_id]
-                folium.Marker(location=[sty, stx], popup=f"Stop {idx}", icon=folium.Icon(color="orange", icon="info-sign")).add_to(m)
+        if on_floor(route_path[0]):
+            sx, sy, _ = node_coords_dict[route_path[0]]
+            fig.add_trace(go.Scatter(
+                x=[sx], y=[sy], mode="markers+text", text=[lang_dict["marker_start"].strip()],
+                textposition="top center", textfont=dict(size=12, color="#B91C1C"),
+                marker=dict(size=15, symbol="circle", color="#EF4444", line=dict(color="#FFFFFF", width=2)),
+                hoverinfo="skip", showlegend=False,
+                unselected=dict(textfont=dict(color="#B91C1C")),
+            ))
 
-        if start_node_id in node_coords_dict and node_coords_dict[start_node_id][2] == active_floor_z:
-            sx, sy, _ = node_coords_dict[start_node_id]
-            folium.Marker(location=[sy, sx], popup="Start Point", icon=folium.Icon(color="red", icon="play")).add_to(m)
+        if show_dest and len(route_path) > 1 and on_floor(route_path[-1]):
+            dx, dy, _ = node_coords_dict[route_path[-1]]
+            fig.add_trace(go.Scatter(
+                x=[dx], y=[dy], mode="markers+text", text=[lang_dict["marker_dest"].strip()],
+                textposition="top center", textfont=dict(size=12, color="#15803D"),
+                marker=dict(size=17, symbol="star", color="#22C55E", line=dict(color="#FFFFFF", width=2)),
+                hoverinfo="skip", showlegend=False,
+                unselected=dict(textfont=dict(color="#15803D")),
+            ))
 
-        if show_dest and len(route_path) > 1 and dest_node_id in node_coords_dict and node_coords_dict[dest_node_id][2] == active_floor_z:
-            dx, dy, _ = node_coords_dict[dest_node_id]
-            folium.Marker(location=[dy, dx], popup="Destination Point", icon=folium.Icon(color="green", icon="flag")).add_to(m)
+    # Invisible click targets (added last)
+    gx, gy = build_click_grid(floor_z)
+    fig.add_trace(go.Scatter(
+        x=list(gx), y=list(gy), mode="markers",
+        marker=dict(size=12, color="rgba(0,0,0,0)"),
+        hoverinfo="none", showlegend=False,
+    ))
 
-    m.fit_bounds(bounds)
-    return m
-                              
+    # Keep markers at full strength when a point is selected
+    fig.update_traces(selected=dict(marker=dict(opacity=1)), unselected=dict(marker=dict(opacity=1)))
+
+    all_pts = [pt for info in floor_rooms.values() for pt in info["coords"]]
+    if all_pts:
+        x_rng = [min(p[0] for p in all_pts) - 5, max(p[0] for p in all_pts) + 5]
+        y_rng = [min(p[1] for p in all_pts) - 5, max(p[1] for p in all_pts) + 5]
+    else:
+        x_rng, y_rng = [-60, 60], [-35, 55]
+
+    axis_style = dict(showgrid=False, zeroline=False, showticklabels=False, showline=False, ticks="")
+    fig.update_layout(
+        height=620,
+        margin=dict(l=0, r=0, t=10, b=0),
+        showlegend=False,
+        plot_bgcolor="#F8FAFC",
+        dragmode="pan",
+        clickmode="event+select",
+        hovermode="closest",
+        uirevision=f"floor_{floor_z}",   # same value every rerun -> pan/zoom is kept
+        xaxis=dict(range=x_rng, **axis_style),
+        yaxis=dict(range=y_rng, scaleanchor="x", scaleratio=1, **axis_style),
+    )
+    return fig
+
 def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="English", show_doors=True):
     node_coords = node_coords or MULTI_CAD_NODES
     fig = go.Figure()
@@ -1647,6 +1686,8 @@ with tab_map:
 
         extracted_waypoints = [wp["value"] for wp in st.session_state.waypoints]
 
+        # While picking on the map the destination isn't chosen yet, so the
+        # route ends at the last clicked point instead of a stale destination.
         if st.session_state.map_pick_mode:
             raw_sequence = [st.session_state.selected_start] + extracted_waypoints
         else:
@@ -1688,6 +1729,7 @@ with tab_map:
             route_failed = True
             break
 
+    # Only the start has been picked so far: show just the start marker
     if len(full_route_sequence) == 1:
         full_path = [full_route_sequence[0]]
 
@@ -1698,7 +1740,7 @@ with tab_map:
     else:
         stop_ids = full_route_sequence[1:-1]
 
-    # ---- View mode and controls ----
+    # ---- View mode and interactive-pick controls ----
     view_type = st.radio(t["view_mode"], options=[t["view_2d"], t["view_3d"]], horizontal=True)
     show_doors = st.checkbox(t["show_doors"], value=True)
 
@@ -1724,133 +1766,104 @@ with tab_map:
             st.session_state.selected_dest = "A_L0_Lobby"
             st.rerun()
 
-    # --------------------------------------------------------------------------
-    # Layout-Stabilized Map View & Interactive Selection
-    # --------------------------------------------------------------------------
-    status_placeholder = st.empty()
-
     if st.session_state.map_pick_mode:
         curr_start_label = format_location_label(st.session_state.selected_start, st.session_state.lang)
         curr_dest_label = format_location_label(st.session_state.selected_dest, st.session_state.lang)
 
-        with status_placeholder.container():
-            if st.session_state.map_pick_step == "START":
-                col_msg, col_skip = st.columns([0.72, 0.28])
-                with col_msg:
-                    st.info(f"{t['pick_step_1']} ({t['lbl_current']}: **{curr_start_label}**)")
-                with col_skip:
-                    if st.button(t["btn_keep_start"], use_container_width=True, key="btn_skip_start"):
+        if st.session_state.map_pick_step == "START":
+            col_msg, col_skip = st.columns([0.72, 0.28])
+            with col_msg:
+                st.info(f"{t['pick_step_1']} ({t['lbl_current']}: **{curr_start_label}**)")
+            with col_skip:
+                if st.button(t["btn_keep_start"], use_container_width=True):
+                    st.session_state.map_pick_step = "WAYPOINT"
+                    st.rerun()
+
+        elif st.session_state.map_pick_step == "WAYPOINT":
+            col_msg, col_done = st.columns([0.72, 0.28])
+            with col_msg:
+                st.warning(t["pick_step_2"])
+            with col_done:
+                if st.button(t["btn_done_adding_stops"], type="primary", use_container_width=True):
+                    st.session_state.map_pick_step = "DEST"
+                    st.rerun()
+
+        elif st.session_state.map_pick_step == "DEST":
+            col_msg, col_skip = st.columns([0.72, 0.28])
+            with col_msg:
+                st.success(f"{t['pick_step_3']} ({t['lbl_current']}: **{curr_dest_label}**)")
+            with col_skip:
+                if st.button(t["btn_keep_dest"], use_container_width=True):
+                    st.session_state.map_pick_mode = False
+                    st.session_state.map_pick_step = "START"
+                    st.rerun()
+
+        if view_type == t["view_3d"]:
+            st.info(t["pick_3d_notice"])
+
+    # ---- Render the selected map view ----
+    if view_type == t["view_2d"]:
+        floor_select = st.selectbox(
+            t["active_floor"],
+            options=[0, 1, 2, 3],
+            format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
+        )
+
+        fig_2d = render_2d_plotly_view(
+            floor_select,
+            route_path=path,
+            node_coords_dict=temp_nodes,
+            current_lang=st.session_state.lang,
+            stop_ids=stop_ids,
+            show_dest=not st.session_state.map_pick_mode,
+            show_doors=show_doors,
+        )
+        st.caption(t["map_nav_hint"])
+        map_event = st.plotly_chart(
+            fig_2d,
+            use_container_width=True,
+            key=f"map2d_floor_{floor_select}",
+            on_select="rerun",
+            selection_mode="points",
+            config={"scrollZoom": True, "displaylogo": False, "modeBarButtonsToRemove": ["select2d", "lasso2d"]},
+        )
+
+        clicked_points = []
+        if map_event and "selection" in map_event and "points" in map_event["selection"]:
+            clicked_points = map_event["selection"]["points"]
+
+        if clicked_points:
+            pt = clicked_points[0]
+            raw_point = (round(float(pt["x"]), 2), round(float(pt["y"]), 2), floor_select)
+
+            # The selection persists across reruns, so only act on a new click
+            if raw_point != st.session_state.last_processed_click:
+                st.session_state.last_processed_click = raw_point
+
+                if st.session_state.map_pick_mode:
+                    if st.session_state.map_pick_step == "START":
+                        st.session_state.selected_start = raw_point
+                        st.session_state.waypoints = []
                         st.session_state.map_pick_step = "WAYPOINT"
                         st.rerun()
-
-            elif st.session_state.map_pick_step == "WAYPOINT":
-                col_msg, col_done = st.columns([0.72, 0.28])
-                with col_msg:
-                    st.warning(t["pick_step_2"])
-                with col_done:
-                    if st.button(t["btn_done_adding_stops"], type="primary", use_container_width=True, key="btn_done_stops"):
-                        st.session_state.map_pick_step = "DEST"
+                    elif st.session_state.map_pick_step == "WAYPOINT":
+                        st.session_state.waypoint_counter += 1
+                        st.session_state.waypoints.append({"id": st.session_state.waypoint_counter, "value": raw_point})
                         st.rerun()
-
-            elif st.session_state.map_pick_step == "DEST":
-                col_msg, col_skip = st.columns([0.72, 0.28])
-                with col_msg:
-                    st.success(f"{t['pick_step_3']} ({t['lbl_current']}: **{curr_dest_label}**)")
-                with col_skip:
-                    if st.button(t["btn_keep_dest"], use_container_width=True, key="btn_skip_dest"):
+                    elif st.session_state.map_pick_step == "DEST":
+                        st.session_state.selected_dest = raw_point
                         st.session_state.map_pick_mode = False
                         st.session_state.map_pick_step = "START"
                         st.rerun()
-
-            if view_type == t["view_3d"]:
-                st.info(t["pick_3d_notice"])
-
-    map_container = st.container()
-
-    with map_container:
-        if view_type == t["view_2d"]:
-            col_floor, col_autoscale, col_download = st.columns([0.5, 0.25, 0.25])
-
-            with col_floor:
-                floor_select = st.selectbox(
-                    t["active_floor"],
-                    options=[0, 1, 2, 3],
-                    format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
-                )
-
-            with col_autoscale:
-                st.write("")
-                st.write("")
-                if st.button("🏠 Autoscale Map", use_container_width=True):
+                else:
+                    st.session_state.selected_dest = raw_point
                     st.rerun()
-
-            with col_download:
-                st.write("")
-                st.write("")
-                route_summary_txt = " -> ".join([str(n) for n in path]) if path else "No active route"
-                map_export_data = f"Floor: {get_translated_floor_name(floor_select, st.session_state.lang)}\nRoute: {route_summary_txt}\n"
-                st.download_button(
-                    label="📷 Download Map Data",
-                    data=map_export_data,
-                    file_name=f"mall_map_floor_{floor_select}.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
-
-            folium_map = render_2d_folium_view(
-                floor_select,
-                route_path=path,
-                node_coords_dict=temp_nodes,
-                current_lang=st.session_state.lang,
-                stop_ids=stop_ids,
-                show_dest=not st.session_state.map_pick_mode,
-                show_doors=show_doors,
-            )
-
-            map_data = st_folium(
-                folium_map,
-                height=550,
-                use_container_width=True,
-                key="interactive_folium_map",
-                returned_objects=["last_clicked"]
-            )
-
-            if map_data and map_data.get("last_clicked"):
-                click_lat = map_data["last_clicked"]["lat"]
-                click_lng = map_data["last_clicked"]["lng"]
-                click_sig = (click_lat, click_lng)
-
-                if click_sig != st.session_state.last_processed_click:
-                    st.session_state.last_processed_click = click_sig
-                    raw_point = (click_lng, click_lat, floor_select)
-
-                    if st.session_state.map_pick_mode:
-                        if st.session_state.map_pick_step == "START":
-                            st.session_state.selected_start = raw_point
-                            st.session_state.waypoints = []
-                            st.session_state.map_pick_step = "WAYPOINT"
-                            st.rerun()
-                        elif st.session_state.map_pick_step == "WAYPOINT":
-                            st.session_state.waypoint_counter += 1
-                            st.session_state.waypoints.append({"id": st.session_state.waypoint_counter, "value": raw_point})
-                            st.rerun()
-                        elif st.session_state.map_pick_step == "DEST":
-                            st.session_state.selected_dest = raw_point
-                            st.session_state.map_pick_mode = False
-                            st.session_state.map_pick_step = "START"
-                            st.rerun()
-                    else:
-                        st.session_state.selected_dest = raw_point
-                        st.rerun()
         else:
-            fig_3d = render_3d_isometric_view(
-                route_path=path,
-                node_coords=temp_nodes,
-                current_lang=st.session_state.lang,
-                show_doors=show_doors
-            )
-            st.plotly_chart(fig_3d, use_container_width=True)
-            
+            st.session_state.last_processed_click = None
+    else:
+        fig_3d = render_3d_isometric_view(route_path=path, node_coords=temp_nodes, current_lang=st.session_state.lang, show_doors=show_doors)
+        st.plotly_chart(fig_3d, use_container_width=True)
+
 # ------------------------------------------------------------------------------
 # Directions Tab
 # ------------------------------------------------------------------------------
