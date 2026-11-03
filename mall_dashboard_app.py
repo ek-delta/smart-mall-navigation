@@ -341,11 +341,8 @@ POI_TRANSLATIONS = {
 
 # Labels for nodes that are not named rooms (clicked points and corridor junctions)
 POINT_LABELS = {"English": "Point", "Simplified Chinese": "自选点", "Malay": "Titik"}
-JUNCTION_LABELS = {
-    "English": "Corridor Junction",
-    "Simplified Chinese": "走廊交汇处",
-    "Malay": "Persimpangan Koridor",
-}
+# Main corridor/hub room of each floor (used to name the junction nodes along it)
+FLOOR_CORRIDOR = {0: "A_L0_Lobby", 1: "A_L1_Hallway", 2: "B_L2_Corridor", 3: "P_L3_Aisle_Main"}
 DOOR_LABELS = {
     "English": "Entry/Exit",
     "Simplified Chinese": "出入口",
@@ -1247,7 +1244,10 @@ def get_node_display_name(node_id, lang, node_coords):
         room_name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id).split("(")[0].strip()
         return f"{room_name} ({DOOR_LABELS.get(lang, DOOR_LABELS['English'])})"
     if node_id.startswith("H_L"):
-        return JUNCTION_LABELS.get(lang, JUNCTION_LABELS["English"])
+        # Corridor junctions are named after the main corridor of their floor
+        corridor_id = FLOOR_CORRIDOR.get(int(node_coords[node_id][2]))
+        if corridor_id:
+            return POI_TRANSLATIONS.get(lang, {}).get(corridor_id, corridor_id)
     return POI_TRANSLATIONS.get(lang, {}).get(node_id, node_id)
 
 def calculate_heading_angle(node_a, node_b, node_coords):
@@ -1325,18 +1325,16 @@ def generate_detailed_directions(path, node_coords, lang="English"):
     path = dedupe_path(path, node_coords)
     if len(path) < 2: return []
 
-    directions = []
+    # Build a list of items first so that consecutive walking steps toward the same
+    # place can be merged into one (distances are added together).
+    items = []
 
     start_poi = get_node_display_name(path[0], lang, node_coords)
     first_dest_poi = get_node_display_name(path[1], lang, node_coords)
-    init_dist = euclidean_distance_3d(path[0], path[1], node_coords)
-
-    start_text = {
-        "English": f"Start at **{start_poi}** and head towards **{first_dest_poi}** ({init_dist:.1f}m).",
-        "Simplified Chinese": f"从 **{start_poi}** 出发，前往 **{first_dest_poi}**（{init_dist:.1f} 米）。",
-        "Malay": f"Mula di **{start_poi}** dan menuju ke **{first_dest_poi}** ({init_dist:.1f}m)."
-    }
-    directions.append({"step": 1, "text": start_text.get(lang, start_text["English"]), "icon": "🛫"})
+    items.append({
+        "kind": "start", "poi": start_poi, "target": first_dest_poi,
+        "dist": euclidean_distance_3d(path[0], path[1], node_coords),
+    })
 
     for i in range(1, len(path) - 1):
         prev_node, curr_node, next_node = path[i - 1], path[i], path[i + 1]
@@ -1370,7 +1368,14 @@ def generate_detailed_directions(path, node_coords, lang="English"):
                 }
                 icon = "🧗"
 
-            directions.append({"step": len(directions) + 1, "text": trans_text.get(lang, trans_text["English"]), "icon": icon})
+            items.append({"kind": "transit", "icon": icon, "text": trans_text.get(lang, trans_text["English"])})
+            continue
+
+        step_dist = euclidean_distance_3d(curr_node, next_node, node_coords)
+
+        # Same place as the previous walking step: extend that step instead of adding a new one
+        if items[-1]["kind"] in ("start", "walk") and items[-1]["target"] == next_poi:
+            items[-1]["dist"] += step_dist
             continue
 
         next_heading = calculate_heading_angle(curr_node, next_node, node_coords)
@@ -1379,15 +1384,26 @@ def generate_detailed_directions(path, node_coords, lang="English"):
             prev_heading = next_heading
         else:
             prev_heading = calculate_heading_angle(prev_node, curr_node, node_coords)
-        angle_diff = next_heading - prev_heading
 
-        step_dist = euclidean_distance_3d(curr_node, next_node, node_coords)
-        instruction_str = format_turn_instruction(angle_diff, step_dist, f"**{next_poi}**", lang=lang)
+        items.append({"kind": "walk", "target": next_poi, "dist": step_dist, "angle": next_heading - prev_heading})
 
-        angle_diff_norm = (angle_diff + 180) % 360 - 180
-        icon = "↪️" if angle_diff_norm < -22.5 else ("↩️" if angle_diff_norm > 22.5 else "⬆️")
-
-        directions.append({"step": len(directions) + 1, "text": instruction_str, "icon": icon})
+    # Render the items into numbered steps
+    directions = []
+    for item in items:
+        if item["kind"] == "start":
+            start_text = {
+                "English": f"Start at **{item['poi']}** and head towards **{item['target']}** ({item['dist']:.1f}m).",
+                "Simplified Chinese": f"从 **{item['poi']}** 出发，前往 **{item['target']}**（{item['dist']:.1f} 米）。",
+                "Malay": f"Mula di **{item['poi']}** dan menuju ke **{item['target']}** ({item['dist']:.1f}m)."
+            }
+            directions.append({"step": len(directions) + 1, "text": start_text.get(lang, start_text["English"]), "icon": "🛫"})
+        elif item["kind"] == "transit":
+            directions.append({"step": len(directions) + 1, "text": item["text"], "icon": item["icon"]})
+        else:
+            instruction_str = format_turn_instruction(item["angle"], item["dist"], f"**{item['target']}**", lang=lang)
+            angle_norm = (item["angle"] + 180) % 360 - 180
+            icon = "↪️" if angle_norm < -22.5 else ("↩️" if angle_norm > 22.5 else "⬆️")
+            directions.append({"step": len(directions) + 1, "text": instruction_str, "icon": icon})
 
     final_poi = get_node_display_name(path[-1], lang, node_coords)
     arrival_text = {
@@ -1399,7 +1415,7 @@ def generate_detailed_directions(path, node_coords, lang="English"):
 
     return directions
 
-def compute_route_summary(path, node_coords):
+def compute_route_summary(path, node_coords, lang="English"):
     path = dedupe_path(path, node_coords)
     if len(path) < 2: return {"total_distance": 0, "floors_crossed": 0, "steps": 0}
 
@@ -1421,7 +1437,8 @@ def compute_route_summary(path, node_coords):
     return {
         "total_distance": round(total_dist, 1),
         "floors_crossed": max(0, len(floors_visited) - 1),
-        "steps": len(path) - 1
+        # Number of steps in the written directions (after merging repeated steps)
+        "steps": len(generate_detailed_directions(path, node_coords, lang=lang))
     }
 
 def render_direction_steps(steps, step_label):
@@ -1894,7 +1911,7 @@ with tab_dir:
     st.subheader(t["route_summary"])
 
     if path and len(path) > 1:
-        summary = compute_route_summary(path, temp_nodes)
+        summary = compute_route_summary(path, temp_nodes, lang=st.session_state.lang)
         m_col1, m_col2, m_col3 = st.columns(3)
         m_col1.metric(t["total_dist"], f"{summary['total_distance']} m")
         m_col2.metric(t["floors_crossed"], summary["floors_crossed"])
@@ -1936,7 +1953,7 @@ with tab_park:
             st_folium(entry_map, height=450, width=900, key="park_entry_map", returned_objects=[])
 
             if entry_path:
-                entry_summary = compute_route_summary(entry_path, MULTI_CAD_NODES)
+                entry_summary = compute_route_summary(entry_path, MULTI_CAD_NODES, lang=curr_lang)
                 st.markdown("---")
                 st.subheader(t["parking_route_summary"])
 
@@ -1958,7 +1975,7 @@ with tab_park:
             st_folium(exit_map, height=450, width=900, key="park_exit_map", returned_objects=[])
 
             if exit_path:
-                exit_summary = compute_route_summary(exit_path, MULTI_CAD_NODES)
+                exit_summary = compute_route_summary(exit_path, MULTI_CAD_NODES, lang=curr_lang)
                 st.markdown("---")
                 st.subheader(t["parking_route_summary"])
 
