@@ -861,6 +861,62 @@ def build_click_grid(floor_z, step=CLICK_GRID_STEP):
                 gy.append(y)
     return tuple(gx), tuple(gy)
 
+ROUTE_FLOW_COLOR = "#FFFEFD"  # looks white; its odd value lets the CSS below find this one line
+
+# Streamlit draws Plotly in the page itself (not an iframe), so this CSS reaches the route's
+# overlay line and makes its dashes flow from the start towards the destination.
+ROUTE_FLOW_CSS = """
+<style>
+@keyframes route-flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -34; } }
+.js-plotly-plot .scatterlayer path.js-line[style*="rgb(255, 254, 253)"],
+.js-plotly-plot .scatterlayer path.js-line[style*="rgb(255,254,253)"] {
+    stroke-dasharray: 10 24;
+    animation: route-flow 0.7s linear infinite;
+    pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .js-plotly-plot .scatterlayer path.js-line[style*="rgb(255, 254, 253)"],
+    .js-plotly-plot .scatterlayer path.js-line[style*="rgb(255,254,253)"] { animation: none; }
+}
+</style>
+"""
+
+def route_arrow_polygons(points, spacing=9.0, length=3.2, half_width=1.4):
+    """Arrowheads (closed triangles, None-separated) every `spacing` metres along a polyline,
+    each pointing in the direction of travel. Returns (xs, ys)."""
+    pts = []
+    for pt in points:
+        if not pts or math.hypot(pt[0] - pts[-1][0], pt[1] - pts[-1][1]) > 1e-9:
+            pts.append(pt)
+    if len(pts) < 2:
+        return [], []
+
+    seg_len = [math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:])]
+    total = sum(seg_len)
+    if total < length * 1.5:
+        return [], []
+
+    n_arrows = max(1, int(total // spacing))
+    offsets = [(i + 0.5) * total / n_arrows for i in range(n_arrows)]
+
+    xs, ys = [], []
+    for dist in offsets:
+        # find the segment that holds this distance along the route
+        run = 0.0
+        for (a, b), ln in zip(zip(pts, pts[1:]), seg_len):
+            if run + ln >= dist:
+                t = (dist - run) / ln
+                cx, cy = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+                ux, uy = (b[0] - a[0]) / ln, (b[1] - a[1]) / ln
+                break
+            run += ln
+        nx, ny = -uy, ux
+        tip = (cx + ux * length / 2, cy + uy * length / 2)
+        bx, by = cx - ux * length / 2, cy - uy * length / 2
+        xs += [tip[0], bx + nx * half_width, bx - nx * half_width, tip[0], None]
+        ys += [tip[1], by + ny * half_width, by - ny * half_width, tip[1], None]
+    return xs, ys
+
 def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
     """2D floor plan. The view (pan/zoom) is kept across reruns via `uirevision`,
@@ -925,12 +981,27 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         floor_path = [n for n in route_path if on_floor(n)]
 
         if len(floor_path) > 1:
+            route_x = [node_coords_dict[n][0] for n in floor_path]
+            route_y = [node_coords_dict[n][1] for n in floor_path]
             fig.add_trace(go.Scatter(
-                x=[node_coords_dict[n][0] for n in floor_path],
-                y=[node_coords_dict[n][1] for n in floor_path],
+                x=route_x, y=route_y,
                 mode="lines", line=dict(color="#EF4444", width=5),
                 hoverinfo="skip", showlegend=False,
             ))
+            # Dashes that flow along the route (animated by ROUTE_FLOW_CSS)
+            fig.add_trace(go.Scatter(
+                x=route_x, y=route_y,
+                mode="lines", line=dict(color=ROUTE_FLOW_COLOR, width=2.5),
+                hoverinfo="skip", showlegend=False,
+            ))
+            # Arrowheads showing the direction of travel
+            arrow_x, arrow_y = route_arrow_polygons(list(zip(route_x, route_y)))
+            if arrow_x:
+                fig.add_trace(go.Scatter(
+                    x=arrow_x, y=arrow_y, mode="lines", fill="toself",
+                    fillcolor="#FFFFFF", line=dict(color="#B91C1C", width=1.5),
+                    hoverinfo="skip", showlegend=False,
+                ))
 
         stop_nodes = [(i, n) for i, n in enumerate(stop_ids or [], start=1) if on_floor(n)]
         if stop_nodes:
@@ -1876,6 +1947,7 @@ with tab_map:
             show_doors=show_doors,
         )
         st.caption(t["map_nav_hint"])
+        st.markdown(ROUTE_FLOW_CSS, unsafe_allow_html=True)
         map_event = st.plotly_chart(
             fig_2d,
             use_container_width=True,
