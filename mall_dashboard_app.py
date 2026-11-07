@@ -957,7 +957,7 @@ def hex_to_rgba(hex_color, alpha):
     h = hex_color.lstrip('#')
     return f'rgba({int(h[0:2],16)}, {int(h[2:4],16)}, {int(h[4:6],16)}, {alpha})'
 
-def render_2d_plotly_map(active_floor_z, route_path=None, node_coords_dict=None, current_lang="English",
+def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=None, current_lang="English",
                            stop_ids=None, show_dest=True, show_doors=True):
     node_coords_dict = node_coords_dict or MULTI_CAD_NODES
     fig = go.Figure()
