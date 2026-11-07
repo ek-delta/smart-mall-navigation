@@ -957,9 +957,9 @@ def hex_to_rgba(hex_color, alpha):
     h = hex_color.lstrip('#')
     return f'rgba({int(h[0:2],16)}, {int(h[2:4],16)}, {int(h[4:6],16)}, {alpha})'
 
-def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=None, current_lang="English",
-                           stop_ids=None, show_dest=True, show_doors=True):
-    node_coords_dict = node_coords_dict or MULTI_CAD_NODES
+def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
+                          stop_ids=None, show_dest=True, show_doors=True):
+    """2D floor plan rendering with native Plotly Frame animations for animated directional arrows."""
     fig = go.Figure()
     lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION["English"])
     floor_z = int(active_floor_z)
@@ -974,10 +974,9 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=None
             x=[pt[0] for pt in coords] + [coords[0][0]],
             y=[pt[1] for pt in coords] + [coords[0][1]],
             mode="lines", fill="toself",
-            fillcolor=hex_to_rgba(info.get("color", "#CBD5E1"), alpha=ROOM_FILL_ALPHA),
+            fillcolor=hex_to_rgba(info.get("color", "#CBD5E1")),
             line=dict(color="#334155", width=1.5),
             hoverinfo="skip", showlegend=False,
-            name=f"room_{room_id}"
         ))
 
     # 2. Room labels
@@ -987,36 +986,205 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=None
         lab_x.append(sum(pt[0] for pt in coords) / len(coords))
         lab_y.append(sum(pt[1] for pt in coords) / len(coords))
         lab_text.append(room_label(room_id, current_lang))
-
     fig.add_trace(go.Scatter(
         x=lab_x, y=lab_y, mode="text", text=lab_text, textposition="middle center",
         textfont=dict(size=10, color=LABEL_COLOR),
         hoverinfo="skip", showlegend=False,
-        name="room_labels"
+        unselected=dict(textfont=dict(color=LABEL_COLOR)),
     ))
 
-    # Static path if frames not needed
-    if route_path and len(route_path) > 1 and not fig.frames:
-        fig.add_trace(go.Scatter(
-            x=[node_coords_dict[n][0] for n in route_path],
-            y=[node_coords_dict[n][1] for n in route_path],
-            mode="lines", line=dict(color="#475569", width=2, dash='dot'),
-            hoverinfo="skip", showlegend=False,
-            name="static_route_line"
-        ))
+    # 3. Entry/Exit doors
+    if show_doors:
+        door_lbl = DOOR_LABELS.get(current_lang, DOOR_LABELS["English"])
+        d_x, d_y, d_text = [], [], []
+        for room_id, (dx, dy, _link) in DOORS.items():
+            if int(ROOM_POLYGONS[room_id]["z"]) != floor_z:
+                continue
+            name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id).split("(")[0].strip()
+            d_x.append(dx)
+            d_y.append(dy)
+            d_text.append(f"{name} – {door_lbl}")
+        if d_x:
+            fig.add_trace(go.Scatter(
+                x=d_x, y=d_y, mode="markers", text=d_text, hoverinfo="text",
+                marker=dict(size=9, color="#34D399", line=dict(color="#065F46", width=2)),
+                showlegend=False,
+            ))
 
-    fig.update_layout(
-        height=640,
-        margin=dict(l=10, r=10, t=10, b=10),
-        plot_bgcolor="#F8FAFC",
-        uirevision=f"floor_{floor_z}"
+    # 4. Route overlay and Plotly Frames Animation
+    has_animated_route = False
+    if route_path:
+        on_floor = lambda n: n in node_coords_dict and int(node_coords_dict[n][2]) == floor_z
+        floor_path = [n for n in route_path if on_floor(n)]
+
+        if len(floor_path) > 1:
+            route_x = [node_coords_dict[n][0] for n in floor_path]
+            route_y = [node_coords_dict[n][1] for n in floor_path]
+
+            # Base static path line
+            fig.add_trace(go.Scatter(
+                x=route_x, y=route_y,
+                mode="lines", line=dict(color="#EF4444", width=4),
+                hoverinfo="skip", showlegend=False,
+            ))
+
+            # Initial directional arrowhead marker (at start position)
+            dx_0 = route_x[1] - route_x[0]
+            dy_0 = route_y[1] - route_y[0]
+            initial_angle = (math.degrees(math.atan2(dy_0, dx_0)) - 90) % 360
+
+            fig.add_trace(go.Scatter(
+                x=[route_x[0]], y=[route_y[0]],
+                mode="markers",
+                marker=dict(symbol="triangle-up", size=14, color="#DC2626", angle=initial_angle,
+                            line=dict(color="#FFFFFF", width=1.5)),
+                hoverinfo="skip", showlegend=False, name="anim_arrow"
+            ))
+
+            # Build interpolation steps for smooth frame playback along the route
+            frames = []
+            frame_pts_x, frame_pts_y, frame_angles = [], [], []
+
+            for i in range(len(route_x) - 1):
+                x_start, y_start = route_x[i], route_y[i]
+                x_end, y_end = route_x[i + 1], route_y[i + 1]
+
+                dx = x_end - x_start
+                dy = y_end - y_start
+                dist = math.hypot(dx, dy)
+                steps = max(2, int(dist * 2))  # Subdivide segment based on distance
+
+                angle = (math.degrees(math.atan2(dy, dx)) - 90) % 360
+
+                for s in range(steps):
+                    t = s / steps
+                    frame_pts_x.append(x_start + dx * t)
+                    frame_pts_y.append(y_start + dy * t)
+                    frame_angles.append(angle)
+
+            # Construct Plotly Frames
+            arrow_trace_idx = len(fig.data) - 1  # Target index of the animated arrow marker
+            for f_idx, (fx, fy, f_angle) in enumerate(zip(frame_pts_x, frame_pts_y, frame_angles)):
+                frames.append(go.Frame(
+                    data=[
+                        go.Scatter(
+                            x=[fx], y=[fy],
+                            mode="markers",
+                            marker=dict(symbol="triangle-up", size=14, color="#DC2626", angle=f_angle,
+                                        line=dict(color="#FFFFFF", width=1.5))
+                        )
+                    ],
+                    traces=[arrow_trace_idx],
+                    name=f"frame_{f_idx}"
+                ))
+
+            fig.frames = frames
+            has_animated_route = True
+
+        # Render stop markers
+        stop_nodes = [(i, n) for i, n in enumerate(stop_ids or [], start=1) if on_floor(n)]
+        if stop_nodes:
+            fig.add_trace(go.Scatter(
+                x=[node_coords_dict[n][0] for _, n in stop_nodes],
+                y=[node_coords_dict[n][1] for _, n in stop_nodes],
+                mode="markers+text", text=[str(i) for i, _ in stop_nodes], textposition="top center",
+                textfont=dict(size=12, color="#C2410C"),
+                marker=dict(size=13, symbol="diamond", color="#F97316", line=dict(color="#FFFFFF", width=2)),
+                hoverinfo="skip", showlegend=False,
+                unselected=dict(textfont=dict(color="#C2410C")),
+            ))
+
+        # Start Marker
+        if on_floor(route_path[0]):
+            sx, sy, _ = node_coords_dict[route_path[0]]
+            fig.add_trace(go.Scatter(
+                x=[sx], y=[sy], mode="markers+text", text=[lang_dict["marker_start"].strip()],
+                textposition="top center", textfont=dict(size=12, color="#B91C1C"),
+                marker=dict(size=15, symbol="circle", color="#EF4444", line=dict(color="#FFFFFF", width=2)),
+                hoverinfo="skip", showlegend=False,
+                unselected=dict(textfont=dict(color="#B91C1C")),
+            ))
+
+        # Destination Marker
+        if show_dest and len(route_path) > 1 and on_floor(route_path[-1]):
+            dx, dy, _ = node_coords_dict[route_path[-1]]
+            fig.add_trace(go.Scatter(
+                x=[dx], y=[dy], mode="markers+text", text=[lang_dict["marker_dest"].strip()],
+                textposition="top center", textfont=dict(size=12, color="#15803D"),
+                marker=dict(size=17, symbol="star", color="#22C55E", line=dict(color="#FFFFFF", width=2)),
+                hoverinfo="skip", showlegend=False,
+                unselected=dict(textfont=dict(color="#15803D")),
+            ))
+
+    # 5. Invisible click targets
+    gx, gy = build_click_grid(floor_z)
+    fig.add_trace(go.Scatter(
+        x=list(gx), y=list(gy), mode="markers",
+        marker=dict(size=12, color="rgba(0,0,0,0)"),
+        hoverinfo="none", showlegend=False,
+    ))
+
+    fig.update_traces(selected=dict(marker=dict(opacity=1)), unselected=dict(marker=dict(opacity=1)))
+
+    all_pts = [pt for info in floor_rooms.values() for pt in info["coords"]]
+    if all_pts:
+        x_rng = [min(p[0] for p in all_pts) - 5, max(p[0] for p in all_pts) + 5]
+        y_rng = [min(p[1] for p in all_pts) - 5, max(p[1] for p in all_pts) + 5]
+    else:
+        x_rng, y_rng = [-60, 60], [-35, 55]
+
+    axis_style = dict(
+        showgrid=True, gridcolor="rgba(100,116,139,0.18)", gridwidth=1,
+        zeroline=False, showline=True, linecolor="#64748B", linewidth=1,
+        showticklabels=True, ticks="outside", ticklen=4, tickcolor="#64748B",
+        tickfont=dict(size=11, color="#64748B"), automargin=True,
     )
 
-    return fig
+    layout_kwargs = dict(
+        height=640,
+        margin=dict(l=10, r=10, t=10, b=10),
+        showlegend=False,
+        plot_bgcolor="#F8FAFC",
+        dragmode="pan",
+        clickmode="event+select",
+        hovermode="closest",
+        uirevision=f"floor_{floor_z}",
+        xaxis=dict(range=x_rng, title=dict(text="X (m)", font=dict(size=12, color="#64748B")), **axis_style),
+        yaxis=dict(range=y_rng, scaleanchor="x", scaleratio=1,
+                   title=dict(text="Y (m)", font=dict(size=12, color="#64748B")), **axis_style),
+    )
 
-# Generate figure to display
-fig = render_2d_plotly_view(0)
-fig.show()
+    # Attach Native Plotly Animation Play/Pause buttons if a valid multi-point route exists
+    if has_animated_route:
+        layout_kwargs["updatemenus"] = [{
+            "type": "buttons",
+            "showactive": False,
+            "x": 0.02, "y": 0.98, "xanchor": "left", "yanchor": "top",
+            "pad": {"r": 10, "t": 10},
+            "buttons": [
+                {
+                    "label": "▶️ Play Route",
+                    "method": "animate",
+                    "args": [None, {
+                        "frame": {"duration": 150, "redraw": False},
+                        "fromcurrent": True,
+                        "transition": {"duration": 50, "easing": "linear"}
+                    }]
+                },
+                {
+                    "label": "⏸️ Pause",
+                    "method": "animate",
+                    "args": [[None], {
+                        "frame": {"duration": 0, "redraw": False},
+                        "mode": "immediate",
+                        "transition": {"duration": 0}
+                    }]
+                }
+            ]
+        }]
+
+    fig.update_layout(**layout_kwargs)
+    return fig
 
 FOLIUM_BASE_CSS = """
 <style>
@@ -2163,7 +2331,9 @@ with tab_map:
                 show_doors=show_doors,
             )
             st.caption(t["map_nav_hint"])
-            st.markdown(ROUTE_FLOW_CSS, unsafe_allow_html=True)
+
+            # REMOVED: st.markdown(ROUTE_FLOW_CSS, unsafe_allow_html=True)
+            
             map_event = st.plotly_chart(
                 fig_2d,
                 use_container_width=True,
@@ -2181,7 +2351,6 @@ with tab_map:
                 pt = clicked_points[0]
                 raw_point = (round(float(pt["x"]), 2), round(float(pt["y"]), 2), floor_select)
 
-                # The selection persists across reruns, so only act on a new click
                 if raw_point != st.session_state.last_processed_click:
                     st.session_state.last_processed_click = raw_point
                     handle_map_click(raw_point)
