@@ -2,11 +2,14 @@ import math
 import heapq
 import copy
 import functools
+import json
 import streamlit as st
 import folium
 import plotly.graph_objects as go
 from streamlit_folium import st_folium
 from folium.plugins import AntPath, PolyLineTextPath
+from branca.element import MacroElement
+from jinja2 import Template
 
 # ==============================================================================
 # 1. Page Config & Localization Dictionary
@@ -37,7 +40,8 @@ LOCALIZATION = {
         "shortest": "Shortest Path",
         "accessible": "Accessible (Elevators Only)",
         "view_mode": "Map Display Mode",
-        "view_2d": "2D Map Plan",
+        "view_2d": "2D Plotly Map",
+        "view_2d_folium": "2D Folium Map",
         "view_3d": "3D Isometric View",
         "active_floor": "Select Floor",
         "tab_nav": "🗺️ Mall Map",
@@ -88,6 +92,7 @@ LOCALIZATION = {
         "pick_step_2": "👇 *Step 2:* Click anywhere on the map to add *Intermediate Stops* (or click button below when ready for Destination).",
         "pick_step_3": "👇 *Step 3:* Click anywhere on the map to set as *Destination*.",
         "pick_3d_notice": "Interactive map selection works on the 2D map. Switch to the 2D view to click points.",
+        "map_nav_hint_folium": "🖱️ Drag to pan · scroll to zoom · click anywhere to choose a point (exact position).",
         "map_nav_hint": "🖱️ Drag to pan · scroll to zoom · double-click to reset the view · click to choose a point (snaps to the nearest 1 m).",
         "btn_done_adding_stops": "➡️ Done Adding Stops (Next: Pick Destination)",
         "btn_add_as_stop": "➕ Add as Stop",
@@ -120,7 +125,8 @@ LOCALIZATION = {
         "shortest": "最短路线",
         "accessible": "无障碍路线 (仅限电梯)",
         "view_mode": "地图显示模式",
-        "view_2d": "2D 平面图",
+        "view_2d": "2D Plotly 地图",
+        "view_2d_folium": "2D Folium 地图",
         "view_3d": "3D 等轴测视图",
         "active_floor": "选择楼层",
         "tab_nav": "🗺️ 导航地图",
@@ -171,6 +177,7 @@ LOCALIZATION = {
         "pick_step_2": "👇 *步骤 2：* 点击地图任意位置添加 *途经点*（若已添加完毕，请点击下方按钮选择终点）。",
         "pick_step_3": "👇 *步骤 3：* 点击地图任意位置设为 *终点位置*。",
         "pick_3d_notice": "交互式地图选点仅支持 2D 地图，请切换到 2D 视图后再点击。",
+        "map_nav_hint_folium": "🖱️ 拖动平移 · 滚轮缩放 · 点击地图任意位置选点（精确位置）。",
         "map_nav_hint": "🖱️ 拖动平移 · 滚轮缩放 · 双击重置视图 · 点击选点（吸附到最近的 1 米）。",
         "btn_done_adding_stops": "➡️ 完成添加途经点 (下一步: 选择终点)",
         "btn_add_as_stop": "➕ 添加为途经点",
@@ -203,7 +210,8 @@ LOCALIZATION = {
         "shortest": "Laluan Terpendek",
         "accessible": "Mesra OKU (Lif Sahaja)",
         "view_mode": "Mod Paparan Peta",
-        "view_2d": "Pelan Peta 2D",
+        "view_2d": "Peta Plotly 2D",
+        "view_2d_folium": "Peta Folium 2D",
         "view_3d": "Pandangan Isometrik 3D",
         "active_floor": "Pilih Tingkat",
         "tab_nav": "🗺️ Peta Navigasi",
@@ -254,6 +262,7 @@ LOCALIZATION = {
         "pick_step_2": "👇 *Langkah 2:* Klik di mana-mana pada peta untuk tambah *Hentian Antara* (atau klik butang di bawah apabila sedia untuk Destinasi).",
         "pick_step_3": "👇 *Langkah 3:* Klik di mana-mana pada peta untuk tetapkan *Destinasi*.",
         "pick_3d_notice": "Pemilihan peta interaktif berfungsi pada peta 2D. Tukar ke paparan 2D untuk mengklik titik.",
+        "map_nav_hint_folium": "🖱️ Seret untuk alih · skrol untuk zum · klik di mana-mana untuk pilih titik (kedudukan tepat).",
         "map_nav_hint": "🖱️ Seret untuk alih · skrol untuk zum · klik dua kali untuk set semula paparan · klik untuk pilih titik (dipadankan ke 1 m terdekat).",
         "btn_done_adding_stops": "➡️ Selesai Menambah Hentian (Seterusnya: Pilih Destinasi)",
         "btn_add_as_stop": "➕ Tambah sebagai Hentian",
@@ -388,6 +397,7 @@ if "waypoint_counter" not in st.session_state: st.session_state.waypoint_counter
 if "map_pick_mode" not in st.session_state: st.session_state.map_pick_mode = False
 if "map_pick_step" not in st.session_state: st.session_state.map_pick_step = "START"
 if "last_processed_click" not in st.session_state: st.session_state.last_processed_click = None
+if "last_folium_clicks" not in st.session_state: st.session_state.last_folium_clicks = {}
 
 LOCATION_ICONS = {
     "Fashion": "👗", "Electronics": "📱", "Food & Beverage": "🍔",
@@ -825,6 +835,12 @@ def add_door_markers_2d(m, floor_z, lang="English", radius=5):
             tooltip=f"{name} – {door_lbl}"
         ).add_to(m)
 
+def room_label(room_id, lang):
+    """Room name with exactly one emoji (names usually carry their own; add one only if missing)."""
+    name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id)
+    has_emoji = bool(name) and ord(name[0]) >= 0x1F000
+    return name if has_emoji else f"{get_location_icon(room_id)}{name}"
+
 def hex_to_rgba(hex_color, alpha=0.75):
     h = hex_color.lstrip("#")
     return f"rgba({int(h[0:2], 16)},{int(h[2:4], 16)},{int(h[4:6], 16)},{alpha})"
@@ -946,10 +962,7 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         coords = info["coords"]
         lab_x.append(sum(pt[0] for pt in coords) / len(coords))
         lab_y.append(sum(pt[1] for pt in coords) / len(coords))
-        name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
-        # Names already carry their own emoji; only add an icon when one is missing
-        has_emoji = bool(name) and ord(name[0]) >= 0x1F000
-        lab_text.append(name if has_emoji else f"{get_location_icon(room_id)}{name}")
+        lab_text.append(room_label(room_id, current_lang))
     fig.add_trace(go.Scatter(
         x=lab_x, y=lab_y, mode="text", text=lab_text, textposition="middle center",
         textfont=dict(size=10, color=LABEL_COLOR),
@@ -1076,6 +1089,227 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                    title=dict(text="Y (m)", font=dict(size=12, color="#64748B")), **axis_style),
     )
     return fig
+
+FOLIUM_BASE_CSS = """
+<style>
+.leaflet-container { background: #F8FAFC; }
+@keyframes route-flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -34; } }
+.route-flow, path.leaflet-interactive[stroke="#FFFEFD"] {
+    animation: route-flow 0.7s linear infinite;
+    pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .route-flow, path.leaflet-interactive[stroke="#FFFEFD"] { animation: none; }
+}
+</style>
+"""
+
+def build_axis_grid_js(map_var, x_title="X (m)", y_title="Y (m)"):
+    """Leaflet script that draws numbered X/Y axes and grid lines on a CRS.Simple map.
+    The spacing is re-chosen (1, 2, 5, 10, 20, 50 ...) every time the map is zoomed or panned."""
+    js = """
+(function () {
+    var map = __MAP__;
+    var container = map.getContainer();
+    var X_TITLE = __X_TITLE__;
+    var Y_TITLE = __Y_TITLE__;
+    var TARGET_PX = 90;   // aim for about this many pixels between grid lines
+
+    function makeCanvas(z) {
+        var c = document.createElement('canvas');
+        c.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;z-index:' + z + ';';
+        container.appendChild(c);
+        return c;
+    }
+    var gridCanvas = makeCanvas(399);    // grid lines sit under the map layers
+    var labelCanvas = makeCanvas(450);   // numbers and titles sit on top
+
+    function niceStep(raw) {
+        var p = Math.pow(10, Math.floor(Math.log10(raw)));
+        var f = raw / p;
+        return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+    }
+    function decimals(step) { return step >= 1 ? 0 : Math.ceil(-Math.log10(step) - 1e-9); }
+    function prepare(canvas, size) {
+        var dpr = window.devicePixelRatio || 1;
+        var w = Math.round(size.x * dpr), h = Math.round(size.y * dpr);
+        if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
+            canvas.style.width = size.x + 'px';
+            canvas.style.height = size.y + 'px';
+        }
+        var ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, size.x, size.y);
+        return ctx;
+    }
+    function tag(ctx, text, x, y, align) {
+        ctx.textAlign = align;
+        ctx.textBaseline = 'middle';
+        var w = ctx.measureText(text).width;
+        var left = align === 'center' ? x - w / 2 : (align === 'left' ? x : x - w);
+        ctx.fillStyle = 'rgba(248,250,252,0.85)';
+        ctx.fillRect(left - 2, y - 7, w + 4, 14);
+        ctx.fillStyle = '#475569';
+        ctx.fillText(text, x, y);
+    }
+    function draw() {
+        var size, zoom, bounds;
+        try { size = map.getSize(); zoom = map.getZoom(); bounds = map.getBounds(); } catch (e) { return; }
+        if (zoom === undefined || !isFinite(zoom)) return;
+
+        var g = prepare(gridCanvas, size);
+        var l = prepare(labelCanvas, size);
+        var step = niceStep(TARGET_PX / map.options.crs.scale(zoom));
+        var dec = decimals(step);
+
+        g.strokeStyle = 'rgba(100,116,139,0.28)';
+        g.lineWidth = 1;
+        l.font = '11px sans-serif';
+
+        var i0 = Math.ceil(bounds.getWest() / step - 1e-9), i1 = Math.floor(bounds.getEast() / step + 1e-9);
+        if (i1 - i0 <= 400) {
+            for (var i = i0; i <= i1; i++) {
+                var px = Math.round(map.latLngToContainerPoint([bounds.getSouth(), i * step]).x) + 0.5;
+                g.beginPath(); g.moveTo(px, 0); g.lineTo(px, size.y); g.stroke();
+                if (px > 30 && px < size.x - 60) tag(l, (i * step).toFixed(dec), px, size.y - 11, 'center');
+            }
+        }
+        var j0 = Math.ceil(bounds.getSouth() / step - 1e-9), j1 = Math.floor(bounds.getNorth() / step + 1e-9);
+        if (j1 - j0 <= 400) {
+            for (var j = j0; j <= j1; j++) {
+                var py = Math.round(map.latLngToContainerPoint([j * step, bounds.getWest()]).y) + 0.5;
+                g.beginPath(); g.moveTo(0, py); g.lineTo(size.x, py); g.stroke();
+                if (py > 30 && py < size.y - 30) tag(l, (j * step).toFixed(dec), 6, py, 'left');
+            }
+        }
+        l.font = 'bold 12px sans-serif';
+        tag(l, X_TITLE, size.x - 8, size.y - 29, 'right');
+        tag(l, Y_TITLE, 8, 14, 'left');
+    }
+    map.on('move zoom viewreset resize', draw);
+    draw();
+})();
+"""
+    return (js.replace("__MAP__", map_var)
+              .replace("__X_TITLE__", json.dumps(x_title))
+              .replace("__Y_TITLE__", json.dumps(y_title)))
+
+class AxisGrid(MacroElement):
+    """Adds numbered X/Y axes + grid lines to a folium map (see build_axis_grid_js)."""
+    _template = Template("{% macro script(this, kwargs) %}{{ this.build_js() }}{% endmacro %}")
+
+    def __init__(self, x_title="X (m)", y_title="Y (m)"):
+        super().__init__()
+        self._name = "AxisGrid"
+        self.x_title = x_title
+        self.y_title = y_title
+
+    def build_js(self):
+        return build_axis_grid_js(self._parent.get_name(), self.x_title, self.y_title)
+
+def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
+                          stop_ids=None, show_dest=True, show_doors=True):
+    """Returns (base_map, route_layer).
+
+    base_map only holds what does not change while you pick points (rooms, labels, doors, axes),
+    so its HTML is the same on every rerun and streamlit-folium keeps the map (pan/zoom) as it is.
+    Everything that changes with the route lives in route_layer, which streamlit-folium swaps in
+    place through `feature_group_to_add`.
+    """
+    floor_z = int(active_floor_z)
+    floor_rooms = {r_id: info for r_id, info in ROOM_POLYGONS.items() if int(info["z"]) == floor_z}
+
+    all_pts = [pt for info in floor_rooms.values() for pt in info["coords"]]
+    if all_pts:
+        bounds = [[min(p[1] for p in all_pts) - 5, min(p[0] for p in all_pts) - 5],
+                  [max(p[1] for p in all_pts) + 5, max(p[0] for p in all_pts) + 5]]
+    else:
+        bounds = [[-35, -60], [55, 60]]
+
+    # ---- static base map ----
+    m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True,
+                   zoomSnap=0.25, zoomDelta=0.5, attribution_control=False)
+    m.get_root().header.add_child(folium.Element(FOLIUM_BASE_CSS))
+
+    for room_id, info in floor_rooms.items():
+        coords = info["coords"]
+        label = room_label(room_id, current_lang)
+        folium.Polygon(
+            locations=[[pt[1], pt[0]] for pt in coords],
+            color="#334155", weight=2, fill=True,
+            fill_color=info.get("color", "#CBD5E1"), fill_opacity=0.7,
+            tooltip=label,
+        ).add_to(m)
+
+        cx = sum(pt[0] for pt in coords) / len(coords)
+        cy = sum(pt[1] for pt in coords) / len(coords)
+        folium.Marker(
+            location=[cy, cx], interactive=False,   # labels must not swallow clicks
+            icon=folium.DivIcon(html=(
+                '<div style="font-size: 10px; font-weight: bold; color: #0f172a; white-space: nowrap; '
+                f'pointer-events: none; transform: translate(-50%, -50%);">{label}</div>'
+            )),
+        ).add_to(m)
+
+    if show_doors:
+        add_door_markers_2d(m, floor_z, current_lang)
+
+    AxisGrid().add_to(m)
+    m.fit_bounds(bounds)
+
+    # ---- route layer (changes with every click) ----
+    route_layer = folium.FeatureGroup(name="route")
+    if route_path:
+        on_floor = lambda n: n in node_coords_dict and int(node_coords_dict[n][2]) == floor_z
+        floor_path = [n for n in route_path if on_floor(n)]
+
+        if len(floor_path) > 1:
+            xy = [(node_coords_dict[n][0], node_coords_dict[n][1]) for n in floor_path]
+            line_pts = [[y, x] for x, y in xy]
+            folium.PolyLine(locations=line_pts, color="#EF4444", weight=5, opacity=0.95).add_to(route_layer)
+            # Dashes that flow from the start to the destination (animated by FOLIUM_BASE_CSS)
+            folium.PolyLine(
+                locations=line_pts, color=ROUTE_FLOW_COLOR, weight=2.5, opacity=0.95,
+                dash_array="10 24", class_name="route-flow",
+            ).add_to(route_layer)
+            # Arrowheads showing the direction of travel
+            arrow_x, arrow_y = route_arrow_polygons(xy)
+            tri = []
+            for ax, ay in zip(arrow_x, arrow_y):
+                if ax is None:
+                    folium.Polygon(
+                        locations=tri, color="#B91C1C", weight=1.5, fill=True,
+                        fill_color="#FFFFFF", fill_opacity=1.0,
+                    ).add_to(route_layer)
+                    tri = []
+                else:
+                    tri.append([ay, ax])
+
+        for idx, stop_id in enumerate(stop_ids or [], start=1):
+            if on_floor(stop_id):
+                stx, sty, _ = node_coords_dict[stop_id]
+                folium.Marker(
+                    location=[sty, stx], interactive=False,
+                    icon=folium.DivIcon(html=(
+                        '<div style="width: 22px; height: 22px; border-radius: 50%; background: #F97316; color: #fff; '
+                        'border: 2px solid #fff; font: bold 12px/18px sans-serif; text-align: center; '
+                        f'transform: translate(-50%, -50%);">{idx}</div>'
+                    )),
+                ).add_to(route_layer)
+
+        if on_floor(route_path[0]):
+            sx, sy, _ = node_coords_dict[route_path[0]]
+            folium.Marker(location=[sy, sx], interactive=False,
+                          icon=folium.Icon(color="red", icon="play")).add_to(route_layer)
+
+        if show_dest and len(route_path) > 1 and on_floor(route_path[-1]):
+            dx, dy, _ = node_coords_dict[route_path[-1]]
+            folium.Marker(location=[dy, dx], interactive=False,
+                          icon=folium.Icon(color="green", icon="flag")).add_to(route_layer)
+
+    return m, route_layer
 
 def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="English", show_doors=True):
     node_coords = node_coords or MULTI_CAD_NODES
@@ -1700,6 +1934,27 @@ with tab_home:
     else:
         st.info("No store categories defined.")
 
+def handle_map_click(raw_point):
+    """Apply a clicked map point (x, y, floor) to the route, depending on the pick step."""
+    if st.session_state.map_pick_mode:
+        if st.session_state.map_pick_step == "START":
+            st.session_state.selected_start = raw_point
+            st.session_state.waypoints = []
+            st.session_state.map_pick_step = "WAYPOINT"
+            st.rerun()
+        elif st.session_state.map_pick_step == "WAYPOINT":
+            st.session_state.waypoint_counter += 1
+            st.session_state.waypoints.append({"id": st.session_state.waypoint_counter, "value": raw_point})
+            st.rerun()
+        elif st.session_state.map_pick_step == "DEST":
+            st.session_state.selected_dest = raw_point
+            st.session_state.map_pick_mode = False
+            st.session_state.map_pick_step = "START"
+            st.rerun()
+    else:
+        st.session_state.selected_dest = raw_point
+        st.rerun()
+
 # ------------------------------------------------------------------------------
 # Mall Map Tab
 # ------------------------------------------------------------------------------
@@ -1869,7 +2124,7 @@ with tab_map:
         stop_ids = full_route_sequence[1:-1]
 
     # ---- View mode and interactive-pick controls ----
-    view_type = st.radio(t["view_mode"], options=[t["view_2d"], t["view_3d"]], horizontal=True)
+    view_type = st.radio(t["view_mode"], options=[t["view_2d_folium"], t["view_2d"], t["view_3d"]], horizontal=True)
     show_doors = st.checkbox(t["show_doors"], value=True)
 
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
@@ -1930,65 +2185,80 @@ with tab_map:
             st.info(t["pick_3d_notice"])
 
     # ---- Render the selected map view ----
-    if view_type == t["view_2d"]:
+    if view_type in (t["view_2d_folium"], t["view_2d"]):
         floor_select = st.selectbox(
             t["active_floor"],
             options=[0, 1, 2, 3],
             format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
         )
 
-        fig_2d = render_2d_plotly_view(
-            floor_select,
-            route_path=path,
-            node_coords_dict=temp_nodes,
-            current_lang=st.session_state.lang,
-            stop_ids=stop_ids,
-            show_dest=not st.session_state.map_pick_mode,
-            show_doors=show_doors,
-        )
-        st.caption(t["map_nav_hint"])
-        st.markdown(ROUTE_FLOW_CSS, unsafe_allow_html=True)
-        map_event = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            key=f"map2d_floor_{floor_select}",
-            on_select="rerun",
-            selection_mode="points",
-            config={"scrollZoom": True, "displaylogo": False, "modeBarButtonsToRemove": ["select2d", "lasso2d"]},
-        )
+        if view_type == t["view_2d_folium"]:
+            base_map, route_layer = render_2d_folium_view(
+                floor_select,
+                route_path=path,
+                node_coords_dict=temp_nodes,
+                current_lang=st.session_state.lang,
+                stop_ids=stop_ids,
+                show_dest=not st.session_state.map_pick_mode,
+                show_doors=show_doors,
+            )
+            st.caption(t["map_nav_hint_folium"])
+            folium_kwargs = dict(
+                height=620, use_container_width=True, key=f"map2d_folium_{floor_select}",
+                returned_objects=["last_clicked"],   # no pan/zoom reruns
+            )
+            try:
+                # The base map stays the same; only the route layer is swapped in place
+                map_data = st_folium(base_map, feature_group_to_add=route_layer, **folium_kwargs)
+            except TypeError:
+                # Older streamlit-folium without feature_group_to_add
+                base_map.add_child(route_layer)
+                map_data = st_folium(base_map, **folium_kwargs)
 
-        clicked_points = []
-        if map_event and "selection" in map_event and "points" in map_event["selection"]:
-            clicked_points = map_event["selection"]["points"]
+            if map_data and map_data.get("last_clicked"):
+                click = map_data["last_clicked"]
+                raw_point = (round(click["lng"], 2), round(click["lat"], 2), floor_select)
+                click_key = f"folium_{floor_select}"
+                # The component remembers its last click, so only act on a new one
+                if raw_point != st.session_state.last_folium_clicks.get(click_key):
+                    st.session_state.last_folium_clicks[click_key] = raw_point
+                    handle_map_click(raw_point)
 
-        if clicked_points:
-            pt = clicked_points[0]
-            raw_point = (round(float(pt["x"]), 2), round(float(pt["y"]), 2), floor_select)
-
-            # The selection persists across reruns, so only act on a new click
-            if raw_point != st.session_state.last_processed_click:
-                st.session_state.last_processed_click = raw_point
-
-                if st.session_state.map_pick_mode:
-                    if st.session_state.map_pick_step == "START":
-                        st.session_state.selected_start = raw_point
-                        st.session_state.waypoints = []
-                        st.session_state.map_pick_step = "WAYPOINT"
-                        st.rerun()
-                    elif st.session_state.map_pick_step == "WAYPOINT":
-                        st.session_state.waypoint_counter += 1
-                        st.session_state.waypoints.append({"id": st.session_state.waypoint_counter, "value": raw_point})
-                        st.rerun()
-                    elif st.session_state.map_pick_step == "DEST":
-                        st.session_state.selected_dest = raw_point
-                        st.session_state.map_pick_mode = False
-                        st.session_state.map_pick_step = "START"
-                        st.rerun()
-                else:
-                    st.session_state.selected_dest = raw_point
-                    st.rerun()
         else:
-            st.session_state.last_processed_click = None
+            fig_2d = render_2d_plotly_view(
+                floor_select,
+                route_path=path,
+                node_coords_dict=temp_nodes,
+                current_lang=st.session_state.lang,
+                stop_ids=stop_ids,
+                show_dest=not st.session_state.map_pick_mode,
+                show_doors=show_doors,
+            )
+            st.caption(t["map_nav_hint"])
+            st.markdown(ROUTE_FLOW_CSS, unsafe_allow_html=True)
+            map_event = st.plotly_chart(
+                fig_2d,
+                use_container_width=True,
+                key=f"map2d_floor_{floor_select}",
+                on_select="rerun",
+                selection_mode="points",
+                config={"scrollZoom": True, "displaylogo": False, "modeBarButtonsToRemove": ["select2d", "lasso2d"]},
+            )
+
+            clicked_points = []
+            if map_event and "selection" in map_event and "points" in map_event["selection"]:
+                clicked_points = map_event["selection"]["points"]
+
+            if clicked_points:
+                pt = clicked_points[0]
+                raw_point = (round(float(pt["x"]), 2), round(float(pt["y"]), 2), floor_select)
+
+                # The selection persists across reruns, so only act on a new click
+                if raw_point != st.session_state.last_processed_click:
+                    st.session_state.last_processed_click = raw_point
+                    handle_map_click(raw_point)
+            else:
+                st.session_state.last_processed_click = None
     else:
         fig_3d = render_3d_isometric_view(route_path=path, node_coords=temp_nodes, current_lang=st.session_state.lang, show_doors=show_doors)
         st.plotly_chart(fig_3d, use_container_width=True)
