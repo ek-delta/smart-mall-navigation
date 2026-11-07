@@ -1015,7 +1015,7 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=None
     return fig
 
 # Generate figure to display
-fig = render_2d_plotly_map(0)
+fig = render_2d_plotly_view(0)
 fig.show()
 
 FOLIUM_BASE_CSS = """
