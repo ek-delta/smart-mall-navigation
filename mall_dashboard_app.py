@@ -6,6 +6,7 @@ import streamlit as st
 import folium
 import plotly.graph_objects as go
 from streamlit_folium import st_folium
+from folium.plugins import AntPath, PolyLineTextPath
 
 # ==============================================================================
 # 1. Page Config & Localization Dictionary
@@ -1143,6 +1144,21 @@ def add_parking_infrastructure_markers(m, lang="English"):
                 )
             ).add_to(m)
 
+def add_animated_route(m, line_pts, color):
+    """Route line with animated flow in the direction of travel plus arrowheads along it."""
+    # Soft base line; the arrowheads are written along it
+    base = folium.PolyLine(locations=line_pts, color=color, weight=7, opacity=0.35)
+    base.add_to(m)
+    PolyLineTextPath(
+        base, "\u25BA", repeat=True, offset=6,
+        attributes={"fill": color, "font-weight": "bold", "font-size": "18"},
+    ).add_to(m)
+    # Dashes that flow from the start to the end of the route
+    AntPath(
+        locations=line_pts, color=color, pulse_color="#FFFFFF",
+        weight=5, opacity=0.9, delay=900, dash_array=[12, 26],
+    ).add_to(m)
+
 def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang="English", route_color="#2563EB"):
     rooftop_rooms = {r_id: poly["coords"] for r_id, poly in ROOM_POLYGONS.items() if poly["z"] == 3}
     all_pts = [pt for coords in rooftop_rooms.values() for pt in coords]
@@ -1175,7 +1191,7 @@ def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang=
         rooftop_path = [node for node in route_path if int(MULTI_CAD_NODES[node][2]) == 3]
         if len(rooftop_path) > 1:
             line_pts = [[MULTI_CAD_NODES[n][1], MULTI_CAD_NODES[n][0]] for n in rooftop_path]
-            folium.PolyLine(locations=line_pts, color=route_color, weight=4).add_to(m)
+            add_animated_route(m, line_pts, route_color)
 
     add_door_markers_2d(m, 3, current_lang, radius=3)
     add_parking_infrastructure_markers(m, current_lang)
