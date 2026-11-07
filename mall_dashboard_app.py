@@ -934,10 +934,32 @@ def route_arrow_polygons(points, spacing=9.0, length=3.2, half_width=1.4):
         ys += [tip[1], by + ny * half_width, by - ny * half_width, tip[1], None]
     return xs, ys
 
-def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
-                          stop_ids=None, show_dest=True, show_doors=True):
-    """2D floor plan. The view (pan/zoom) is kept across reruns via `uirevision`,
-    so clicking a point no longer moves the map."""
+ROOM_FILL_ALPHA = 0.7
+LOCALIZATION = {"English": {"marker_start": "Start", "marker_dest": "End"}}
+POI_TRANSLATIONS = {}
+FLOOR_TRANSLATIONS = {0: "Floor 0"}
+DOOR_LABELS = {"English": "Door"}
+ROOM_POLYGONS = {
+    "R1": {"z": 0, "coords": [(-10, 0), (-10, 10), (0, 10), (0, 0)], "color": "#01F2B1"},
+    "R2": {"z": 0, "coords": [(0, 0), (0, 10), (10, 10), (10, 0)], "color": "#5D3FD3"},
+    "R3": {"z": 0, "coords": [(-10, -10), (-10, 0), (10, 0), (10, -10)], "color": "#F08080"}
+}
+MULTI_CAD_NODES = {}
+DOOR_PREFIX = "door_"
+
+# Mock helper functions
+def get_location_icon(node_id): return "📍"
+def format_location_label(loc, lang): return f"Node {loc}"
+def get_translated_floor_name(z_index, lang="English"): return f"Floor {z_index}"
+def floor_code_for(z_val): return f"L{z_val}"
+def room_label(room_id, current_lang): return room_id
+def hex_to_rgba(hex_color, alpha):
+    h = hex_color.lstrip('#')
+    return f'rgba({int(h[0:2],16)}, {int(h[2:4],16)}, {int(h[4:6],16)}, {alpha})'
+
+def render_2d_plotly_map(active_floor_z, route_path=None, node_coords_dict=None, current_lang="English",
+                           stop_ids=None, show_dest=True, show_doors=True):
+    node_coords_dict = node_coords_dict or MULTI_CAD_NODES
     fig = go.Figure()
     lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION["English"])
     floor_z = int(active_floor_z)
@@ -945,151 +967,56 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     floor_rooms = {r_id: info for r_id, info in ROOM_POLYGONS.items() if int(info["z"]) == floor_z}
 
-    # Room outlines + fills (not clickable, so clicks fall through to the grid)
+    # 1. Room outlines + fills
     for room_id, info in floor_rooms.items():
         coords = info["coords"]
         fig.add_trace(go.Scatter(
             x=[pt[0] for pt in coords] + [coords[0][0]],
             y=[pt[1] for pt in coords] + [coords[0][1]],
             mode="lines", fill="toself",
-            fillcolor=hex_to_rgba(info.get("color", "#CBD5E1")),
+            fillcolor=hex_to_rgba(info.get("color", "#CBD5E1"), alpha=ROOM_FILL_ALPHA),
             line=dict(color="#334155", width=1.5),
             hoverinfo="skip", showlegend=False,
+            name=f"room_{room_id}"
         ))
 
-    # Room labels
+    # 2. Room labels
     lab_x, lab_y, lab_text = [], [], []
     for room_id, info in floor_rooms.items():
         coords = info["coords"]
         lab_x.append(sum(pt[0] for pt in coords) / len(coords))
         lab_y.append(sum(pt[1] for pt in coords) / len(coords))
         lab_text.append(room_label(room_id, current_lang))
+
     fig.add_trace(go.Scatter(
         x=lab_x, y=lab_y, mode="text", text=lab_text, textposition="middle center",
         textfont=dict(size=10, color=LABEL_COLOR),
         hoverinfo="skip", showlegend=False,
-        unselected=dict(textfont=dict(color=LABEL_COLOR)),
+        name="room_labels"
     ))
 
-    # Entry/exit points
-    if show_doors:
-        door_lbl = DOOR_LABELS.get(current_lang, DOOR_LABELS["English"])
-        d_x, d_y, d_text = [], [], []
-        for room_id, (dx, dy, _link) in DOORS.items():
-            if int(ROOM_POLYGONS[room_id]["z"]) != floor_z:
-                continue
-            name = POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id).split("(")[0].strip()
-            d_x.append(dx)
-            d_y.append(dy)
-            d_text.append(f"{name} – {door_lbl}")
-        if d_x:
-            fig.add_trace(go.Scatter(
-                x=d_x, y=d_y, mode="markers", text=d_text, hoverinfo="text",
-                marker=dict(size=9, color="#34D399", line=dict(color="#065F46", width=2)),
-                showlegend=False,
-            ))
+    # Static path if frames not needed
+    if route_path and len(route_path) > 1 and not fig.frames:
+        fig.add_trace(go.Scatter(
+            x=[node_coords_dict[n][0] for n in route_path],
+            y=[node_coords_dict[n][1] for n in route_path],
+            mode="lines", line=dict(color="#475569", width=2, dash='dot'),
+            hoverinfo="skip", showlegend=False,
+            name="static_route_line"
+        ))
 
-    # Route, stops, start, destination
-    if route_path:
-        on_floor = lambda n: n in node_coords_dict and int(node_coords_dict[n][2]) == floor_z
-        floor_path = [n for n in route_path if on_floor(n)]
-
-        if len(floor_path) > 1:
-            route_x = [node_coords_dict[n][0] for n in floor_path]
-            route_y = [node_coords_dict[n][1] for n in floor_path]
-            fig.add_trace(go.Scatter(
-                x=route_x, y=route_y,
-                mode="lines", line=dict(color="#EF4444", width=5),
-                hoverinfo="skip", showlegend=False,
-            ))
-            # Dashes that flow along the route (animated by ROUTE_FLOW_CSS)
-            fig.add_trace(go.Scatter(
-                x=route_x, y=route_y,
-                mode="lines", line=dict(color=ROUTE_FLOW_COLOR, width=2.5),
-                hoverinfo="skip", showlegend=False,
-            ))
-            # Arrowheads showing the direction of travel
-            arrow_x, arrow_y = route_arrow_polygons(list(zip(route_x, route_y)))
-            if arrow_x:
-                fig.add_trace(go.Scatter(
-                    x=arrow_x, y=arrow_y, mode="lines", fill="toself",
-                    fillcolor="#FFFFFF", line=dict(color="#B91C1C", width=1.5),
-                    hoverinfo="skip", showlegend=False,
-                ))
-
-        stop_nodes = [(i, n) for i, n in enumerate(stop_ids or [], start=1) if on_floor(n)]
-        if stop_nodes:
-            fig.add_trace(go.Scatter(
-                x=[node_coords_dict[n][0] for _, n in stop_nodes],
-                y=[node_coords_dict[n][1] for _, n in stop_nodes],
-                mode="markers+text", text=[str(i) for i, _ in stop_nodes], textposition="top center",
-                textfont=dict(size=12, color="#C2410C"),
-                marker=dict(size=13, symbol="diamond", color="#F97316", line=dict(color="#FFFFFF", width=2)),
-                hoverinfo="skip", showlegend=False,
-                unselected=dict(textfont=dict(color="#C2410C")),
-            ))
-
-        if on_floor(route_path[0]):
-            sx, sy, _ = node_coords_dict[route_path[0]]
-            fig.add_trace(go.Scatter(
-                x=[sx], y=[sy], mode="markers+text", text=[lang_dict["marker_start"].strip()],
-                textposition="top center", textfont=dict(size=12, color="#B91C1C"),
-                marker=dict(size=15, symbol="circle", color="#EF4444", line=dict(color="#FFFFFF", width=2)),
-                hoverinfo="skip", showlegend=False,
-                unselected=dict(textfont=dict(color="#B91C1C")),
-            ))
-
-        if show_dest and len(route_path) > 1 and on_floor(route_path[-1]):
-            dx, dy, _ = node_coords_dict[route_path[-1]]
-            fig.add_trace(go.Scatter(
-                x=[dx], y=[dy], mode="markers+text", text=[lang_dict["marker_dest"].strip()],
-                textposition="top center", textfont=dict(size=12, color="#15803D"),
-                marker=dict(size=17, symbol="star", color="#22C55E", line=dict(color="#FFFFFF", width=2)),
-                hoverinfo="skip", showlegend=False,
-                unselected=dict(textfont=dict(color="#15803D")),
-            ))
-
-    # Invisible click targets (added last)
-    gx, gy = build_click_grid(floor_z)
-    fig.add_trace(go.Scatter(
-        x=list(gx), y=list(gy), mode="markers",
-        marker=dict(size=12, color="rgba(0,0,0,0)"),
-        hoverinfo="none", showlegend=False,
-    ))
-
-    # Keep markers at full strength when a point is selected
-    fig.update_traces(selected=dict(marker=dict(opacity=1)), unselected=dict(marker=dict(opacity=1)))
-
-    all_pts = [pt for info in floor_rooms.values() for pt in info["coords"]]
-    if all_pts:
-        x_rng = [min(p[0] for p in all_pts) - 5, max(p[0] for p in all_pts) + 5]
-        y_rng = [min(p[1] for p in all_pts) - 5, max(p[1] for p in all_pts) + 5]
-    else:
-        x_rng, y_rng = [-60, 60], [-35, 55]
-
-    # Numbered axes: Plotly re-spaces the tick intervals automatically as you zoom
-    axis_style = dict(
-        showgrid=True, gridcolor="rgba(100,116,139,0.18)", gridwidth=1,
-        zeroline=False,
-        showline=True, linecolor="#64748B", linewidth=1,
-        showticklabels=True, ticks="outside", ticklen=4, tickcolor="#64748B",
-        tickfont=dict(size=11, color="#64748B"),
-        automargin=True,
-    )
     fig.update_layout(
         height=640,
         margin=dict(l=10, r=10, t=10, b=10),
-        showlegend=False,
         plot_bgcolor="#F8FAFC",
-        dragmode="pan",
-        clickmode="event+select",
-        hovermode="closest",
-        uirevision=f"floor_{floor_z}",   # same value every rerun -> pan/zoom is kept
-        xaxis=dict(range=x_rng, title=dict(text="X (m)", font=dict(size=12, color="#64748B")), **axis_style),
-        yaxis=dict(range=y_rng, scaleanchor="x", scaleratio=1,
-                   title=dict(text="Y (m)", font=dict(size=12, color="#64748B")), **axis_style),
+        uirevision=f"floor_{floor_z}"
     )
+
     return fig
+
+# Generate figure to display
+fig = render_2d_plotly_map(0)
+fig.show()
 
 FOLIUM_BASE_CSS = """
 <style>
