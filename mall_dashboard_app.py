@@ -6,6 +6,7 @@ import json
 import streamlit as st
 import folium
 import plotly.graph_objects as go
+import numpy as np
 from streamlit_folium import st_folium
 from folium.plugins import AntPath, PolyLineTextPath
 from branca.element import MacroElement
