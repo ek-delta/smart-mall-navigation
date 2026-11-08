@@ -1795,10 +1795,14 @@ def add_animated_route(m, line_pts, color, hover=None):
 def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang="English", route_color="#2563EB"):
     rooftop_rooms = {r_id: poly["coords"] for r_id, poly in ROOM_POLYGONS.items() if poly["z"] == 3}
     all_pts = [pt for coords in rooftop_rooms.values() for pt in coords]
-    min_x, max_x = min(p[0] for p in all_pts) - 10, max(p[0] for p in all_pts) + 10
-    min_y, max_y = min(p[1] for p in all_pts) - 10, max(p[1] for p in all_pts) + 10
+    min_x, max_x = min(p[0] for p in all_pts) - 5, max(p[0] for p in all_pts) + 5
+    min_y, max_y = min(p[1] for p in all_pts) - 5, max(p[1] for p in all_pts) + 5
+    bounds = [[min_y, min_x], [max_y, max_x]]
 
-    m = folium.Map(crs="Simple", tiles=None)
+    # Same map setup as the 2D Folium floor map (zoom behaviour, background, axes, autoscale)
+    m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True,
+                   zoomSnap=0.25, zoomDelta=0.5, attribution_control=False)
+    m.get_root().header.add_child(folium.Element(FOLIUM_BASE_CSS))
 
     for room_id, coords in rooftop_rooms.items():
         folium_coords = [[pt[1], pt[0]] for pt in coords]
@@ -1830,7 +1834,9 @@ def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang=
     add_door_markers_2d(m, 3, current_lang, radius=3)
     add_parking_infrastructure_markers(m, current_lang)
 
-    m.fit_bounds([[min_y, min_x], [max_y, max_x]])
+    AxisGrid().add_to(m)
+    m.fit_bounds(bounds)
+    AutoscaleControl(bounds, AUTOSCALE_LABELS.get(current_lang, AUTOSCALE_LABELS["English"])).add_to(m)
     return m
 
 # ==============================================================================
@@ -2635,7 +2641,7 @@ with tab_park:
             entry_map = render_rooftop_folium_map(
                 assigned_slot=assigned_slot, route_path=entry_path, current_lang=curr_lang, route_color="#2563EB"
             )
-            st_folium(entry_map, height=450, width=900, key="park_entry_map", returned_objects=[])
+            st_folium(entry_map, height=620, use_container_width=True, key="park_entry_map", returned_objects=[])
 
             if entry_path:
                 entry_summary = compute_route_summary(entry_path, MULTI_CAD_NODES, lang=curr_lang)
@@ -2657,7 +2663,7 @@ with tab_park:
             exit_map = render_rooftop_folium_map(
                 assigned_slot=assigned_slot, route_path=exit_path, current_lang=curr_lang, route_color="#F97316"
             )
-            st_folium(exit_map, height=450, width=900, key="park_exit_map", returned_objects=[])
+            st_folium(exit_map, height=620, use_container_width=True, key="park_exit_map", returned_objects=[])
 
             if exit_path:
                 exit_summary = compute_route_summary(exit_path, MULTI_CAD_NODES, lang=curr_lang)
@@ -2676,7 +2682,7 @@ with tab_park:
     else:
         st.error(t["no_parking"])
         empty_map = render_rooftop_folium_map(assigned_slot=None, route_path=[], current_lang=curr_lang)
-        st_folium(empty_map, height=450, width=900, key="park_empty_map", returned_objects=[])
+        st_folium(empty_map, height=620, use_container_width=True, key="park_empty_map", returned_objects=[])
 
 # ==============================================================================
 # 7. Footer
