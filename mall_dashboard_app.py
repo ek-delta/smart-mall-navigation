@@ -81,6 +81,11 @@ LOCALIZATION = {
         "btn_set_start": "🚩 Set as Start",
         "btn_set_dest": "🏁 Set as Destination",
         "btn_cancel": "❌ Cancel",
+        "edit_hint": "👆 Click the start, a stop or the destination marker on the map, then click a new location to move it.",
+        "editing_start": "✏️ Moving **Start** – click its new location on the map (click the marker again to cancel).",
+        "editing_stop": "✏️ Moving **Stop {idx}** – click its new location on the map (click the marker again to cancel).",
+        "editing_dest": "✏️ Moving **Destination** – click its new location on the map (click the marker again to cancel).",
+        "btn_cancel_edit": "❌ Cancel moving",
         "marker_start": " Start",
         "marker_dest": " Destination",
         "intermediate_stops": "📍 Intermediate Stops",
@@ -167,6 +172,11 @@ LOCALIZATION = {
         "btn_set_start": "🚩 设为起点",
         "btn_set_dest": "🏁 设为终点",
         "btn_cancel": "❌ 取消",
+        "edit_hint": "👆 点击地图上的起点、途经点或终点标记，再点击新位置即可移动。",
+        "editing_start": "✏️ 正在移动 **起点** – 请在地图上点击新位置（再次点击该标记可取消）。",
+        "editing_stop": "✏️ 正在移动 **途经点 {idx}** – 请在地图上点击新位置（再次点击该标记可取消）。",
+        "editing_dest": "✏️ 正在移动 **终点** – 请在地图上点击新位置（再次点击该标记可取消）。",
+        "btn_cancel_edit": "❌ 取消移动",
         "marker_start": " 起点",
         "marker_dest": " 终点",
         "intermediate_stops": "📍 途经点 (中转站)",
@@ -253,6 +263,11 @@ LOCALIZATION = {
         "btn_set_start": "🚩 Tetapkan sebagai Permulaan",
         "btn_set_dest": "🏁 Tetapkan sebagai Destinasi",
         "btn_cancel": "❌ Batal",
+        "edit_hint": "👆 Klik penanda permulaan, hentian atau destinasi pada peta, kemudian klik lokasi baharu untuk mengalihkannya.",
+        "editing_start": "✏️ Mengalihkan **Permulaan** – klik lokasi baharunya pada peta (klik penanda sekali lagi untuk batal).",
+        "editing_stop": "✏️ Mengalihkan **Hentian {idx}** – klik lokasi baharunya pada peta (klik penanda sekali lagi untuk batal).",
+        "editing_dest": "✏️ Mengalihkan **Destinasi** – klik lokasi baharunya pada peta (klik penanda sekali lagi untuk batal).",
+        "btn_cancel_edit": "❌ Batal alih",
         "marker_start": " Permulaan",
         "marker_dest": " Destinasi",
         "intermediate_stops": "📍 Hentian Antara",
@@ -402,6 +417,7 @@ if "map_pick_mode" not in st.session_state: st.session_state.map_pick_mode = Fal
 if "map_pick_step" not in st.session_state: st.session_state.map_pick_step = "START"
 if "last_processed_click" not in st.session_state: st.session_state.last_processed_click = None
 if "last_folium_clicks" not in st.session_state: st.session_state.last_folium_clicks = {}
+if "edit_target" not in st.session_state: st.session_state.edit_target = None
 
 LOCATION_ICONS = {
     "Fashion": "👗", "Electronics": "📱", "Food & Beverage": "🍔",
@@ -1078,7 +1094,7 @@ def route_hover_band(gx, gy, samples, band_m):
 
 def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True,
-                          show_slots=False, assigned_slot=None, route_color="#EF4444"):
+                          show_slots=False, assigned_slot=None, route_color="#EF4444", highlight=None):
     """2D floor plan. The view (pan/zoom) is kept across reruns via `uirevision`,
     so clicking a point no longer moves the map."""
     fig = go.Figure()
@@ -1243,6 +1259,14 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                 hoverinfo="skip", showlegend=False,
                 unselected=dict(textfont=dict(color="#15803D")),
             ))
+
+    # Ring around the start / stop / destination that is being moved
+    if highlight and int(highlight[2]) == floor_z:
+        fig.add_trace(go.Scatter(
+            x=[highlight[0]], y=[highlight[1]], mode="markers",
+            marker=dict(size=30, symbol="circle-open", color="#F97316", line=dict(width=4, color="#F97316")),
+            hoverinfo="skip", showlegend=False,
+        ))
 
     # Invisible click targets (added last)
     gx, gy = build_click_grid(floor_z)
@@ -1503,7 +1527,7 @@ class AutoscaleControl(MacroElement):
                   .replace("__LABEL__", json.dumps(self.label)))
 
 def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
-                          stop_ids=None, show_dest=True, show_doors=True):
+                          stop_ids=None, show_dest=True, show_doors=True, highlight=None):
     """Returns (base_map, route_layer).
 
     base_map only holds what does not change while you pick points (rooms, labels, doors, axes),
@@ -1588,6 +1612,10 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             dx, dy, _ = node_coords_dict[route_path[-1]]
             folium.Marker(location=[dy, dx], interactive=False,
                           icon=folium.Icon(color="green", icon="flag")).add_to(route_layer)
+
+    if highlight and int(highlight[2]) == floor_z:
+        folium.CircleMarker(location=[highlight[1], highlight[0]], radius=18, color="#F97316", weight=4,
+                            fill=False, interactive=False).add_to(route_layer)
 
     return m, route_layer
 
@@ -2564,8 +2592,59 @@ with tab_home:
     else:
         st.info("No store categories defined.")
 
-def handle_map_click(raw_point):
-    """Apply a clicked map point (x, y, floor) to the route, depending on the pick step."""
+def _point_xyz(value):
+    """(x, y, floor) of a route item: a clicked point or a room (its centre node)."""
+    if isinstance(value, tuple):
+        return value
+    return MULTI_CAD_NODES[value] if value in MULTI_CAD_NODES else None
+
+def editable_targets():
+    """Start, every stop and the destination as [(target, (x, y, floor)), ...].
+    A target is ("start", None), ("wp", waypoint_id) or ("dest", None)."""
+    items = [(("start", None), _point_xyz(st.session_state.selected_start))]
+    for wp in st.session_state.waypoints:
+        if isinstance(wp, dict):
+            items.append((("wp", wp["id"]), _point_xyz(wp["value"])))
+    items.append((("dest", None), _point_xyz(st.session_state.selected_dest)))
+    return [(tg, xyz) for tg, xyz in items if xyz is not None]
+
+def find_marker_at(raw_point, radius=4.0, pin_offset=0.0):
+    """Start/stop/destination marker closest to a clicked point on the same floor (within `radius`
+    metres), or None. `pin_offset` also accepts clicks that far above the marker's position
+    (Folium pins are drawn above the spot they point at)."""
+    px, py, pz = raw_point
+    best, best_d = None, radius
+    for target, (x, y, z) in editable_targets():
+        if int(z) != int(pz):
+            continue
+        d = min(math.hypot(px - x, py - y), math.hypot(px - x, py - (y + pin_offset)))
+        if d <= best_d:
+            best, best_d = target, d
+    return best
+
+def current_edit_target():
+    """The marker being moved, or None (also None if it no longer exists)."""
+    target = st.session_state.edit_target
+    if target is not None and target not in [tg for tg, _ in editable_targets()]:
+        st.session_state.edit_target = target = None
+    return target
+
+def apply_edit(target, raw_point):
+    kind, wp_id = target
+    if kind == "start":
+        st.session_state.selected_start = raw_point
+    elif kind == "dest":
+        st.session_state.selected_dest = raw_point
+    else:
+        for wp in st.session_state.waypoints:
+            if wp["id"] == wp_id:
+                wp["value"] = raw_point
+                break
+
+def handle_map_click(raw_point, pin_offset=0.0):
+    """Apply a clicked map point (x, y, floor).
+    While picking a route on the map it follows the pick step. Otherwise clicking the start, a stop
+    or the destination selects it, and the next click on the map moves it there."""
     if st.session_state.map_pick_mode:
         if st.session_state.map_pick_step == "START":
             st.session_state.selected_start = raw_point
@@ -2581,9 +2660,21 @@ def handle_map_click(raw_point):
             st.session_state.map_pick_mode = False
             st.session_state.map_pick_step = "START"
             st.rerun()
-    else:
-        st.session_state.selected_dest = raw_point
+        return
+
+    target = current_edit_target()
+    hit = find_marker_at(raw_point, pin_offset=pin_offset)
+    if target is None:
+        if hit is not None:                      # pick a marker to move
+            st.session_state.edit_target = hit
+            st.rerun()
+        return                                   # a click on empty map changes nothing
+    if hit is not None:                          # click on a marker: switch to it, or cancel on the same one
+        st.session_state.edit_target = None if hit == target else hit
         st.rerun()
+    apply_edit(target, raw_point)
+    st.session_state.edit_target = None
+    st.rerun()
 
 # ------------------------------------------------------------------------------
 # Mall Map Tab
@@ -2763,6 +2854,7 @@ with tab_map:
             if st.button(t["btn_interactive_pick"], use_container_width=True, type="primary"):
                 st.session_state.map_pick_mode = True
                 st.session_state.map_pick_step = "START"
+                st.session_state.edit_target = None
                 st.rerun()
         else:
             if st.button(t["btn_cancel_interactive"], use_container_width=True):
@@ -2773,6 +2865,7 @@ with tab_map:
     with col_btn_clear:
         if st.button(t["btn_reset_all"], use_container_width=True):
             st.session_state.waypoints = []
+            st.session_state.edit_target = None
             st.session_state.map_pick_mode = False
             st.session_state.map_pick_step = "START"
             st.session_state.selected_start = "A_L0_Entrance"
@@ -2814,6 +2907,29 @@ with tab_map:
         if view_type == t["view_3d"]:
             st.info(t["pick_3d_notice"])
 
+    # ---- Moving an existing start / stop / destination ----
+    edit_target = None if st.session_state.map_pick_mode else current_edit_target()
+    highlight_xyz = None
+    if edit_target is not None:
+        highlight_xyz = dict(editable_targets())[edit_target]
+        kind, wp_id = edit_target
+        if kind == "start":
+            edit_msg = t["editing_start"]
+        elif kind == "dest":
+            edit_msg = t["editing_dest"]
+        else:
+            idx = [wp["id"] for wp in st.session_state.waypoints].index(wp_id) + 1
+            edit_msg = t["editing_stop"].format(idx=idx)
+        col_edit_msg, col_edit_cancel = st.columns([0.72, 0.28])
+        with col_edit_msg:
+            st.warning(edit_msg)
+        with col_edit_cancel:
+            if st.button(t["btn_cancel_edit"], use_container_width=True):
+                st.session_state.edit_target = None
+                st.rerun()
+    elif not st.session_state.map_pick_mode and view_type != t["view_3d"]:
+        st.caption(t["edit_hint"])
+
     # ---- Render the selected map view ----
     if view_type in (t["view_2d_folium"], t["view_2d"]):
         floor_select = st.selectbox(
@@ -2831,6 +2947,7 @@ with tab_map:
                 stop_ids=stop_ids,
                 show_dest=not st.session_state.map_pick_mode,
                 show_doors=show_doors,
+                highlight=highlight_xyz,
             )
             st.caption(t["map_nav_hint_folium"])
             folium_kwargs = dict(
@@ -2849,7 +2966,7 @@ with tab_map:
                 # The component remembers its last click, so only act on a new one
                 if raw_point != st.session_state.last_folium_clicks.get(click_key):
                     st.session_state.last_folium_clicks[click_key] = raw_point
-                    handle_map_click(raw_point)
+                    handle_map_click(raw_point, pin_offset=3.0)
 
         else:
             fig_2d = render_2d_plotly_view(
@@ -2860,6 +2977,7 @@ with tab_map:
                 stop_ids=stop_ids,
                 show_dest=not st.session_state.map_pick_mode,
                 show_doors=show_doors,
+                highlight=highlight_xyz,
             )
             st.caption(t["map_nav_hint"])
             map_event = st.plotly_chart(
