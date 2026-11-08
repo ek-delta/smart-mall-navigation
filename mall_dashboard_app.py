@@ -1589,7 +1589,7 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
 
         # Cones that travel along the route (frames are played by the Play button).
         # Direction vectors are unit vectors * CONE_LEN; tweak CONE_LEN / sizeref if they look too big or small.
-        CONE_LEN, CONE_SIZEREF = 15.0, 30
+        CONE_LEN, CONE_SIZEREF = 1.0, 4
         cone_anim = build_arrow_frames(list(zip(rx, ry, rz)), 20.0)
         if cone_anim:
             def cone_arrays(arrows):
@@ -1627,13 +1627,24 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
                 showlegend=False,
             ))
 
+    # Fixed axis ranges: while the arrows animate, auto-ranging would re-fit the scene on every
+    # frame and make the whole map zoom in and out. The proportions match aspectmode="data".
+    all_xy = [pt for info in ROOM_POLYGONS.values() for pt in info["coords"]]
+    x_rng = [min(p[0] for p in all_xy) - 5, max(p[0] for p in all_xy) + 5]
+    y_rng = [min(p[1] for p in all_xy) - 5, max(p[1] for p in all_xy) + 5]
+    z_max = max(info["z"] for info in ROOM_POLYGONS.values()) * 40
+    z_rng = [-10, z_max + 10]
+    spans = [x_rng[1] - x_rng[0], y_rng[1] - y_rng[0], z_rng[1] - z_rng[0]]
+    longest = max(spans)
     fig.update_layout(
         scene=dict(
-            xaxis=dict(title="X (m)", backgroundcolor="#F8FAFC"),
-            yaxis=dict(title="Y (m)", backgroundcolor="#F8FAFC"),
-            zaxis=dict(title="Floor Level", backgroundcolor="#F8FAFC"),
-            aspectmode="data"
+            xaxis=dict(title="X (m)", backgroundcolor="#F8FAFC", range=x_rng, autorange=False),
+            yaxis=dict(title="Y (m)", backgroundcolor="#F8FAFC", range=y_rng, autorange=False),
+            zaxis=dict(title="Floor Level", backgroundcolor="#F8FAFC", range=z_rng, autorange=False),
+            aspectmode="manual",
+            aspectratio=dict(x=spans[0] / longest, y=spans[1] / longest, z=spans[2] / longest),
         ),
+        uirevision="iso3d",   # keep the camera as the user left it across reruns
         height=680,
         margin=dict(l=0, r=0, t=0, b=0)
     )
