@@ -1344,30 +1344,8 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         if len(floor_path) > 1:
             xy = [(node_coords_dict[n][0], node_coords_dict[n][1]) for n in floor_path]
             line_pts = [[y, x] for x, y in xy]
-            # Plain Leaflet shapes only (no plugins): the route layer is swapped in by
-            # streamlit-folium, which can't run plugin scripts that reference other layers.
-            folium.PolyLine(locations=line_pts, color="#EF4444", weight=5, opacity=0.95).add_to(route_layer)
-            # Dashes that flow from the start to the destination (animated by FOLIUM_BASE_CSS)
-            folium.PolyLine(
-                locations=line_pts, color=ROUTE_FLOW_COLOR, weight=2.5, opacity=0.95,
-                dash_array="10 24", class_name="route-flow",
-            ).add_to(route_layer)
-            # Arrowheads in the direction of travel; each gets a phase class so the CSS
-            # keyframes light them up one after another (a wave from start to destination)
-            arrow_x, arrow_y = route_arrow_polygons(xy)
-            tri = []
-            arrow_idx = 0
-            for ax, ay in zip(arrow_x, arrow_y):
-                if ax is None:
-                    folium.Polygon(
-                        locations=tri, color="#B91C1C", weight=1.5, fill=True,
-                        fill_color="#FFFFFF", fill_opacity=1.0,
-                        class_name=f"route-arrow arrow-phase-{arrow_idx % ARROW_PHASES}",
-                    ).add_to(route_layer)
-                    arrow_idx += 1
-                    tri = []
-                else:
-                    tri.append([ay, ax])
+            # Exactly the Smart Parking method: moving ► arrowheads + flowing dashes
+            add_animated_route(route_layer, line_pts, "#EF4444")
 
         for idx, stop_id in enumerate(stop_ids or [], start=1):
             if on_floor(stop_id):
@@ -2289,13 +2267,10 @@ with tab_map:
                 height=620, use_container_width=True, key=f"map2d_folium_{floor_select}",
                 returned_objects=["last_clicked"],   # no pan/zoom reruns
             )
-            try:
-                # The base map stays the same; only the route layer is swapped in place
-                map_data = st_folium(base_map, feature_group_to_add=route_layer, **folium_kwargs)
-            except TypeError:
-                # Older streamlit-folium without feature_group_to_add
-                base_map.add_child(route_layer)
-                map_data = st_folium(base_map, **folium_kwargs)
+            # Same as the Smart Parking map: the route is part of the map itself, so the
+            # AntPath / TextPath plugins run normally (the map is rebuilt on each new click).
+            base_map.add_child(route_layer)
+            map_data = st_folium(base_map, **folium_kwargs)
 
             if map_data and map_data.get("last_clicked"):
                 click = map_data["last_clicked"]
