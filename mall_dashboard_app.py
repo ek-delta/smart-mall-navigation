@@ -1272,6 +1272,57 @@ class AxisGrid(MacroElement):
     def build_js(self):
         return build_axis_grid_js(self._parent.get_name(), self.x_title, self.y_title)
 
+AUTOSCALE_LABELS = {
+    "English": "Autoscale (reset view)",
+    "Simplified Chinese": "自动缩放（重置视图）",
+    "Malay": "Skala automatik (set semula paparan)",
+}
+
+class AutoscaleControl(MacroElement):
+    """Button under the zoom controls that fits the whole floor plan back into view
+    (like the autoscale button in the Plotly toolbar)."""
+    _template = Template("{% macro script(this, kwargs) %}{{ this.build_js() }}{% endmacro %}")
+
+    def __init__(self, bounds, label="Autoscale"):
+        super().__init__()
+        self._name = "AutoscaleControl"
+        self.bounds = bounds
+        self.label = label
+
+    def build_js(self):
+        js = """
+(function () {
+    var map = __MAP__;
+    var BOUNDS = __BOUNDS__;
+    var LABEL = __LABEL__;
+    var Ctl = L.Control.extend({
+        options: {position: 'topleft'},
+        onAdd: function () {
+            var box = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            var a = L.DomUtil.create('a', '', box);
+            a.href = '#';
+            a.title = LABEL;
+            a.setAttribute('role', 'button');
+            a.setAttribute('aria-label', LABEL);
+            a.style.cssText = 'display:flex;align-items:center;justify-content:center;width:30px;height:30px;';
+            a.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#334155" ' +
+                          'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+                          '<path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>';
+            L.DomEvent.disableClickPropagation(box);
+            L.DomEvent.on(a, 'click', function (e) {
+                L.DomEvent.preventDefault(e);
+                map.fitBounds(BOUNDS);
+            });
+            return box;
+        }
+    });
+    new Ctl().addTo(map);
+})();
+"""
+        return (js.replace("__MAP__", self._parent.get_name())
+                  .replace("__BOUNDS__", json.dumps(self.bounds))
+                  .replace("__LABEL__", json.dumps(self.label)))
+
 def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
     """Returns (base_map, route_layer).
@@ -1321,6 +1372,7 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     AxisGrid().add_to(m)
     m.fit_bounds(bounds)
+    AutoscaleControl(bounds, AUTOSCALE_LABELS.get(current_lang, AUTOSCALE_LABELS["English"])).add_to(m)
 
     # ---- route layer (changes with every click) ----
     route_layer = folium.FeatureGroup(name="route")
