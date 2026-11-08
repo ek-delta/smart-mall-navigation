@@ -1332,7 +1332,9 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             xy = [(node_coords_dict[n][0], node_coords_dict[n][1]) for n in floor_path]
             line_pts = [[y, x] for x, y in xy]
             # Exactly the Smart Parking method: moving ► arrowheads + flowing dashes
-            add_animated_route(route_layer, line_pts, "#EF4444")
+            hover = build_route_hover(route_path, node_coords_dict, floor_z, current_lang,
+                                      include_remaining=show_dest)
+            add_animated_route(route_layer, line_pts, "#EF4444", hover=hover)
 
         for idx, stop_id in enumerate(stop_ids or [], start=1):
             if on_floor(stop_id):
@@ -1458,7 +1460,7 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
                 x=cone_x, y=cone_y, z=cone_z,
                 u=cone_u, v=cone_v, w=cone_w,
                 colorscale=[[0, '#CC0000'], [1, '#CC0000']],
-                showscale=False, sizemode="absolute", sizeref=20, anchor="tip"
+                showscale=False, sizemode="absolute", sizeref=30, anchor="tip"
             ))
 
     fig.update_layout(
@@ -1591,11 +1593,129 @@ class MovingArrows(MacroElement):
                   .replace("__SPACING__", str(self.SPACING))
                   .replace("__SPEED__", str(self.SPEED)))
 
-def add_animated_route(m, line_pts, color):
-    """Route line with arrowheads that travel along it from the start to the end."""
+HOVER_LABELS = {
+    "English": ("Location", "Remaining to destination"),
+    "Simplified Chinese": ("当前位置", "距终点剩余"),
+    "Malay": ("Lokasi", "Baki jarak ke destinasi"),
+}
+
+def build_route_hover(path, node_coords, floor_z, lang="English", include_remaining=True, step=1.0):
+    """Samples along the part of the route on `floor_z`, one about every `step` metres:
+    [lat, lng, place name, metres still to walk to the end of the whole route].
+    The remaining distance counts the entire route (other floors too), measured the same
+    way as the route summary (15 m for each floor change)."""
+    path = dedupe_path(path, node_coords)
+    if len(path) < 2:
+        return None
+
+    seg = []
+    for a, b in zip(path, path[1:]):
+        (ax, ay, az), (bx, by, bz) = node_coords[a], node_coords[b]
+        seg.append(math.hypot(ax - bx, ay - by) if az == bz else 15.0)
+    cum = [0.0]
+    for d in seg:
+        cum.append(cum[-1] + d)
+    total = cum[-1]
+
+    def place_name(x, y, a, b):
+        room_id = find_room_at(x, y, floor_z)
+        if room_id:
+            return POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id).split("(")[0].strip()
+        # not inside any room polygon: use the nearer end of this leg
+        near = a if math.hypot(x - node_coords[a][0], y - node_coords[a][1]) <= \
+                    math.hypot(x - node_coords[b][0], y - node_coords[b][1]) else b
+        return get_node_display_name(near, lang, node_coords)
+
+    samples = []
+    for i, (a, b) in enumerate(zip(path, path[1:])):
+        ax, ay, az = node_coords[a]
+        bx, by, bz = node_coords[b]
+        if az != bz or int(az) != int(floor_z):
+            continue
+        length = seg[i]
+        if length < 1e-9:
+            continue
+        n = max(1, int(math.ceil(length / step)))
+        for k in range(n + 1):
+            t = k / n
+            x, y = ax + (bx - ax) * t, ay + (by - ay) * t
+            remaining = max(0.0, total - (cum[i] + length * t))
+            samples.append([round(y, 2), round(x, 2), place_name(x, y, a, b), round(remaining, 1)])
+
+    if not samples:
+        return None
+    loc_lbl, rem_lbl = HOVER_LABELS.get(lang, HOVER_LABELS["English"])
+    return {"samples": samples, "loc_label": loc_lbl, "rem_label": rem_lbl if include_remaining else None}
+
+class RouteHover(MacroElement):
+    """Hovering the route shows a tooltip with the place under the mouse and the distance
+    still to walk to the destination, and a dot marks the spot on the route."""
+    _template = Template("{% macro script(this, kwargs) %}{{ this.build_js() }}{% endmacro %}")
+
+    def __init__(self, line_pts, color, hover):
+        super().__init__()
+        self._name = "RouteHover"
+        self.line_pts = [[float(p[0]), float(p[1])] for p in line_pts]
+        self.color = color
+        self.hover = hover
+
+    def build_js(self):
+        node = self._parent
+        while node is not None and not isinstance(node, folium.Map):
+            node = getattr(node, "_parent", None)
+        map_var = node.get_name() if node is not None else self._parent.get_name()
+        js = """
+(function () {
+    var map = __MAP__;
+    var S = __SAMPLES__;                 // [lat, lng, name, metres remaining]
+    var LOC = __LOC__, REM = __REM__, COLOR = __COLOR__;
+    if (!S.length) return;
+
+    function esc(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    // wide invisible line on top of the route, so the mouse does not have to be pixel-exact
+    var hit = L.polyline(__PTS__, {weight: 22, opacity: 0, interactive: true, bubblingMouseEvents: true}).addTo(map);
+    var tip = L.tooltip({direction: 'top', offset: [0, -12], opacity: 0.96, className: 'route-hover-tip'});
+    var dot = L.circleMarker([0, 0], {radius: 6, color: '#FFFFFF', weight: 2, fillColor: COLOR,
+                                       fillOpacity: 1, interactive: false});
+
+    function nearest(ll) {
+        var best = 0, bd = Infinity;
+        for (var i = 0; i < S.length; i++) {
+            var d = (S[i][0] - ll.lat) * (S[i][0] - ll.lat) + (S[i][1] - ll.lng) * (S[i][1] - ll.lng);
+            if (d < bd) { bd = d; best = i; }
+        }
+        return S[best];
+    }
+    function show(e) {
+        var s = nearest(e.latlng), ll = L.latLng(s[0], s[1]);
+        var html = '<div style="font:12px/1.35 sans-serif;"><b>' + esc(LOC) + ':</b> ' + esc(s[2]) + '</div>';
+        if (REM) html += '<div style="font:12px/1.35 sans-serif;">' + esc(REM) + ': <b>' + s[3].toFixed(1) + ' m</b></div>';
+        tip.setLatLng(ll).setContent(html);
+        dot.setLatLng(ll);
+        if (!map.hasLayer(dot)) dot.addTo(map);
+        if (!map.hasLayer(tip)) map.openTooltip(tip);
+    }
+    hit.on('mouseover mousemove', show);
+    hit.on('mouseout', function () { map.closeTooltip(tip); map.removeLayer(dot); });
+})();
+"""
+        return (js.replace("__MAP__", map_var)
+                  .replace("__SAMPLES__", json.dumps(self.hover["samples"]))
+                  .replace("__LOC__", json.dumps(self.hover["loc_label"]))
+                  .replace("__REM__", json.dumps(self.hover["rem_label"]))
+                  .replace("__COLOR__", json.dumps(self.color))
+                  .replace("__PTS__", json.dumps(self.line_pts)))
+
+def add_animated_route(m, line_pts, color, hover=None):
+    """Route line with arrowheads that travel along it from the start to the end.
+    `hover` (from build_route_hover) adds the hover annotation."""
     # Soft wide line under a thinner solid line; the arrows move on top of them
     folium.PolyLine(locations=line_pts, color=color, weight=8, opacity=0.30).add_to(m)
     folium.PolyLine(locations=line_pts, color=color, weight=3, opacity=0.90).add_to(m)
+    if hover:
+        RouteHover(line_pts, color, hover).add_to(m)
     MovingArrows(line_pts, color).add_to(m)
 
 def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang="English", route_color="#2563EB"):
@@ -1630,7 +1750,8 @@ def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang=
         rooftop_path = [node for node in route_path if int(MULTI_CAD_NODES[node][2]) == 3]
         if len(rooftop_path) > 1:
             line_pts = [[MULTI_CAD_NODES[n][1], MULTI_CAD_NODES[n][0]] for n in rooftop_path]
-            add_animated_route(m, line_pts, route_color)
+            hover = build_route_hover(route_path, MULTI_CAD_NODES, 3, current_lang)
+            add_animated_route(m, line_pts, route_color, hover=hover)
 
     add_door_markers_2d(m, 3, current_lang, radius=3)
     add_parking_infrastructure_markers(m, current_lang)
