@@ -86,6 +86,10 @@ LOCALIZATION = {
         "editing_stop": "✏️ Moving **Stop {idx}** – click its new location on the map (click the marker again to cancel).",
         "editing_dest": "✏️ Moving **Destination** – click its new location on the map (click the marker again to cancel).",
         "btn_cancel_edit": "❌ Cancel moving",
+        "parking_pick_hint": "👆 Click the highlighted parking spot (your destination), then click another free spot to switch.",
+        "parking_editing": "✏️ Changing parking spot **{slot}** – click another free (green) spot on the map (click {slot} again to cancel).",
+        "parking_taken": "⚠️ Spot {slot} is taken – pick a free (green) spot.",
+        "btn_auto_spot": "🔄 Use nearest spot",
         "marker_start": " Start",
         "marker_dest": " Destination",
         "intermediate_stops": "📍 Intermediate Stops",
@@ -177,6 +181,10 @@ LOCALIZATION = {
         "editing_stop": "✏️ 正在移动 **途经点 {idx}** – 请在地图上点击新位置（再次点击该标记可取消）。",
         "editing_dest": "✏️ 正在移动 **终点** – 请在地图上点击新位置（再次点击该标记可取消）。",
         "btn_cancel_edit": "❌ 取消移动",
+        "parking_pick_hint": "👆 点击高亮的车位（目的地），再点击另一个空闲车位即可更换。",
+        "parking_editing": "✏️ 正在更换车位 **{slot}** – 请在地图上点击另一个空闲（绿色）车位（再次点击 {slot} 可取消）。",
+        "parking_taken": "⚠️ 车位 {slot} 已被占用 – 请选择空闲（绿色）车位。",
+        "btn_auto_spot": "🔄 使用最近车位",
         "marker_start": " 起点",
         "marker_dest": " 终点",
         "intermediate_stops": "📍 途经点 (中转站)",
@@ -268,6 +276,10 @@ LOCALIZATION = {
         "editing_stop": "✏️ Mengalihkan **Hentian {idx}** – klik lokasi baharunya pada peta (klik penanda sekali lagi untuk batal).",
         "editing_dest": "✏️ Mengalihkan **Destinasi** – klik lokasi baharunya pada peta (klik penanda sekali lagi untuk batal).",
         "btn_cancel_edit": "❌ Batal alih",
+        "parking_pick_hint": "👆 Klik petak yang diserlahkan (destinasi anda), kemudian klik petak kosong lain untuk menukar.",
+        "parking_editing": "✏️ Menukar petak **{slot}** – klik petak kosong (hijau) lain pada peta (klik {slot} sekali lagi untuk batal).",
+        "parking_taken": "⚠️ Petak {slot} sudah diisi – pilih petak kosong (hijau).",
+        "btn_auto_spot": "🔄 Guna petak terdekat",
         "marker_start": " Permulaan",
         "marker_dest": " Destinasi",
         "intermediate_stops": "📍 Hentian Antara",
@@ -418,6 +430,10 @@ if "map_pick_step" not in st.session_state: st.session_state.map_pick_step = "ST
 if "last_processed_click" not in st.session_state: st.session_state.last_processed_click = None
 if "last_folium_clicks" not in st.session_state: st.session_state.last_folium_clicks = {}
 if "edit_target" not in st.session_state: st.session_state.edit_target = None
+if "parking_choice" not in st.session_state: st.session_state.parking_choice = None   # None = nearest free spot
+if "parking_edit" not in st.session_state: st.session_state.parking_edit = False
+if "parking_notice" not in st.session_state: st.session_state.parking_notice = None
+if "last_park_clicks" not in st.session_state: st.session_state.last_park_clicks = {}
 
 LOCATION_ICONS = {
     "Fashion": "👗", "Electronics": "📱", "Food & Beverage": "🍔",
@@ -1837,19 +1853,58 @@ def render_3d_html(fig, payload, lang="English", height=680):
                        config={"displaylogo": False}, post_script=js)
     return '<style>html,body{background:transparent !important;margin:0;}</style>' + bar + body
 
+def handle_parking_click(raw_point, assigned_slot):
+    """Click the assigned spot (the destination) to start changing it, then click another free spot."""
+    room = find_room_at(raw_point[0], raw_point[1], 3)
+    if room not in PARKING_SLOTS:
+        return
+    if not st.session_state.parking_edit:
+        if room == assigned_slot:
+            st.session_state.parking_edit = True
+            st.session_state.parking_notice = None
+            st.rerun()
+        return
+    if room == assigned_slot:                       # same spot again: cancel
+        st.session_state.parking_edit = False
+        st.session_state.parking_notice = None
+        st.rerun()
+    if PARKING_SLOTS[room]["occupied"]:
+        st.session_state.parking_notice = room
+        st.rerun()
+    st.session_state.parking_choice = room
+    st.session_state.parking_edit = False
+    st.session_state.parking_notice = None
+    st.rerun()
+
 def show_parking_map(assigned_slot, route_path, lang, route_color, key):
     """Rooftop parking map drawn with the 2D Plotly map (pan, scroll-zoom, numbered axes,
-    animated arrows, route hover and the toolbar's Autoscale / Reset axes buttons)."""
+    animated arrows, route hover and the toolbar's Autoscale / Reset axes buttons).
+    The assigned spot can be changed by clicking it and then clicking another free spot."""
+    highlight = None
+    if assigned_slot and st.session_state.parking_edit and assigned_slot in MULTI_CAD_NODES:
+        highlight = MULTI_CAD_NODES[assigned_slot]
     fig = render_2d_plotly_view(
         3, route_path=route_path or None, node_coords_dict=MULTI_CAD_NODES, current_lang=lang,
         show_dest=True, show_doors=True, show_slots=True, assigned_slot=assigned_slot,
-        route_color=route_color,
+        route_color=route_color, highlight=highlight,
     )
     st.caption(LOCALIZATION.get(lang, LOCALIZATION["English"])["map_nav_hint_parking"])
-    st.plotly_chart(
+    event = st.plotly_chart(
         fig, use_container_width=True, key=key,
+        on_select="rerun", selection_mode="points",
         config={"scrollZoom": True, "displaylogo": False, "modeBarButtonsToRemove": ["select2d", "lasso2d"]},
     )
+    pts = []
+    if event and "selection" in event and "points" in event["selection"]:
+        pts = event["selection"]["points"]
+    if pts and assigned_slot:
+        raw_point = (round(float(pts[0]["x"]), 2), round(float(pts[0]["y"]), 2), 3)
+        # The selection persists across reruns, so only act on a new click
+        if raw_point != st.session_state.last_park_clicks.get(key):
+            st.session_state.last_park_clicks[key] = raw_point
+            handle_parking_click(raw_point, assigned_slot)
+    elif not pts:
+        st.session_state.last_park_clicks.pop(key, None)
 
 def add_parking_infrastructure_markers(m, lang="English"):
     feature_nodes = {
@@ -3038,14 +3093,48 @@ with tab_park:
     curr_lang = st.session_state.lang
     availability_map = {slot_id: details["occupied"] for slot_id, details in PARKING_SLOTS.items()}
 
-    assigned_slot, entry_path, exit_path = find_nearest_available_parking(
-        "P_L3_Driveway_Entrance", MULTI_CAD_GRAPH, MULTI_CAD_NODES,
-        availability_map=availability_map, accessible_only=accessible_flag
-    )
+    assigned_slot, entry_path, exit_path = None, [], []
+    choice = st.session_state.parking_choice
+    if choice and (choice not in PARKING_SLOTS or PARKING_SLOTS[choice]["occupied"]):
+        choice = st.session_state.parking_choice = None      # the chosen spot got taken
+    if choice:
+        # Only the chosen spot counts as free, so the usual routing gives the route to it
+        only_choice = {slot_id: (slot_id != choice) for slot_id in PARKING_SLOTS}
+        assigned_slot, entry_path, exit_path = find_nearest_available_parking(
+            "P_L3_Driveway_Entrance", MULTI_CAD_GRAPH, MULTI_CAD_NODES,
+            availability_map=only_choice, accessible_only=accessible_flag
+        )
+        if not assigned_slot:                                 # unreachable with the current route type
+            choice = st.session_state.parking_choice = None
+    if not choice:
+        assigned_slot, entry_path, exit_path = find_nearest_available_parking(
+            "P_L3_Driveway_Entrance", MULTI_CAD_GRAPH, MULTI_CAD_NODES,
+            availability_map=availability_map, accessible_only=accessible_flag
+        )
 
     if assigned_slot:
         slot_icon = get_location_icon(assigned_slot)
         st.success(f"{t['nearest_spot_found']}: `{slot_icon} {assigned_slot}` ({t['rooftop_lot']})")
+
+        if st.session_state.parking_edit:
+            col_pk_msg, col_pk_btn = st.columns([0.72, 0.28])
+            with col_pk_msg:
+                st.warning(t["parking_editing"].format(slot=assigned_slot))
+                if st.session_state.parking_notice:
+                    st.error(t["parking_taken"].format(slot=st.session_state.parking_notice))
+            with col_pk_btn:
+                if st.button(t["btn_cancel_edit"], use_container_width=True, key="park_cancel_edit"):
+                    st.session_state.parking_edit = False
+                    st.session_state.parking_notice = None
+                    st.rerun()
+        else:
+            col_pk_msg, col_pk_btn = st.columns([0.72, 0.28])
+            with col_pk_msg:
+                st.caption(t["parking_pick_hint"])
+            with col_pk_btn:
+                if choice and st.button(t["btn_auto_spot"], use_container_width=True, key="park_auto_spot"):
+                    st.session_state.parking_choice = None
+                    st.rerun()
 
         tab_entry, tab_exit = st.tabs([t["tab_nav_drive_to_spot"], t["tab_nav_spot_to_exit"]])
 
