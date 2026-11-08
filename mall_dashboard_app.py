@@ -979,7 +979,7 @@ PLAY_LABELS = {
     "Simplified Chinese": ("▶ 播放箭头", "⏸ 暂停"),
     "Malay": ("▶ Mainkan anak panah", "⏸ Jeda"),
 }
-HOVER_MARKER_PX_2D = 60    # size of the invisible hover targets along the route (2D); bigger = wider hover area
+HOVER_MARKER_PX_2D = 45    # size of the invisible hover targets along the route (2D); bigger = wider hover area
 HOVER_MARKER_PX_3D = 30    # same for the 3D map
 ARROW_FRAME_CYCLE = 18     # frames for an arrow to travel one arrow-spacing
 ARROW_FRAME_MS = 50        # milliseconds per frame
