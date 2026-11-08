@@ -1587,26 +1587,40 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
             showlegend=False
         ))
 
-        # Cones that travel along the route (frames are played by the Play button).
-        # Direction vectors are unit vectors * CONE_LEN; tweak CONE_LEN / sizeref if they look too big or small.
-        CONE_LEN, CONE_SIZEREF = 1.0, 2
-        cone_anim = build_arrow_frames(list(zip(rx, ry, rz)), 20.0)
-        if cone_anim:
-            def cone_arrays(arrows):
-                return dict(
-                    x=[p[0] for p, _ in arrows], y=[p[1] for p, _ in arrows], z=[p[2] for p, _ in arrows],
-                    u=[d[0] * CONE_LEN for _, d in arrows], v=[d[1] * CONE_LEN for _, d in arrows],
-                    w=[d[2] * CONE_LEN for _, d in arrows],
-                )
-            cone_trace_idx = len(fig.data)
-            fig.add_trace(go.Cone(
-                **cone_arrays(cone_anim[0]),
-                colorscale=[[0, '#CC0000'], [1, '#CC0000']],
-                showscale=False, sizemode="absolute", sizeref=CONE_SIZEREF, anchor="tip", hoverinfo="skip",
+        # Arrows that travel along the route (frames are played by the Play button).
+        # Each arrow is drawn from line segments (shaft + two barbs) of a fixed size in metres.
+        # (go.Cone is not used: Plotly rescales cones from their spacing on every frame, so
+        # they pulsed in size while moving.)
+        ARROW3D_LEN, ARROW3D_BARB, ARROW3D_WING = 7.0, 2.6, 2.0
+        arrow3d_anim = build_arrow_frames(list(zip(rx, ry, rz)), 20.0)
+        if arrow3d_anim:
+            def arrow3d_lines(arrows):
+                xs, ys, zs = [], [], []
+                for pos, d in arrows:
+                    # a sideways vector perpendicular to the direction of travel
+                    side = (-d[1], d[0], 0.0)
+                    norm = math.hypot(side[0], side[1])
+                    side = (side[0] / norm, side[1] / norm, 0.0) if norm > 1e-6 else (1.0, 0.0, 0.0)
+                    tip = [pos[j] + d[j] * ARROW3D_LEN / 2 for j in range(3)]
+                    tail = [pos[j] - d[j] * ARROW3D_LEN / 2 for j in range(3)]
+                    back = [tip[j] - d[j] * ARROW3D_BARB for j in range(3)]
+                    left = [back[j] + side[j] * ARROW3D_WING for j in range(3)]
+                    right = [back[j] - side[j] * ARROW3D_WING for j in range(3)]
+                    for seg in ((tail, tip), (left, tip, right)):
+                        for p in seg:
+                            xs.append(p[0]); ys.append(p[1]); zs.append(p[2])
+                        xs.append(None); ys.append(None); zs.append(None)
+                return xs, ys, zs
+            arrow3d_idx = len(fig.data)
+            ax0, ay0, az0 = arrow3d_lines(arrow3d_anim[0])
+            fig.add_trace(go.Scatter3d(
+                x=ax0, y=ay0, z=az0, mode="lines",
+                line=dict(color="#CC0000", width=7), hoverinfo="skip", showlegend=False,
             ))
-            for k, arrows in enumerate(cone_anim):
+            for k, arrows in enumerate(arrow3d_anim):
+                fx, fy, fz_ = arrow3d_lines(arrows)
                 cone_frames.append(go.Frame(
-                    name=f"arrow{k}", traces=[cone_trace_idx], data=[go.Cone(**cone_arrays(arrows))],
+                    name=f"arrow{k}", traces=[arrow3d_idx], data=[go.Scatter3d(x=fx, y=fy, z=fz_)],
                 ))
 
         # Hover annotation along the route, floor by floor (place + distance left to the destination)
