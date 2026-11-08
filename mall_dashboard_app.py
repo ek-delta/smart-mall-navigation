@@ -897,6 +897,54 @@ ROUTE_FLOW_CSS = """
 </style>
 """
 
+# ---- Animated arrows -------------------------------------------------------------
+# The arrowheads are split into ARROW_PHASES traces (arrow i goes to trace i % ARROW_PHASES).
+# Each trace gets its own fill colour rgb(255, 255, 240+phase), which the CSS keyframes below
+# use to find it. Every phase runs the same "light up" keyframes, delayed a bit more than the
+# one before, so a bright wave of arrows travels from the start towards the destination.
+ARROW_PHASES = 8
+ARROW_CYCLE_S = 1.6
+
+def arrow_phase_color(phase):
+    return f"rgb(255,255,{240 + phase})"
+
+def build_arrow_css():
+    step = ARROW_CYCLE_S / ARROW_PHASES
+    rules = []
+    for k in range(ARROW_PHASES):
+        b = 240 + k
+        delay = k * step - ARROW_CYCLE_S   # negative: the wave is already running on first paint
+        rules.append(
+            f'.js-plotly-plot .scatterlayer path.js-fill[style*="rgb(255, 255, {b})"],\n'
+            f'.js-plotly-plot .scatterlayer path.js-fill[style*="rgb(255,255,{b})"] '
+            f'{{ animation-delay: {delay:.3f}s; }}'
+        )
+    selectors = ",\n".join(
+        f'.js-plotly-plot .scatterlayer path.js-fill[style*="rgb(255, 255, {240 + k})"],\n'
+        f'.js-plotly-plot .scatterlayer path.js-fill[style*="rgb(255,255,{240 + k})"]'
+        for k in range(ARROW_PHASES)
+    )
+    reduced = selectors.replace("{", "{{")
+    return f"""
+<style>
+@keyframes route-arrow-wave {{
+    0%, 100% {{ fill-opacity: 0.12; }}
+    30%      {{ fill-opacity: 1; }}
+    60%      {{ fill-opacity: 0.12; }}
+}}
+{selectors} {{
+    animation: route-arrow-wave {ARROW_CYCLE_S}s ease-in-out infinite;
+    pointer-events: none;
+}}
+{chr(10).join(rules)}
+@media (prefers-reduced-motion: reduce) {{
+    {selectors} {{ animation: none; fill-opacity: 1; }}
+}}
+</style>
+"""
+
+ROUTE_ARROW_CSS = build_arrow_css()
+
 def route_arrow_polygons(points, spacing=9.0, length=3.2, half_width=1.4):
     """Arrowheads (closed triangles, None-separated) every `spacing` metres along a polyline,
     each pointing in the direction of travel. Returns (xs, ys)."""
@@ -1010,11 +1058,20 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
             # Arrowheads showing the direction of travel
             arrow_x, arrow_y = route_arrow_polygons(list(zip(route_x, route_y)))
             if arrow_x:
-                fig.add_trace(go.Scatter(
-                    x=arrow_x, y=arrow_y, mode="lines", fill="toself",
-                    fillcolor="#FFFFFF", line=dict(color="#B91C1C", width=1.5),
-                    hoverinfo="skip", showlegend=False,
-                ))
+                # Each arrow is 5 entries (3 corners, closing point, None). Spread them over
+                # ARROW_PHASES traces so ROUTE_ARROW_CSS can pulse them one after another.
+                n_arrows = len(arrow_x) // 5
+                for phase in range(ARROW_PHASES):
+                    ax, ay = [], []
+                    for i in range(phase, n_arrows, ARROW_PHASES):
+                        ax += arrow_x[i * 5:(i + 1) * 5]
+                        ay += arrow_y[i * 5:(i + 1) * 5]
+                    if ax:
+                        fig.add_trace(go.Scatter(
+                            x=ax, y=ay, mode="lines", fill="toself",
+                            fillcolor=arrow_phase_color(phase), line=dict(color="#B91C1C", width=1.5),
+                            hoverinfo="skip", showlegend=False,
+                        ))
 
         stop_nodes = [(i, n) for i, n in enumerate(stop_ids or [], start=1) if on_floor(n)]
         if stop_nodes:
@@ -2235,7 +2292,7 @@ with tab_map:
                 show_doors=show_doors,
             )
             st.caption(t["map_nav_hint"])
-            st.markdown(ROUTE_FLOW_CSS, unsafe_allow_html=True)
+            st.markdown(ROUTE_FLOW_CSS + ROUTE_ARROW_CSS, unsafe_allow_html=True)
             map_event = st.plotly_chart(
                 fig_2d,
                 use_container_width=True,
