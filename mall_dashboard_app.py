@@ -890,10 +890,6 @@ ROUTE_FLOW_CSS = """
     animation: route-flow 0.7s linear infinite;
     pointer-events: none;
 }
-@media (prefers-reduced-motion: reduce) {
-    .js-plotly-plot .scatterlayer path.js-line[style*="rgb(255, 254, 253)"],
-    .js-plotly-plot .scatterlayer path.js-line[style*="rgb(255,254,253)"] { animation: none; }
-}
 </style>
 """
 
@@ -937,9 +933,6 @@ def build_arrow_css():
     pointer-events: none;
 }}
 {chr(10).join(rules)}
-@media (prefers-reduced-motion: reduce) {{
-    {selectors} {{ animation: none; fill-opacity: 1; }}
-}}
 </style>
 """
 
@@ -1155,9 +1148,6 @@ FOLIUM_BASE_CSS = """
     animation: route-flow 0.7s linear infinite;
     pointer-events: none;
 }
-@media (prefers-reduced-motion: reduce) {
-    .route-flow, path.leaflet-interactive[stroke="#FFFEFD"] { animation: none; }
-}
 /* Arrowheads light up one after another, so a wave runs start -> destination */
 @keyframes route-arrow-wave {
     0%, 100% { fill-opacity: 0.12; stroke-opacity: 0.35; }
@@ -1169,9 +1159,6 @@ FOLIUM_BASE_CSS = """
     pointer-events: none;
 }
 __PHASE_RULES__
-@media (prefers-reduced-motion: reduce) {
-    .route-arrow { animation: none; fill-opacity: 1; stroke-opacity: 1; }
-}
 </style>
 """
 FOLIUM_BASE_CSS = (FOLIUM_BASE_CSS
@@ -1586,9 +1573,8 @@ class MovingArrows(MacroElement):
         }
     }
 
-    var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (still) { place(0); return; }
-
+    // Note: deliberately NOT disabled by the OS "reduce motion" setting. That setting is easy to
+    // have switched on without knowing, and it made the arrows look frozen.
     var t0 = null;
     function frame(ts) {
         if (!map.getContainer().isConnected) return;     // map was replaced: stop
