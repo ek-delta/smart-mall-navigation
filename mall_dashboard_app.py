@@ -974,6 +974,81 @@ def route_arrow_polygons(points, spacing=9.0, length=3.2, half_width=1.4):
         ys += [tip[1], by + ny * half_width, by - ny * half_width, tip[1], None]
     return xs, ys
 
+PLAY_LABELS = {
+    "English": ("▶ Play arrows", "⏸ Pause"),
+    "Simplified Chinese": ("▶ 播放箭头", "⏸ 暂停"),
+    "Malay": ("▶ Mainkan anak panah", "⏸ Jeda"),
+}
+ARROW_FRAME_CYCLE = 18     # frames for an arrow to travel one arrow-spacing
+ARROW_FRAME_MS = 50        # milliseconds per frame
+ARROW_LOOPS = 40           # Plotly can't loop an animation, so the cycle is queued this many times
+
+def build_arrow_frames(points, spacing, n_frames=ARROW_FRAME_CYCLE):
+    """Arrow positions along a polyline for each frame of a looping animation.
+    Returns a list (one entry per frame) of [(position, unit_direction), ...], or None when
+    the route is too short. `points` are equal-length coordinate tuples (2D or 3D)."""
+    pts = []
+    for p in points:
+        if not pts or math.dist(p, pts[-1]) > 1e-9:
+            pts.append(tuple(p))
+    if len(pts) < 2:
+        return None
+    seg = [math.dist(a, b) for a, b in zip(pts, pts[1:])]
+    cum = [0.0]
+    for s in seg:
+        cum.append(cum[-1] + s)
+    total = cum[-1]
+    n_arrows = int(total // spacing)
+    if n_arrows < 1:
+        return None
+
+    frames = []
+    for f in range(n_frames):
+        offset = spacing * f / n_frames
+        arrows = []
+        for i in range(n_arrows):
+            d = offset + i * spacing
+            k = 0
+            while k < len(seg) - 1 and cum[k + 1] < d:
+                k += 1
+            t = min(1.0, max(0.0, (d - cum[k]) / seg[k]))
+            a, b = pts[k], pts[k + 1]
+            pos = tuple(a[j] + (b[j] - a[j]) * t for j in range(len(a)))
+            direction = tuple((b[j] - a[j]) / seg[k] for j in range(len(a)))
+            arrows.append((pos, direction))
+        frames.append(arrows)
+    return frames
+
+def play_menu(lang, frame_names, x=0.01, y=0.99):
+    """Play / Pause buttons that run the queued arrow frames."""
+    play_lbl, pause_lbl = PLAY_LABELS.get(lang, PLAY_LABELS["English"])
+    return dict(
+        type="buttons", direction="left", showactive=False,
+        x=x, y=y, xanchor="left", yanchor="top", pad=dict(l=4, t=4, r=4, b=4),
+        bgcolor="#FFFFFF", bordercolor="#CBD5E1", font=dict(size=12, color="#0f172a"),
+        buttons=[
+            dict(label=play_lbl, method="animate",
+                 args=[list(frame_names) * ARROW_LOOPS,
+                       dict(frame=dict(duration=ARROW_FRAME_MS, redraw=True),
+                            transition=dict(duration=0), fromcurrent=True, mode="immediate")]),
+            dict(label=pause_lbl, method="animate",
+                 args=[[None], dict(frame=dict(duration=0, redraw=False),
+                                    transition=dict(duration=0), mode="immediate")]),
+        ],
+    )
+
+def hover_text_lines(samples, hover):
+    """Plotly hover strings for build_route_hover samples."""
+    import html as _html
+    loc_lbl, rem_lbl = hover["loc_label"], hover["rem_label"]
+    texts = []
+    for _lat, _lng, name, rem in samples:
+        line = f"<b>{_html.escape(loc_lbl)}:</b> {_html.escape(name)}"
+        if rem_lbl:
+            line += f"<br>{_html.escape(rem_lbl)}: <b>{rem:.1f} m</b>"
+        texts.append(line)
+    return texts
+
 def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
     """2D floor plan. The view (pan/zoom) is kept across reruns via `uirevision`,
@@ -1030,6 +1105,7 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
             ))
 
     # Route, stops, start, destination
+    arrow_frames = []
     if route_path:
         on_floor = lambda n: n in node_coords_dict and int(node_coords_dict[n][2]) == floor_z
         floor_path = [n for n in route_path if on_floor(n)]
@@ -1048,23 +1124,26 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                 mode="lines", line=dict(color=ROUTE_FLOW_COLOR, width=2.5),
                 hoverinfo="skip", showlegend=False,
             ))
-            # Arrowheads showing the direction of travel
-            arrow_x, arrow_y = route_arrow_polygons(list(zip(route_x, route_y)))
-            if arrow_x:
-                # Each arrow is 5 entries (3 corners, closing point, None). Spread them over
-                # ARROW_PHASES traces so ROUTE_ARROW_CSS can pulse them one after another.
-                n_arrows = len(arrow_x) // 5
-                for phase in range(ARROW_PHASES):
-                    ax, ay = [], []
-                    for i in range(phase, n_arrows, ARROW_PHASES):
-                        ax += arrow_x[i * 5:(i + 1) * 5]
-                        ay += arrow_y[i * 5:(i + 1) * 5]
-                    if ax:
-                        fig.add_trace(go.Scatter(
-                            x=ax, y=ay, mode="lines", fill="toself",
-                            fillcolor=arrow_phase_color(phase), line=dict(color="#B91C1C", width=1.5),
-                            hoverinfo="skip", showlegend=False,
-                        ))
+            # Arrowheads that travel along the route (frames are played by the Play button)
+            arrow_anim = build_arrow_frames(list(zip(route_x, route_y)), 9.0)
+            if arrow_anim:
+                def arrow_arrays(arrows):
+                    return ([p[0] for p, _ in arrows], [p[1] for p, _ in arrows],
+                            [90 - math.degrees(math.atan2(d[1], d[0])) for _, d in arrows])  # clockwise from up
+                arrow_trace_idx = len(fig.data)
+                ax0, ay0, ang0 = arrow_arrays(arrow_anim[0])
+                fig.add_trace(go.Scatter(
+                    x=ax0, y=ay0, mode="markers",
+                    marker=dict(symbol="triangle-up", size=15, color="#FFFFFF", angle=ang0, angleref="up",
+                                line=dict(color="#B91C1C", width=1.8)),
+                    hoverinfo="skip", showlegend=False,
+                ))
+                for k, arrows in enumerate(arrow_anim):
+                    fx, fy, fang = arrow_arrays(arrows)
+                    arrow_frames.append(go.Frame(
+                        name=f"arrow{k}", traces=[arrow_trace_idx],
+                        data=[go.Scatter(x=fx, y=fy, marker=dict(angle=fang))],
+                    ))
 
         stop_nodes = [(i, n) for i, n in enumerate(stop_ids or [], start=1) if on_floor(n)]
         if stop_nodes:
@@ -1106,6 +1185,19 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         hoverinfo="none", showlegend=False,
     ))
 
+    # Hover annotation along the route: place under the mouse + distance left to the destination.
+    # Added after the click grid and with larger markers, so it wins where the two overlap.
+    if route_path:
+        hover = build_route_hover(route_path, node_coords_dict, floor_z, current_lang, include_remaining=show_dest)
+        if hover:
+            fig.add_trace(go.Scatter(
+                x=[s[1] for s in hover["samples"]], y=[s[0] for s in hover["samples"]], mode="markers",
+                marker=dict(size=18, color="rgba(0,0,0,0)"),
+                hovertext=hover_text_lines(hover["samples"], hover), hoverinfo="text",
+                hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
+                showlegend=False,
+            ))
+
     # Keep markers at full strength when a point is selected
     fig.update_traces(selected=dict(marker=dict(opacity=1)), unselected=dict(marker=dict(opacity=1)))
 
@@ -1138,6 +1230,9 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         yaxis=dict(range=y_rng, scaleanchor="x", scaleratio=1,
                    title=dict(text="Y (m)", font=dict(size=12, color="#64748B")), **axis_style),
     )
+    if arrow_frames:
+        fig.frames = arrow_frames
+        fig.update_layout(updatemenus=[play_menu(current_lang, [f.name for f in arrow_frames])])
     return fig
 
 FOLIUM_BASE_CSS = """
@@ -1477,6 +1572,7 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
                 showlegend=False
             ))
 
+    cone_frames = []
     if route_path and len(route_path) > 1:
         rx = [node_coords[n][0] for n in route_path]
         ry = [node_coords[n][1] for n in route_path]
@@ -1491,28 +1587,44 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
             showlegend=False
         ))
 
-        cone_x, cone_y, cone_z = [], [], []
-        cone_u, cone_v, cone_w = [], [], []
-
-        for i in range(len(route_path) - 1):
-            x1, y1, z1_idx = node_coords[route_path[i]]
-            x2, y2, z2_idx = node_coords[route_path[i + 1]]
-            z1, z2 = z1_idx * 40, z2_idx * 40
-
-            cone_x.append(x1 + 0.6 * (x2 - x1))
-            cone_y.append(y1 + 0.6 * (y2 - y1))
-            cone_z.append(z1 + 0.6 * (z2 - z1))
-
-            cone_u.append(x2 - x1)
-            cone_v.append(y2 - y1)
-            cone_w.append(z2 - z1)
-
-        if cone_x:
+        # Cones that travel along the route (frames are played by the Play button).
+        # Direction vectors are unit vectors * CONE_LEN; tweak CONE_LEN / sizeref if they look too big or small.
+        CONE_LEN, CONE_SIZEREF = 15.0, 30
+        cone_anim = build_arrow_frames(list(zip(rx, ry, rz)), 20.0)
+        if cone_anim:
+            def cone_arrays(arrows):
+                return dict(
+                    x=[p[0] for p, _ in arrows], y=[p[1] for p, _ in arrows], z=[p[2] for p, _ in arrows],
+                    u=[d[0] * CONE_LEN for _, d in arrows], v=[d[1] * CONE_LEN for _, d in arrows],
+                    w=[d[2] * CONE_LEN for _, d in arrows],
+                )
+            cone_trace_idx = len(fig.data)
             fig.add_trace(go.Cone(
-                x=cone_x, y=cone_y, z=cone_z,
-                u=cone_u, v=cone_v, w=cone_w,
+                **cone_arrays(cone_anim[0]),
                 colorscale=[[0, '#CC0000'], [1, '#CC0000']],
-                showscale=False, sizemode="absolute", sizeref=30, anchor="tip"
+                showscale=False, sizemode="absolute", sizeref=CONE_SIZEREF, anchor="tip", hoverinfo="skip",
+            ))
+            for k, arrows in enumerate(cone_anim):
+                cone_frames.append(go.Frame(
+                    name=f"arrow{k}", traces=[cone_trace_idx], data=[go.Cone(**cone_arrays(arrows))],
+                ))
+
+        # Hover annotation along the route, floor by floor (place + distance left to the destination)
+        h_x, h_y, h_z, h_text = [], [], [], []
+        for fz in range(4):
+            hov = build_route_hover(route_path, node_coords, fz, current_lang)
+            if hov:
+                h_x += [s[1] for s in hov["samples"]]
+                h_y += [s[0] for s in hov["samples"]]
+                h_z += [fz * 40] * len(hov["samples"])
+                h_text += hover_text_lines(hov["samples"], hov)
+        if h_x:
+            fig.add_trace(go.Scatter3d(
+                x=h_x, y=h_y, z=h_z, mode="markers",
+                marker=dict(size=7, color="#EF4444", opacity=0.02),
+                hovertext=h_text, hoverinfo="text",
+                hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
+                showlegend=False,
             ))
 
     fig.update_layout(
@@ -1525,6 +1637,9 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
         height=680,
         margin=dict(l=0, r=0, t=0, b=0)
     )
+    if cone_frames:
+        fig.frames = cone_frames
+        fig.update_layout(updatemenus=[play_menu(current_lang, [f.name for f in cone_frames])])
     return fig
 
 def add_parking_infrastructure_markers(m, lang="English"):
