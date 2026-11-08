@@ -4,6 +4,7 @@ import copy
 import functools
 import json
 import streamlit as st
+import streamlit.components.v1 as components
 import folium
 import plotly.graph_objects as go
 from streamlit_folium import st_folium
@@ -1613,7 +1614,7 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
                 showlegend=False
             ))
 
-    cone_frames = []
+    arrow3d_payload = None   # arrow positions per frame, played by JS (see render_3d_html)
     if route_path and len(route_path) > 1:
         rx = [node_coords[n][0] for n in route_path]
         ry = [node_coords[n][1] for n in route_path]
@@ -1658,11 +1659,8 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
                 x=ax0, y=ay0, z=az0, mode="lines",
                 line=dict(color="#CC0000", width=7), hoverinfo="skip", showlegend=False,
             ))
-            for k, arrows in enumerate(arrow3d_anim):
-                fx, fy, fz_ = arrow3d_lines(arrows)
-                cone_frames.append(go.Frame(
-                    name=f"arrow{k}", traces=[arrow3d_idx], data=[go.Scatter3d(x=fx, y=fy, z=fz_)],
-                ))
+            arrow3d_payload = {"trace": arrow3d_idx,
+                               "frames": [list(arrow3d_lines(arrows)) for arrows in arrow3d_anim]}
 
         # Hover annotation along the route, floor by floor (place + distance left to the destination)
         h_x, h_y, h_z, h_text = [], [], [], []
@@ -1706,10 +1704,43 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
         height=680,
         margin=dict(l=0, r=0, t=0, b=0)
     )
-    if cone_frames:
-        fig.frames = cone_frames
-        fig.update_layout(updatemenus=[play_menu(current_lang, [f.name for f in cone_frames])])
-    return fig
+    return fig, arrow3d_payload
+
+def render_3d_html(fig, payload, lang="English", height=680):
+    """3D map as standalone HTML (for st.components.v1.html) with the arrow animation driven by JS.
+
+    Plotly's own frame animation redraws the whole 3D scene on every frame, which resets the
+    camera (the map zoomed out and could not be rotated/zoomed while playing). Here the arrows are
+    updated with Plotly.restyle on one trace only, so the camera is never touched."""
+    play_lbl, pause_lbl = PLAY_LABELS.get(lang, PLAY_LABELS["English"])
+    js = """
+(function () {
+    var gd = document.getElementById('{plot_id}');
+    var P = __PAYLOAD__, MS = __MS__;
+    var i = 0, timer = null, busy = false;
+    function step() {
+        if (busy) return;
+        busy = true;
+        i = (i + 1) % P.frames.length;
+        var f = P.frames[i];
+        Plotly.restyle(gd, {x: [f[0]], y: [f[1]], z: [f[2]]}, [P.trace])
+            .then(function () { busy = false; }, function () { busy = false; });
+    }
+    document.getElementById('arrow-play').onclick = function () { if (!timer) timer = setInterval(step, MS); };
+    document.getElementById('arrow-pause').onclick = function () { clearInterval(timer); timer = null; };
+})();
+""".replace("__PAYLOAD__", json.dumps(payload)).replace("__MS__", str(ARROW_FRAME_MS)) if payload else None
+
+    bar = ""
+    if payload:
+        btn = ("font:12px sans-serif;color:#0f172a;background:#fff;border:1px solid #CBD5E1;"
+               "border-radius:4px;padding:4px 10px;margin-right:6px;cursor:pointer;")
+        bar = (f'<div style="margin:2px 0 4px 4px;">'
+               f'<button id="arrow-play" style="{btn}">{play_lbl}</button>'
+               f'<button id="arrow-pause" style="{btn}">{pause_lbl}</button></div>')
+    body = fig.to_html(full_html=False, include_plotlyjs="cdn", default_height=f"{height}px",
+                       config={"displaylogo": False}, post_script=js)
+    return bar + body
 
 def add_parking_infrastructure_markers(m, lang="English"):
     feature_nodes = {
@@ -2774,8 +2805,9 @@ with tab_map:
             else:
                 st.session_state.last_processed_click = None
     else:
-        fig_3d = render_3d_isometric_view(route_path=path, node_coords=temp_nodes, current_lang=st.session_state.lang, show_doors=show_doors)
-        st.plotly_chart(fig_3d, use_container_width=True)
+        fig_3d, arrow3d_payload = render_3d_isometric_view(route_path=path, node_coords=temp_nodes, current_lang=st.session_state.lang, show_doors=show_doors)
+        components.html(render_3d_html(fig_3d, arrow3d_payload, st.session_state.lang, height=680),
+                        height=730, scrolling=False)
 
 # ------------------------------------------------------------------------------
 # Directions Tab
