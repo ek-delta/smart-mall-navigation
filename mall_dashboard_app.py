@@ -1509,20 +1509,108 @@ def add_parking_infrastructure_markers(m, lang="English"):
                 )
             ).add_to(m)
 
+class MovingArrows(MacroElement):
+    """Arrowheads that glide along a route (in the direction of travel) and loop.
+
+    Each arrow is a small Leaflet marker that a requestAnimationFrame loop moves along the
+    polyline and turns to face the way it is heading. Map units are metres (CRS.Simple),
+    so SPACING and SPEED are in metres / metres per second."""
+    _template = Template("{% macro script(this, kwargs) %}{{ this.build_js() }}{% endmacro %}")
+
+    SPACING = 9.0
+    SPEED = 11.0
+
+    def __init__(self, line_pts, color="#EF4444"):
+        super().__init__()
+        self._name = "MovingArrows"
+        self.line_pts = [[float(p[0]), float(p[1])] for p in line_pts]
+        self.color = color
+
+    def build_js(self):
+        node = self._parent
+        while node is not None and not isinstance(node, folium.Map):
+            node = getattr(node, "_parent", None)
+        map_var = node.get_name() if node is not None else self._parent.get_name()
+        js = """
+(function () {
+    var map = __MAP__;
+    var pts = __PTS__;            // [lat, lng] = [y, x]
+    var COLOR = __COLOR__;
+    var SPACING = __SPACING__, SPEED = __SPEED__;
+
+    // cumulative length along the route
+    var cum = [0];
+    for (var i = 1; i < pts.length; i++) {
+        cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    }
+    var total = cum[cum.length - 1];
+    if (!(total > 1)) return;
+
+    function at(d) {                // position + heading at distance d along the route
+        d = ((d % total) + total) % total;
+        var k = 1;
+        while (k < cum.length - 1 && cum[k] < d) k++;
+        var seg = cum[k] - cum[k - 1] || 1e-9, t = (d - cum[k - 1]) / seg;
+        var a = pts[k - 1], b = pts[k];
+        return {
+            lat: a[0] + (b[0] - a[0]) * t,
+            lng: a[1] + (b[1] - a[1]) * t,
+            deg: Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI   // east = 0, north = 90
+        };
+    }
+
+    var svg = '<svg width="22" height="22" viewBox="-11 -11 22 22" style="display:block;overflow:visible">' +
+              '<polygon points="9,0 -6,-7 -3,0 -6,7" fill="' + COLOR + '" stroke="#FFFFFF" stroke-width="1.6" ' +
+              'stroke-linejoin="round"/></svg>';
+    var n = Math.max(1, Math.floor(total / SPACING));
+    var gap = total / n;
+    var arrows = [];
+    for (var j = 0; j < n; j++) {
+        var m = L.marker([pts[0][0], pts[0][1]], {
+            interactive: false, keyboard: false,
+            icon: L.divIcon({
+                className: '',
+                html: '<div class="mv-arrow" style="width:22px;height:22px;pointer-events:none;">' + svg + '</div>',
+                iconSize: [22, 22], iconAnchor: [11, 11]
+            })
+        }).addTo(map);
+        arrows.push(m);
+    }
+
+    function place(offset) {
+        for (var j = 0; j < arrows.length; j++) {
+            var p = at(offset + j * gap);
+            arrows[j].setLatLng([p.lat, p.lng]);
+            var el = arrows[j]._icon && arrows[j]._icon.firstChild;
+            if (el) el.style.transform = 'rotate(' + (-p.deg) + 'deg)';   // screen y points down
+        }
+    }
+
+    var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (still) { place(0); return; }
+
+    var t0 = null;
+    function frame(ts) {
+        if (!map.getContainer().isConnected) return;     // map was replaced: stop
+        if (t0 === null) t0 = ts;
+        place(((ts - t0) / 1000) * SPEED);
+        requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+})();
+"""
+        return (js.replace("__MAP__", map_var)
+                  .replace("__PTS__", json.dumps(self.line_pts))
+                  .replace("__COLOR__", json.dumps(self.color))
+                  .replace("__SPACING__", str(self.SPACING))
+                  .replace("__SPEED__", str(self.SPEED)))
+
 def add_animated_route(m, line_pts, color):
-    """Route line with animated flow in the direction of travel plus arrowheads along it."""
-    # Soft base line; the arrowheads are written along it
-    base = folium.PolyLine(locations=line_pts, color=color, weight=7, opacity=0.35)
-    base.add_to(m)
-    PolyLineTextPath(
-        base, "\u25BA", repeat=True, offset=6,
-        attributes={"fill": color, "font-weight": "bold", "font-size": "18"},
-    ).add_to(m)
-    # Dashes that flow from the start to the end of the route
-    AntPath(
-        locations=line_pts, color=color, pulse_color="#FFFFFF",
-        weight=5, opacity=0.9, delay=900, dash_array=[12, 26],
-    ).add_to(m)
+    """Route line with arrowheads that travel along it from the start to the end."""
+    # Soft wide line under a thinner solid line; the arrows move on top of them
+    folium.PolyLine(locations=line_pts, color=color, weight=8, opacity=0.30).add_to(m)
+    folium.PolyLine(locations=line_pts, color=color, weight=3, opacity=0.90).add_to(m)
+    MovingArrows(line_pts, color).add_to(m)
 
 def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang="English", route_color="#2563EB"):
     rooftop_rooms = {r_id: poly["coords"] for r_id, poly in ROOM_POLYGONS.items() if poly["z"] == 3}
@@ -2268,7 +2356,7 @@ with tab_map:
                 returned_objects=["last_clicked"],   # no pan/zoom reruns
             )
             # Same as the Smart Parking map: the route is part of the map itself, so the
-            # AntPath / TextPath plugins run normally (the map is rebuilt on each new click).
+            # moving-arrow script runs normally (the map is rebuilt on each new click).
             base_map.add_child(route_layer)
             map_data = st_folium(base_map, **folium_kwargs)
 
