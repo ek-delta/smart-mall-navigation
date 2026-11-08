@@ -1158,27 +1158,8 @@ FOLIUM_BASE_CSS = """
 @media (prefers-reduced-motion: reduce) {
     .route-flow, path.leaflet-interactive[stroke="#FFFEFD"] { animation: none; }
 }
-/* Arrowheads light up one after another, so a wave runs start -> destination */
-@keyframes route-arrow-wave {
-    0%, 100% { fill-opacity: 0.12; stroke-opacity: 0.35; }
-    30%      { fill-opacity: 1;    stroke-opacity: 1; }
-    60%      { fill-opacity: 0.12; stroke-opacity: 0.35; }
-}
-.route-arrow {
-    animation: route-arrow-wave __CYCLE__s ease-in-out infinite;
-    pointer-events: none;
-}
-__PHASE_RULES__
-@media (prefers-reduced-motion: reduce) {
-    .route-arrow { animation: none; fill-opacity: 1; stroke-opacity: 1; }
-}
 </style>
 """
-FOLIUM_BASE_CSS = (FOLIUM_BASE_CSS
-    .replace("__CYCLE__", str(ARROW_CYCLE_S))
-    .replace("__PHASE_RULES__", "\n".join(
-        f".route-arrow.arrow-phase-{k} {{ animation-delay: {k * ARROW_CYCLE_S / ARROW_PHASES - ARROW_CYCLE_S:.3f}s; }}"
-        for k in range(ARROW_PHASES))))
 
 def build_axis_grid_js(map_var, x_title="X (m)", y_title="Y (m)"):
     """Leaflet script that draws numbered X/Y axes and grid lines on a CRS.Simple map.
@@ -1335,6 +1316,12 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
     AxisGrid().add_to(m)
     m.fit_bounds(bounds)
 
+    # The route layer is swapped in separately, so the AntPath / TextPath plugin scripts
+    # must already be loaded by the base map (whose HTML never changes between clicks).
+    for plugin_cls in (AntPath, PolyLineTextPath):
+        for js_name, js_url in getattr(plugin_cls, "default_js", []):
+            m.add_js_link(js_name, js_url)
+
     # ---- route layer (changes with every click) ----
     route_layer = folium.FeatureGroup(name="route")
     if route_path:
@@ -1344,27 +1331,9 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
         if len(floor_path) > 1:
             xy = [(node_coords_dict[n][0], node_coords_dict[n][1]) for n in floor_path]
             line_pts = [[y, x] for x, y in xy]
-            folium.PolyLine(locations=line_pts, color="#EF4444", weight=5, opacity=0.95).add_to(route_layer)
-            # Dashes that flow from the start to the destination (animated by FOLIUM_BASE_CSS)
-            folium.PolyLine(
-                locations=line_pts, color=ROUTE_FLOW_COLOR, weight=2.5, opacity=0.95,
-                dash_array="10 24", class_name="route-flow",
-            ).add_to(route_layer)
-            # Arrowheads showing the direction of travel
-            arrow_x, arrow_y = route_arrow_polygons(xy)
-            tri = []
-            arrow_idx = 0
-            for ax, ay in zip(arrow_x, arrow_y):
-                if ax is None:
-                    folium.Polygon(
-                        locations=tri, color="#B91C1C", weight=1.5, fill=True,
-                        fill_color="#FFFFFF", fill_opacity=1.0,
-                        class_name=f"route-arrow arrow-phase-{arrow_idx % ARROW_PHASES}",
-                    ).add_to(route_layer)
-                    arrow_idx += 1
-                    tri = []
-                else:
-                    tri.append([ay, ax])
+            # Same animated route as the Smart Parking map: arrowheads along the line
+            # plus flowing dashes, both running from the start to the destination.
+            add_animated_route(route_layer, line_pts, "#EF4444")
 
         for idx, stop_id in enumerate(stop_ids or [], start=1):
             if on_floor(stop_id):
