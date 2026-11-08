@@ -1549,6 +1549,10 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     return m, route_layer
 
+# Soft, translucent grid for the 3D scene (same tone as the 2D map grid)
+GRID3D = dict(gridcolor="rgba(100,116,139,0.18)", zerolinecolor="rgba(100,116,139,0.18)",
+              linecolor="rgba(100,116,139,0.35)", showgrid=True, gridwidth=1)
+
 def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="English", show_doors=True):
     node_coords = node_coords or MULTI_CAD_NODES
     fig = go.Figure()
@@ -1693,9 +1697,9 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
     longest = max(spans)
     fig.update_layout(
         scene=dict(
-            xaxis=dict(title="X (m)", backgroundcolor="#F8FAFC", range=x_rng, autorange=False),
-            yaxis=dict(title="Y (m)", backgroundcolor="#F8FAFC", range=y_rng, autorange=False),
-            zaxis=dict(title="Floor Level", backgroundcolor="#F8FAFC", range=z_rng, autorange=False),
+            xaxis=dict(title="X (m)", backgroundcolor="#F8FAFC", **GRID3D, range=x_rng, autorange=False),
+            yaxis=dict(title="Y (m)", backgroundcolor="#F8FAFC", **GRID3D, range=y_rng, autorange=False),
+            zaxis=dict(title="Floor Level", backgroundcolor="#F8FAFC", **GRID3D, range=z_rng, autorange=False),
             aspectmode="manual",
             aspectratio=dict(x=spans[0] / longest, y=spans[1] / longest, z=spans[2] / longest),
         ),
@@ -1749,8 +1753,16 @@ def render_3d_html(fig, payload, lang="English", height=680):
         bar = (f'<div style="margin:2px 0 4px 4px;">'
                f'<button id="arrow-play" style="{btn}">{play_lbl}</button>'
                f'<button id="arrow-pause" style="{btn}">{pause_lbl}</button></div>')
+    # Streamlit's chart theme normally styles the axes/grid; outside it Plotly falls back to its own
+    # defaults (white grid on grey walls), so the grid is styled explicitly here.
+    grid_axis = dict(showgrid=True, gridcolor="rgba(100,116,139,0.15)", gridwidth=1,
+                     zeroline=False, showline=True, linecolor="rgba(100,116,139,0.45)",
+                     showbackground=False, backgroundcolor="rgba(0,0,0,0)",
+                     tickfont=dict(size=11, color="#64748B"),
+                     title_font=dict(size=12, color="#64748B"))
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      scene_bgcolor="rgba(0,0,0,0)")
+                      font=dict(family="Source Sans Pro, sans-serif"),
+                      scene=dict(bgcolor="rgba(0,0,0,0)", xaxis=grid_axis, yaxis=grid_axis, zaxis=grid_axis))
     body = fig.to_html(full_html=False, include_plotlyjs="cdn", default_height=f"{height}px",
                        config={"displaylogo": False}, post_script=js)
     return '<style>html,body{background:transparent !important;margin:0;}</style>' + bar + body
