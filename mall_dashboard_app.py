@@ -1158,8 +1158,27 @@ FOLIUM_BASE_CSS = """
 @media (prefers-reduced-motion: reduce) {
     .route-flow, path.leaflet-interactive[stroke="#FFFEFD"] { animation: none; }
 }
+/* Arrowheads light up one after another, so a wave runs start -> destination */
+@keyframes route-arrow-wave {
+    0%, 100% { fill-opacity: 0.12; stroke-opacity: 0.35; }
+    30%      { fill-opacity: 1;    stroke-opacity: 1; }
+    60%      { fill-opacity: 0.12; stroke-opacity: 0.35; }
+}
+.route-arrow {
+    animation: route-arrow-wave __CYCLE__s ease-in-out infinite;
+    pointer-events: none;
+}
+__PHASE_RULES__
+@media (prefers-reduced-motion: reduce) {
+    .route-arrow { animation: none; fill-opacity: 1; stroke-opacity: 1; }
+}
 </style>
 """
+FOLIUM_BASE_CSS = (FOLIUM_BASE_CSS
+    .replace("__CYCLE__", str(ARROW_CYCLE_S))
+    .replace("__PHASE_RULES__", "\n".join(
+        f".route-arrow.arrow-phase-{k} {{ animation-delay: {k * ARROW_CYCLE_S / ARROW_PHASES - ARROW_CYCLE_S:.3f}s; }}"
+        for k in range(ARROW_PHASES))))
 
 def build_axis_grid_js(map_var, x_title="X (m)", y_title="Y (m)"):
     """Leaflet script that draws numbered X/Y axes and grid lines on a CRS.Simple map.
@@ -1334,12 +1353,15 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
             # Arrowheads showing the direction of travel
             arrow_x, arrow_y = route_arrow_polygons(xy)
             tri = []
+            arrow_idx = 0
             for ax, ay in zip(arrow_x, arrow_y):
                 if ax is None:
                     folium.Polygon(
                         locations=tri, color="#B91C1C", weight=1.5, fill=True,
                         fill_color="#FFFFFF", fill_opacity=1.0,
+                        class_name=f"route-arrow arrow-phase-{arrow_idx % ARROW_PHASES}",
                     ).add_to(route_layer)
+                    arrow_idx += 1
                     tri = []
                 else:
                     tri.append([ay, ax])
