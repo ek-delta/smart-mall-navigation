@@ -1749,8 +1749,16 @@ def render_3d_html(fig, payload, lang="English", height=680):
         bar = (f'<div style="margin:2px 0 4px 4px;">'
                f'<button id="arrow-play" style="{btn}">{play_lbl}</button>'
                f'<button id="arrow-pause" style="{btn}">{pause_lbl}</button></div>')
+    # Streamlit's chart theme normally styles the axes/grid; outside it Plotly falls back to its own
+    # defaults (white grid on grey walls), so the grid is styled explicitly here.
+    grid_axis = dict(showgrid=True, gridcolor="rgba(100,116,139,0.28)", gridwidth=1,
+                     zeroline=False, showline=True, linecolor="#64748B",
+                     showbackground=True, backgroundcolor="#F8FAFC",
+                     tickfont=dict(size=11, color="#64748B"),
+                     title_font=dict(size=12, color="#64748B"))
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      scene_bgcolor="rgba(0,0,0,0)")
+                      font=dict(family="Source Sans Pro, sans-serif"),
+                      scene=dict(xaxis=grid_axis, yaxis=grid_axis, zaxis=grid_axis))
     body = fig.to_html(full_html=False, include_plotlyjs="cdn", default_height=f"{height}px",
                        config={"displaylogo": False}, post_script=js)
     return '<style>html,body{background:transparent !important;margin:0;}</style>' + bar + body
