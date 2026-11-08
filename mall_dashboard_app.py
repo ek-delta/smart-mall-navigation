@@ -1019,8 +1019,9 @@ def build_arrow_frames(points, spacing, n_frames=ARROW_FRAME_CYCLE):
         frames.append(arrows)
     return frames
 
-def play_menu(lang, frame_names, x=0.01, y=0.99):
-    """Play / Pause buttons that run the queued arrow frames."""
+def play_menu(lang, frame_names, x=0.01, y=0.99, redraw=True):
+    """Play / Pause buttons that run the queued arrow frames.
+    redraw=False updates only the moving trace (fast); 3D scenes need redraw=True."""
     play_lbl, pause_lbl = PLAY_LABELS.get(lang, PLAY_LABELS["English"])
     return dict(
         type="buttons", direction="left", showactive=False,
@@ -1029,7 +1030,7 @@ def play_menu(lang, frame_names, x=0.01, y=0.99):
         buttons=[
             dict(label=play_lbl, method="animate",
                  args=[list(frame_names) * ARROW_LOOPS,
-                       dict(frame=dict(duration=ARROW_FRAME_MS, redraw=True),
+                       dict(frame=dict(duration=ARROW_FRAME_MS, redraw=redraw),
                             transition=dict(duration=0), fromcurrent=True, mode="immediate")]),
             dict(label=pause_lbl, method="animate",
                  args=[[None], dict(frame=dict(duration=0, redraw=False),
@@ -1127,22 +1128,29 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
             # Arrowheads that travel along the route (frames are played by the Play button)
             arrow_anim = build_arrow_frames(list(zip(route_x, route_y)), 9.0)
             if arrow_anim:
-                def arrow_arrays(arrows):
-                    return ([p[0] for p, _ in arrows], [p[1] for p, _ in arrows],
-                            [90 - math.degrees(math.atan2(d[1], d[0])) for _, d in arrows])  # clockwise from up
+                def arrow_polys(arrows, length=3.2, half_width=1.4):
+                    # Arrowheads as filled triangles (None-separated). The direction is part of the
+                    # shape, so a frame only changes x/y and Plotly can animate it without a full redraw.
+                    xs, ys = [], []
+                    for (cx, cy), (ux, uy) in arrows:
+                        nx, ny = -uy, ux
+                        tx, ty = cx + ux * length / 2, cy + uy * length / 2
+                        bx, by = cx - ux * length / 2, cy - uy * length / 2
+                        xs += [tx, bx + nx * half_width, bx - nx * half_width, tx, None]
+                        ys += [ty, by + ny * half_width, by - ny * half_width, ty, None]
+                    return xs, ys
                 arrow_trace_idx = len(fig.data)
-                ax0, ay0, ang0 = arrow_arrays(arrow_anim[0])
+                ax0, ay0 = arrow_polys(arrow_anim[0])
                 fig.add_trace(go.Scatter(
-                    x=ax0, y=ay0, mode="markers",
-                    marker=dict(symbol="triangle-up", size=15, color="#FFFFFF", angle=ang0, angleref="up",
-                                line=dict(color="#B91C1C", width=1.8)),
+                    x=ax0, y=ay0, mode="lines", fill="toself",
+                    fillcolor="#FFFFFF", line=dict(color="#B91C1C", width=1.5),
                     hoverinfo="skip", showlegend=False,
                 ))
                 for k, arrows in enumerate(arrow_anim):
-                    fx, fy, fang = arrow_arrays(arrows)
+                    fx, fy = arrow_polys(arrows)
                     arrow_frames.append(go.Frame(
                         name=f"arrow{k}", traces=[arrow_trace_idx],
-                        data=[go.Scatter(x=fx, y=fy, marker=dict(angle=fang))],
+                        data=[go.Scatter(x=fx, y=fy)],
                     ))
 
         stop_nodes = [(i, n) for i, n in enumerate(stop_ids or [], start=1) if on_floor(n)]
@@ -1232,7 +1240,7 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
     )
     if arrow_frames:
         fig.frames = arrow_frames
-        fig.update_layout(updatemenus=[play_menu(current_lang, [f.name for f in arrow_frames])])
+        fig.update_layout(updatemenus=[play_menu(current_lang, [f.name for f in arrow_frames], redraw=False)])
     return fig
 
 FOLIUM_BASE_CSS = """
