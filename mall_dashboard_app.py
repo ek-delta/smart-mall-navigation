@@ -979,7 +979,6 @@ PLAY_LABELS = {
     "Simplified Chinese": ("▶ 播放箭头", "⏸ 暂停"),
     "Malay": ("▶ Mainkan anak panah", "⏸ Jeda"),
 }
-HOVER_MARKER_PX_2D = 44    # size of the invisible hover targets along the route (2D); bigger = wider hover area
 HOVER_MARKER_PX_3D = 22    # same for the 3D map
 ARROW_FRAME_CYCLE = 18     # frames for an arrow to travel one arrow-spacing
 ARROW_FRAME_MS = 50        # milliseconds per frame
@@ -1052,31 +1051,26 @@ def hover_text_lines(samples, hover):
         texts.append(line)
     return texts
 
-HOVER_BAND_M = 4.0   # 2D Plotly: the route's hover area reaches this many metres to each side of the line
+HOVER_BAND_M = 3.0   # 2D Plotly: the route shows its annotation within this many metres of the line
 
-def widen_hover_samples(samples, half_width, offsets=(-1.0, -0.5, 0.0, 0.5, 1.0)):
-    """Spread each hover sample sideways across the route (perpendicular to its direction), so the
-    hover area is a band `half_width` metres to each side of the line. This is set in map units
-    and does not depend on how Plotly sizes markers or ranks the nearest point.
-    Returns (xs, ys, sample_index) where sample_index points back into `samples`."""
-    xs, ys, idx = [], [], []
-    n = len(samples)
-    for i, s in enumerate(samples):
-        y, x = s[0], s[1]
-        dx = dy = 0.0
-        for j in (i + 1, i - 1):             # direction from a neighbouring sample
-            if 0 <= j < n:
-                ddx, ddy = samples[j][1] - x, samples[j][0] - y
-                if math.hypot(ddx, ddy) > 1e-9:
-                    dx, dy = (ddx, ddy) if j > i else (-ddx, -ddy)
-                    break
-        length = math.hypot(dx, dy) or 1.0
-        nx, ny = -dy / length, dx / length   # unit vector across the route
-        for o in offsets:
-            xs.append(round(x + nx * o * half_width, 2))
-            ys.append(round(y + ny * o * half_width, 2))
-            idx.append(i)
-    return xs, ys, idx
+def route_hover_band(gx, gy, samples, band_m):
+    """For every click-grid point: is it within `band_m` metres of the route, and which route
+    sample is nearest to it? Returns (in_band boolean array, nearest sample index array)."""
+    import numpy as np
+    gxa, gya = np.asarray(gx, dtype=float), np.asarray(gy, dtype=float)
+    sx = np.array([s[1] for s in samples], dtype=float)
+    sy = np.array([s[0] for s in samples], dtype=float)
+    if gxa.size == 0 or sx.size == 0:
+        return None, None
+    nearest = np.empty(gxa.size, dtype=int)
+    dist = np.empty(gxa.size)
+    for a in range(0, gxa.size, 2000):               # chunks keep memory small
+        b = a + 2000
+        d2 = (gxa[a:b, None] - sx[None, :]) ** 2 + (gya[a:b, None] - sy[None, :]) ** 2
+        k = d2.argmin(axis=1)
+        nearest[a:b] = k
+        dist[a:b] = np.sqrt(d2[np.arange(k.size), k])
+    return dist <= band_m, nearest
 
 def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
@@ -1209,26 +1203,40 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     # Invisible click targets (added last)
     gx, gy = build_click_grid(floor_z)
-    fig.add_trace(go.Scatter(
-        x=list(gx), y=list(gy), mode="markers",
-        marker=dict(size=12, color="rgba(0,0,0,0)"),
-        hoverinfo="none", showlegend=False,
-    ))
-
-    # Hover annotation along the route: place under the mouse + distance left to the destination.
-    # Added after the click grid and with larger markers, so it wins where the two overlap.
+    hover = None
     if route_path:
         hover = build_route_hover(route_path, node_coords_dict, floor_z, current_lang, include_remaining=show_dest)
-        if hover:
-            band_x, band_y, band_idx = widen_hover_samples(hover["samples"], HOVER_BAND_M)
-            texts = hover_text_lines(hover["samples"], hover)
-            fig.add_trace(go.Scatter(
-                x=band_x, y=band_y, mode="markers",
-                marker=dict(size=HOVER_MARKER_PX_2D, color="rgba(0,0,0,0)"),
-                hovertext=[texts[i] for i in band_idx], hoverinfo="text",
-                hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
-                showlegend=False,
-            ))
+
+    # The click grid doubles as the hover layer. Grid points within HOVER_BAND_M metres of the route
+    # form a second trace that shows the route annotation; every other grid point stays a silent
+    # click target. The two sets never overlap, so no point can win the "closest point" contest
+    # and hide the tooltip (that contest made it flicker and leave gaps), and the hover area is
+    # an even band along the whole route.
+    in_band, nearest = (None, None)
+    if hover:
+        in_band, nearest = route_hover_band(gx, gy, hover["samples"], HOVER_BAND_M)
+    if in_band is not None and in_band.any():
+        texts = hover_text_lines(hover["samples"], hover)
+        plain = [i for i in range(len(gx)) if not in_band[i]]
+        band = [i for i in range(len(gx)) if in_band[i]]
+        fig.add_trace(go.Scatter(
+            x=[gx[i] for i in plain], y=[gy[i] for i in plain], mode="markers",
+            marker=dict(size=12, color="rgba(0,0,0,0)"),
+            hoverinfo="none", showlegend=False,
+        ))
+        fig.add_trace(go.Scatter(
+            x=[gx[i] for i in band], y=[gy[i] for i in band], mode="markers",
+            marker=dict(size=12, color="rgba(0,0,0,0)"),
+            hovertext=[texts[int(nearest[i])] for i in band], hoverinfo="text",
+            hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
+            showlegend=False,
+        ))
+    else:
+        fig.add_trace(go.Scatter(
+            x=list(gx), y=list(gy), mode="markers",
+            marker=dict(size=12, color="rgba(0,0,0,0)"),
+            hoverinfo="none", showlegend=False,
+        ))
 
     # Keep markers at full strength when a point is selected
     fig.update_traces(selected=dict(marker=dict(opacity=1)), unselected=dict(marker=dict(opacity=1)))
