@@ -1549,6 +1549,10 @@ def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULT
 
     return m, route_layer
 
+# Soft, translucent grid for the 3D scene (same tone as the 2D map grid)
+GRID3D = dict(gridcolor="rgba(100,116,139,0.18)", zerolinecolor="rgba(100,116,139,0.18)",
+              linecolor="rgba(100,116,139,0.35)", showgrid=True, gridwidth=1)
+
 def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="English", show_doors=True):
     node_coords = node_coords or MULTI_CAD_NODES
     fig = go.Figure()
@@ -1693,9 +1697,9 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
     longest = max(spans)
     fig.update_layout(
         scene=dict(
-            xaxis=dict(title="X (m)", backgroundcolor="#F8FAFC", range=x_rng, autorange=False),
-            yaxis=dict(title="Y (m)", backgroundcolor="#F8FAFC", range=y_rng, autorange=False),
-            zaxis=dict(title="Floor Level", backgroundcolor="#F8FAFC", range=z_rng, autorange=False),
+            xaxis=dict(title="X (m)", backgroundcolor="#F8FAFC", **GRID3D, range=x_rng, autorange=False),
+            yaxis=dict(title="Y (m)", backgroundcolor="#F8FAFC", **GRID3D, range=y_rng, autorange=False),
+            zaxis=dict(title="Floor Level", backgroundcolor="#F8FAFC", **GRID3D, range=z_rng, autorange=False),
             aspectmode="manual",
             aspectratio=dict(x=spans[0] / longest, y=spans[1] / longest, z=spans[2] / longest),
         ),
