@@ -94,6 +94,7 @@ LOCALIZATION = {
         "pick_step_3": "👇 *Step 3:* Click anywhere on the map to set as *Destination*.",
         "pick_3d_notice": "Interactive map selection works on the 2D map. Switch to the 2D view to click points.",
         "map_nav_hint_folium": "🖱️ Drag to pan · scroll to zoom · click anywhere to choose a point (exact position).",
+        "map_nav_hint_parking": "🖱️ Drag to pan · scroll to zoom · double-click to reset the view · use the toolbar's Autoscale button to fit the whole floor.",
         "map_nav_hint": "🖱️ Drag to pan · scroll to zoom · double-click to reset the view · click to choose a point (snaps to the nearest 1 m).",
         "btn_done_adding_stops": "➡️ Done Adding Stops (Next: Pick Destination)",
         "btn_add_as_stop": "➕ Add as Stop",
@@ -179,6 +180,7 @@ LOCALIZATION = {
         "pick_step_3": "👇 *步骤 3：* 点击地图任意位置设为 *终点位置*。",
         "pick_3d_notice": "交互式地图选点仅支持 2D 地图，请切换到 2D 视图后再点击。",
         "map_nav_hint_folium": "🖱️ 拖动平移 · 滚轮缩放 · 点击地图任意位置选点（精确位置）。",
+        "map_nav_hint_parking": "🖱️ 拖动平移 · 滚轮缩放 · 双击重置视图 · 使用工具栏的“自动缩放”按钮适配整层平面图。",
         "map_nav_hint": "🖱️ 拖动平移 · 滚轮缩放 · 双击重置视图 · 点击选点（吸附到最近的 1 米）。",
         "btn_done_adding_stops": "➡️ 完成添加途经点 (下一步: 选择终点)",
         "btn_add_as_stop": "➕ 添加为途经点",
@@ -264,6 +266,7 @@ LOCALIZATION = {
         "pick_step_3": "👇 *Langkah 3:* Klik di mana-mana pada peta untuk tetapkan *Destinasi*.",
         "pick_3d_notice": "Pemilihan peta interaktif berfungsi pada peta 2D. Tukar ke paparan 2D untuk mengklik titik.",
         "map_nav_hint_folium": "🖱️ Seret untuk alih · skrol untuk zum · klik di mana-mana untuk pilih titik (kedudukan tepat).",
+        "map_nav_hint_parking": "🖱️ Seret untuk alih · skrol untuk zum · klik dua kali untuk set semula paparan · guna butang Autoscale pada bar alat untuk muatkan seluruh tingkat.",
         "map_nav_hint": "🖱️ Seret untuk alih · skrol untuk zum · klik dua kali untuk set semula paparan · klik untuk pilih titik (dipadankan ke 1 m terdekat).",
         "btn_done_adding_stops": "➡️ Selesai Menambah Hentian (Seterusnya: Pilih Destinasi)",
         "btn_add_as_stop": "➕ Tambah sebagai Hentian",
@@ -1074,7 +1077,8 @@ def route_hover_band(gx, gy, samples, band_m):
     return dist <= band_m, nearest
 
 def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
-                          stop_ids=None, show_dest=True, show_doors=True):
+                          stop_ids=None, show_dest=True, show_doors=True,
+                          show_slots=False, assigned_slot=None, route_color="#EF4444"):
     """2D floor plan. The view (pan/zoom) is kept across reruns via `uirevision`,
     so clicking a point no longer moves the map."""
     fig = go.Figure()
@@ -1099,6 +1103,8 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
     # Room labels
     lab_x, lab_y, lab_text = [], [], []
     for room_id, info in floor_rooms.items():
+        if show_slots and room_id in PARKING_SLOTS:
+            continue   # drawn as a coloured slot with its own label below
         coords = info["coords"]
         lab_x.append(sum(pt[0] for pt in coords) / len(coords))
         lab_y.append(sum(pt[1] for pt in coords) / len(coords))
@@ -1109,6 +1115,29 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         hoverinfo="skip", showlegend=False,
         unselected=dict(textfont=dict(color=LABEL_COLOR)),
     ))
+
+    # Parking slots: green = free, red = taken, blue = assigned to the driver
+    if show_slots:
+        s_lx, s_ly, s_txt = [], [], []
+        for slot_id, details in PARKING_SLOTS.items():
+            if slot_id not in node_coords_dict or int(node_coords_dict[slot_id][2]) != floor_z:
+                continue
+            cx, cy, _ = node_coords_dict[slot_id]
+            col = "#2563EB" if slot_id == assigned_slot else ("#DC2626" if details["occupied"] else "#16A34A")
+            hw, hh = 1.75, 3.0
+            fig.add_trace(go.Scatter(
+                x=[cx - hw, cx + hw, cx + hw, cx - hw, cx - hw],
+                y=[cy - hh, cy - hh, cy + hh, cy + hh, cy - hh],
+                mode="lines", fill="toself", fillcolor=hex_to_rgba(col, 0.8),
+                line=dict(color=col, width=1.5), hoverinfo="skip", showlegend=False,
+            ))
+            s_lx.append(cx); s_ly.append(cy); s_txt.append(slot_id)
+        if s_lx:
+            fig.add_trace(go.Scatter(
+                x=s_lx, y=s_ly, mode="text", text=s_txt, textposition="middle center",
+                textfont=dict(size=11, color="#FFFFFF"), hoverinfo="skip", showlegend=False,
+                unselected=dict(textfont=dict(color="#FFFFFF")),
+            ))
 
     # Entry/exit points
     if show_doors:
@@ -1139,7 +1168,7 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
             route_y = [node_coords_dict[n][1] for n in floor_path]
             fig.add_trace(go.Scatter(
                 x=route_x, y=route_y,
-                mode="lines", line=dict(color="#EF4444", width=5),
+                mode="lines", line=dict(color=route_color, width=5),
                 hoverinfo="skip", showlegend=False,
             ))
             # Arrowheads that travel along the route (frames are played by the Play button)
@@ -1755,7 +1784,7 @@ def render_3d_html(fig, payload, lang="English", height=680):
                f'<button id="arrow-pause" style="{btn}">{pause_lbl}</button></div>')
     # Streamlit's chart theme normally styles the axes/grid; outside it Plotly falls back to its own
     # defaults (white grid on grey walls), so the grid is styled explicitly here.
-    grid_axis = dict(showgrid=True, gridcolor="rgba(100,116,139,0.10)", gridwidth=1,
+    grid_axis = dict(showgrid=True, gridcolor="rgba(100,116,139,0.15)", gridwidth=1,
                      zeroline=False, showline=True, linecolor="rgba(100,116,139,0.45)",
                      showbackground=False, backgroundcolor="rgba(0,0,0,0)",
                      tickfont=dict(size=11, color="#64748B"),
@@ -1766,6 +1795,20 @@ def render_3d_html(fig, payload, lang="English", height=680):
     body = fig.to_html(full_html=False, include_plotlyjs="cdn", default_height=f"{height}px",
                        config={"displaylogo": False}, post_script=js)
     return '<style>html,body{background:transparent !important;margin:0;}</style>' + bar + body
+
+def show_parking_map(assigned_slot, route_path, lang, route_color, key):
+    """Rooftop parking map drawn with the 2D Plotly map (pan, scroll-zoom, numbered axes,
+    animated arrows, route hover and the toolbar's Autoscale / Reset axes buttons)."""
+    fig = render_2d_plotly_view(
+        3, route_path=route_path or None, node_coords_dict=MULTI_CAD_NODES, current_lang=lang,
+        show_dest=True, show_doors=True, show_slots=True, assigned_slot=assigned_slot,
+        route_color=route_color,
+    )
+    st.caption(LOCALIZATION.get(lang, LOCALIZATION["English"])["map_nav_hint_parking"])
+    st.plotly_chart(
+        fig, use_container_width=True, key=key,
+        config={"scrollZoom": True, "displaylogo": False, "modeBarButtonsToRemove": ["select2d", "lasso2d"]},
+    )
 
 def add_parking_infrastructure_markers(m, lang="English"):
     feature_nodes = {
@@ -2877,10 +2920,7 @@ with tab_park:
 
         with tab_entry:
             st.markdown(f"### {t['header_driving_to_spot']}")
-            entry_map = render_rooftop_folium_map(
-                assigned_slot=assigned_slot, route_path=entry_path, current_lang=curr_lang, route_color="#2563EB"
-            )
-            st_folium(entry_map, height=620, use_container_width=True, key="park_entry_map", returned_objects=[])
+            show_parking_map(assigned_slot, entry_path, curr_lang, "#2563EB", "park_entry_map")
 
             if entry_path:
                 entry_summary = compute_route_summary(entry_path, MULTI_CAD_NODES, lang=curr_lang)
@@ -2899,10 +2939,7 @@ with tab_park:
 
         with tab_exit:
             st.markdown(f"### {t['header_leaving_spot']}")
-            exit_map = render_rooftop_folium_map(
-                assigned_slot=assigned_slot, route_path=exit_path, current_lang=curr_lang, route_color="#F97316"
-            )
-            st_folium(exit_map, height=620, use_container_width=True, key="park_exit_map", returned_objects=[])
+            show_parking_map(assigned_slot, exit_path, curr_lang, "#F97316", "park_exit_map")
 
             if exit_path:
                 exit_summary = compute_route_summary(exit_path, MULTI_CAD_NODES, lang=curr_lang)
@@ -2920,8 +2957,7 @@ with tab_park:
                 render_direction_steps(exit_steps, t["step_lbl"])
     else:
         st.error(t["no_parking"])
-        empty_map = render_rooftop_folium_map(assigned_slot=None, route_path=[], current_lang=curr_lang)
-        st_folium(empty_map, height=620, use_container_width=True, key="park_empty_map", returned_objects=[])
+        show_parking_map(None, [], curr_lang, "#2563EB", "park_empty_map")
 
 # ==============================================================================
 # 7. Footer
