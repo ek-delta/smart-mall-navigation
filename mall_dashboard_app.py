@@ -1674,31 +1674,53 @@ class RouteHover(MacroElement):
     function esc(s) {
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
-    // wide invisible line on top of the route, so the mouse does not have to be pixel-exact
-    var hit = L.polyline(__PTS__, {weight: 22, opacity: 0, interactive: true, bubblingMouseEvents: true}).addTo(map);
+    var HIT_PX = 28;     // how close (in screen pixels) the mouse must be to the route
     var tip = L.tooltip({direction: 'top', offset: [0, -12], opacity: 0.96, className: 'route-hover-tip'});
     var dot = L.circleMarker([0, 0], {radius: 6, color: '#FFFFFF', weight: 2, fillColor: COLOR,
                                        fillOpacity: 1, interactive: false});
 
-    function nearest(ll) {
-        var best = 0, bd = Infinity;
-        for (var i = 0; i < S.length; i++) {
-            var d = (S[i][0] - ll.lat) * (S[i][0] - ll.lat) + (S[i][1] - ll.lng) * (S[i][1] - ll.lng);
-            if (d < bd) { bd = d; best = i; }
+    // Closest point on the route to the mouse, measured in screen pixels. This does not rely on
+    // the browser hit-testing a thin SVG line, so the hover area is centred on the route.
+    function closest(cp) {
+        var best = null, bd = Infinity;
+        var prev = map.latLngToContainerPoint([S[0][0], S[0][1]]);
+        for (var i = 1; i < S.length; i++) {
+            var cur = map.latLngToContainerPoint([S[i][0], S[i][1]]);
+            if (Math.abs(S[i][0] - S[i - 1][0]) + Math.abs(S[i][1] - S[i - 1][1]) < 3) {   // same leg
+                var dx = cur.x - prev.x, dy = cur.y - prev.y, len2 = dx * dx + dy * dy;
+                var t = len2 > 0 ? ((cp.x - prev.x) * dx + (cp.y - prev.y) * dy) / len2 : 0;
+                t = Math.max(0, Math.min(1, t));
+                var px = prev.x + dx * t, py = prev.y + dy * t;
+                var d = Math.hypot(cp.x - px, cp.y - py);
+                if (d < bd) {
+                    bd = d;
+                    var a = S[i - 1], b = S[i];
+                    best = {
+                        lat: a[0] + (b[0] - a[0]) * t, lng: a[1] + (b[1] - a[1]) * t,
+                        name: (t < 0.5 ? a : b)[2], rem: a[3] + (b[3] - a[3]) * t
+                    };
+                }
+            }
+            prev = cur;
         }
-        return S[best];
+        return bd <= HIT_PX ? best : null;
     }
-    function show(e) {
-        var s = nearest(e.latlng), ll = L.latLng(s[0], s[1]);
-        var html = '<div style="font:12px/1.35 sans-serif;"><b>' + esc(LOC) + ':</b> ' + esc(s[2]) + '</div>';
-        if (REM) html += '<div style="font:12px/1.35 sans-serif;">' + esc(REM) + ': <b>' + s[3].toFixed(1) + ' m</b></div>';
+    function hide() {
+        map.closeTooltip(tip);
+        if (map.hasLayer(dot)) map.removeLayer(dot);
+    }
+    map.on('mousemove', function (e) {
+        var s = closest(e.containerPoint);
+        if (!s) { hide(); return; }
+        var ll = L.latLng(s.lat, s.lng);
+        var html = '<div style="font:12px/1.35 sans-serif;"><b>' + esc(LOC) + ':</b> ' + esc(s.name) + '</div>';
+        if (REM) html += '<div style="font:12px/1.35 sans-serif;">' + esc(REM) + ': <b>' + s.rem.toFixed(1) + ' m</b></div>';
         tip.setLatLng(ll).setContent(html);
         dot.setLatLng(ll);
         if (!map.hasLayer(dot)) dot.addTo(map);
         if (!map.hasLayer(tip)) map.openTooltip(tip);
-    }
-    hit.on('mouseover mousemove', show);
-    hit.on('mouseout', function () { map.closeTooltip(tip); map.removeLayer(dot); });
+    });
+    map.on('mouseout', hide);
 })();
 """
         return (js.replace("__MAP__", map_var)
