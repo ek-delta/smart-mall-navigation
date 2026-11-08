@@ -1931,9 +1931,8 @@ class RouteHover(MacroElement):
 def add_animated_route(m, line_pts, color, hover=None):
     """Route line with arrowheads that travel along it from the start to the end.
     `hover` (from build_route_hover) adds the hover annotation."""
-    # Soft wide line under a thinner solid line; the arrows move on top of them
-    folium.PolyLine(locations=line_pts, color=color, weight=8, opacity=0.30).add_to(m)
-    folium.PolyLine(locations=line_pts, color=color, weight=3, opacity=0.90).add_to(m)
+    # One solid line (no soft glow underneath); the arrows move on top of it
+    folium.PolyLine(locations=line_pts, color=color, weight=4, opacity=1.0).add_to(m)
     if hover:
         RouteHover(line_pts, color, hover).add_to(m)
     MovingArrows(line_pts, color).add_to(m)
