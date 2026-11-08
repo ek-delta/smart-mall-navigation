@@ -979,6 +979,8 @@ PLAY_LABELS = {
     "Simplified Chinese": ("▶ 播放箭头", "⏸ 暂停"),
     "Malay": ("▶ Mainkan anak panah", "⏸ Jeda"),
 }
+HOVER_MARKER_PX_2D = 44    # size of the invisible hover targets along the route (2D); bigger = wider hover area
+HOVER_MARKER_PX_3D = 22    # same for the 3D map
 ARROW_FRAME_CYCLE = 18     # frames for an arrow to travel one arrow-spacing
 ARROW_FRAME_MS = 50        # milliseconds per frame
 ARROW_LOOPS = 40           # Plotly can't loop an animation, so the cycle is queued this many times
@@ -1119,12 +1121,6 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                 mode="lines", line=dict(color="#EF4444", width=5),
                 hoverinfo="skip", showlegend=False,
             ))
-            # Dashes that flow along the route (animated by ROUTE_FLOW_CSS)
-            fig.add_trace(go.Scatter(
-                x=route_x, y=route_y,
-                mode="lines", line=dict(color=ROUTE_FLOW_COLOR, width=2.5),
-                hoverinfo="skip", showlegend=False,
-            ))
             # Arrowheads that travel along the route (frames are played by the Play button)
             arrow_anim = build_arrow_frames(list(zip(route_x, route_y)), 9.0)
             if arrow_anim:
@@ -1200,7 +1196,7 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         if hover:
             fig.add_trace(go.Scatter(
                 x=[s[1] for s in hover["samples"]], y=[s[0] for s in hover["samples"]], mode="markers",
-                marker=dict(size=18, color="rgba(0,0,0,0)"),
+                marker=dict(size=HOVER_MARKER_PX_2D, color="rgba(0,0,0,0)"),
                 hovertext=hover_text_lines(hover["samples"], hover), hoverinfo="text",
                 hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
                 showlegend=False,
@@ -1233,6 +1229,7 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         dragmode="pan",
         clickmode="event+select",
         hovermode="closest",
+        hoverdistance=60,     # look this many pixels around the mouse for a hover point (default 20)
         uirevision=f"floor_{floor_z}",   # same value every rerun -> pan/zoom is kept
         xaxis=dict(range=x_rng, title=dict(text="X (m)", font=dict(size=12, color="#64748B")), **axis_style),
         yaxis=dict(range=y_rng, scaleanchor="x", scaleratio=1,
@@ -1643,7 +1640,7 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
         if h_x:
             fig.add_trace(go.Scatter3d(
                 x=h_x, y=h_y, z=h_z, mode="markers",
-                marker=dict(size=7, color="#EF4444", opacity=0.02),
+                marker=dict(size=HOVER_MARKER_PX_3D, color="#EF4444", opacity=0.02),
                 hovertext=h_text, hoverinfo="text",
                 hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
                 showlegend=False,
@@ -1666,6 +1663,7 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
             aspectmode="manual",
             aspectratio=dict(x=spans[0] / longest, y=spans[1] / longest, z=spans[2] / longest),
         ),
+        hoverdistance=60,
         uirevision="iso3d",   # keep the camera as the user left it across reruns
         height=680,
         margin=dict(l=0, r=0, t=0, b=0)
@@ -2715,7 +2713,6 @@ with tab_map:
                 show_doors=show_doors,
             )
             st.caption(t["map_nav_hint"])
-            st.markdown(ROUTE_FLOW_CSS + ROUTE_ARROW_CSS, unsafe_allow_html=True)
             map_event = st.plotly_chart(
                 fig_2d,
                 use_container_width=True,
