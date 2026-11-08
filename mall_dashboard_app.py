@@ -1157,6 +1157,19 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                 showlegend=False,
             ))
 
+    # Parking infrastructure labels (ramps, stairwell, elevator, escalator) as boxed tags
+    if show_slots:
+        for node_id, key in (("P_L3_Driveway_Entrance", "lbl_entrance_ramp"), ("P_L3_Driveway_Exit", "lbl_exit_ramp"),
+                             ("P_L3_Stairs", "lbl_stairwell"), ("P_L3_Elevator", "lbl_elevator"),
+                             ("P_L3_Escalator", "lbl_escalator")):
+            if node_id in node_coords_dict and int(node_coords_dict[node_id][2]) == floor_z:
+                nx_, ny_, _ = node_coords_dict[node_id]
+                fig.add_annotation(
+                    x=nx_, y=ny_, xref="x", yref="y", text=f"<b>{lang_dict.get(key, node_id)}</b>",
+                    showarrow=False, font=dict(size=11, color="#000000"),
+                    bgcolor="rgba(255,255,255,0.95)", bordercolor="#1976D2", borderwidth=2, borderpad=3,
+                )
+
     # Route, stops, start, destination
     arrow_frames = []
     if route_path:
