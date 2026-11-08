@@ -1589,7 +1589,7 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
 
         # Cones that travel along the route (frames are played by the Play button).
         # Direction vectors are unit vectors * CONE_LEN; tweak CONE_LEN / sizeref if they look too big or small.
-        CONE_LEN, CONE_SIZEREF = 1.0, 4
+        CONE_LEN, CONE_SIZEREF = 1.0, 2
         cone_anim = build_arrow_frames(list(zip(rx, ry, rz)), 20.0)
         if cone_anim:
             def cone_arrays(arrows):
