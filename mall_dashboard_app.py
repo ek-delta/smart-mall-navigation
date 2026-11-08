@@ -1755,7 +1755,7 @@ def render_3d_html(fig, payload, lang="English", height=680):
                f'<button id="arrow-pause" style="{btn}">{pause_lbl}</button></div>')
     # Streamlit's chart theme normally styles the axes/grid; outside it Plotly falls back to its own
     # defaults (white grid on grey walls), so the grid is styled explicitly here.
-    grid_axis = dict(showgrid=True, gridcolor="rgba(100,116,139,0.0)", gridwidth=1,
+    grid_axis = dict(showgrid=True, gridcolor="rgba(100,116,139,0.10)", gridwidth=1,
                      zeroline=False, showline=True, linecolor="rgba(100,116,139,0.45)",
                      showbackground=False, backgroundcolor="rgba(0,0,0,0)",
                      tickfont=dict(size=11, color="#64748B"),
