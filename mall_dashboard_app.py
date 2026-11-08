@@ -979,8 +979,8 @@ PLAY_LABELS = {
     "Simplified Chinese": ("▶ 播放箭头", "⏸ 暂停"),
     "Malay": ("▶ Mainkan anak panah", "⏸ Jeda"),
 }
-HOVER_MARKER_PX_2D = 50    # size of the invisible hover targets along the route (2D); bigger = wider hover area
-HOVER_MARKER_PX_3D = 30    # same for the 3D map
+HOVER_MARKER_PX_2D = 44    # size of the invisible hover targets along the route (2D); bigger = wider hover area
+HOVER_MARKER_PX_3D = 22    # same for the 3D map
 ARROW_FRAME_CYCLE = 18     # frames for an arrow to travel one arrow-spacing
 ARROW_FRAME_MS = 50        # milliseconds per frame
 ARROW_LOOPS = 40           # Plotly can't loop an animation, so the cycle is queued this many times
@@ -1051,6 +1051,32 @@ def hover_text_lines(samples, hover):
             line += f"<br>{_html.escape(rem_lbl)}: <b>{rem:.1f} m</b>"
         texts.append(line)
     return texts
+
+HOVER_BAND_M = 4.0   # 2D Plotly: the route's hover area reaches this many metres to each side of the line
+
+def widen_hover_samples(samples, half_width, offsets=(-1.0, -0.5, 0.0, 0.5, 1.0)):
+    """Spread each hover sample sideways across the route (perpendicular to its direction), so the
+    hover area is a band `half_width` metres to each side of the line. This is set in map units
+    and does not depend on how Plotly sizes markers or ranks the nearest point.
+    Returns (xs, ys, sample_index) where sample_index points back into `samples`."""
+    xs, ys, idx = [], [], []
+    n = len(samples)
+    for i, s in enumerate(samples):
+        y, x = s[0], s[1]
+        dx = dy = 0.0
+        for j in (i + 1, i - 1):             # direction from a neighbouring sample
+            if 0 <= j < n:
+                ddx, ddy = samples[j][1] - x, samples[j][0] - y
+                if math.hypot(ddx, ddy) > 1e-9:
+                    dx, dy = (ddx, ddy) if j > i else (-ddx, -ddy)
+                    break
+        length = math.hypot(dx, dy) or 1.0
+        nx, ny = -dy / length, dx / length   # unit vector across the route
+        for o in offsets:
+            xs.append(round(x + nx * o * half_width, 2))
+            ys.append(round(y + ny * o * half_width, 2))
+            idx.append(i)
+    return xs, ys, idx
 
 def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True):
@@ -1194,10 +1220,12 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
     if route_path:
         hover = build_route_hover(route_path, node_coords_dict, floor_z, current_lang, include_remaining=show_dest)
         if hover:
+            band_x, band_y, band_idx = widen_hover_samples(hover["samples"], HOVER_BAND_M)
+            texts = hover_text_lines(hover["samples"], hover)
             fig.add_trace(go.Scatter(
-                x=[s[1] for s in hover["samples"]], y=[s[0] for s in hover["samples"]], mode="markers",
+                x=band_x, y=band_y, mode="markers",
                 marker=dict(size=HOVER_MARKER_PX_2D, color="rgba(0,0,0,0)"),
-                hovertext=hover_text_lines(hover["samples"], hover), hoverinfo="text",
+                hovertext=[texts[i] for i in band_idx], hoverinfo="text",
                 hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
                 showlegend=False,
             ))
