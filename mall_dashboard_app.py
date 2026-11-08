@@ -979,8 +979,8 @@ PLAY_LABELS = {
     "Simplified Chinese": ("▶ 播放箭头", "⏸ 暂停"),
     "Malay": ("▶ Mainkan anak panah", "⏸ Jeda"),
 }
-HOVER_MARKER_PX_2D = 50    # size of the invisible hover targets along the route (2D); bigger = wider hover area
-HOVER_MARKER_PX_3D = 30    # same for the 3D map
+HOVER_MARKER_PX_2D = 44    # size of the invisible hover targets along the route (2D); bigger = wider hover area
+HOVER_MARKER_PX_3D = 22    # same for the 3D map
 ARROW_FRAME_CYCLE = 18     # frames for an arrow to travel one arrow-spacing
 ARROW_FRAME_MS = 50        # milliseconds per frame
 ARROW_LOOPS = 40           # Plotly can't loop an animation, so the cycle is queued this many times
@@ -1631,7 +1631,7 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
         # Hover annotation along the route, floor by floor (place + distance left to the destination)
         h_x, h_y, h_z, h_text = [], [], [], []
         for fz in range(4):
-            hov = build_route_hover(route_path, node_coords, fz, current_lang)
+            hov = build_route_hover(route_path, node_coords, fz, current_lang, step=2.0)
             if hov:
                 h_x += [s[1] for s in hov["samples"]]
                 h_y += [s[0] for s in hov["samples"]]
@@ -1640,7 +1640,9 @@ def render_3d_isometric_view(route_path=None, node_coords=None, current_lang="En
         if h_x:
             fig.add_trace(go.Scatter3d(
                 x=h_x, y=h_y, z=h_z, mode="markers",
-                marker=dict(size=HOVER_MARKER_PX_3D, color="#EF4444", opacity=0.02),
+                # Practically invisible: many overlapping translucent markers used to add up
+                # to a red glow along the route.
+                marker=dict(size=HOVER_MARKER_PX_3D, color="#EF4444", opacity=0.003),
                 hovertext=h_text, hoverinfo="text",
                 hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
                 showlegend=False,
