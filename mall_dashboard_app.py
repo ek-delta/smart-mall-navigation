@@ -434,7 +434,7 @@ if "map_pick_step" not in st.session_state: st.session_state.map_pick_step = "ST
 if "last_processed_click" not in st.session_state: st.session_state.last_processed_click = None
 if "last_folium_clicks" not in st.session_state: st.session_state.last_folium_clicks = {}
 if "edit_target" not in st.session_state: st.session_state.edit_target = None
-if "parking_choice" not in st.session_state: st.session_state.parking_choice = None   # None = nearest free spot
+if "parking_choice" not in st.session_state: st.session_state.parking_choice = None  
 if "parking_edit" not in st.session_state: st.session_state.parking_edit = False
 if "parking_notice" not in st.session_state: st.session_state.parking_notice = None
 if "last_park_clicks" not in st.session_state: st.session_state.last_park_clicks = {}
