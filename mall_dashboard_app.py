@@ -492,25 +492,25 @@ ROOM_POLYGONS = {
 
 MULTI_CAD_NODES = {
     # Ground Floor
-    "A_L0_Entrance": (-40.0, 8.0, 0), "A_L0_Info": (-40.0, 32.0, 0), "A_L0_Lobby": (0.0, 8.0, 0),
+    "A_L0_Entrance": (-40.0, 8.0, 0), "A_L0_Info": (-40.0, 32.0, 0), "A_L0_Lobby": (10.0, 8.0, 0),
     "Fashion Hub": (0.0, -16.0, 0), "Mega Supermarket": (0.0, 32.0, 0), "A_L0_Restroom": (41.0, 24.0, 0),
     "A_L0_Elevator": (53.0, 17.0, 0), "A_L0_Escalator": (56.0, 3.5, 0), "A_L0_Stairs": (41.0, -8.0, 0),
     "H_L0_West": (-20.0, 8.0, 0), "H_L0_East": (20.0, 8.0, 0), "H_L0_North": (0.0, 20.0, 0), "H_L0_South": (0.0, -4.0, 0),
 
     # 1st Floor
-    "A_L1_Hallway": (0.0, 8.0, 1), "Book Nook": (-15.0, -16.0, 1), "Tech Gadgets": (15.0, -16.0, 1),
+    "A_L1_Hallway": (10.0, 8.0, 1), "Book Nook": (-15.0, -16.0, 1), "Tech Gadgets": (15.0, -16.0, 1),
     "Jewel Box": (0.0, 32.0, 1), "A_L1_Restroom": (41.0, 24.0, 1), "A_L1_Elevator": (53.0, 17.0, 1),
     "A_L1_Escalator": (56.0, 3.5, 1), "A_L1_Stairs": (41.0, -8.0, 1),
     "H_L1_West": (-20.0, 8.0, 1), "H_L1_East": (20.0, 8.0, 1), "H_L1_South_West": (-15.0, -4.0, 1), "H_L1_South_East": (15.0, -4.0, 1),
 
     # 2nd Floor
-    "B_L2_Corridor": (0.0, 8.0, 2), "VR World & Arcade": (-40.0, 8.0, 2), "Cineplex Theater": (0.0, 32.0, 2),
+    "B_L2_Corridor": (10.0, 8.0, 2), "VR World & Arcade": (-40.0, 8.0, 2), "Cineplex Theater": (0.0, 32.0, 2),
     "Sky Food Court": (-15.0, -16.0, 2), "Gourmet Bites": (15.0, -16.0, 2), "B_L2_Restroom": (41.0, 24.0, 2),
     "B_L2_Elevator": (53.0, 17.0, 2), "B_L2_Escalator": (56.0, 3.5, 2), "B_L2_Stairs": (41.0, -8.0, 2),
     "H_L2_West": (-20.0, 8.0, 2), "H_L2_East": (20.0, 8.0, 2), "H_L2_South_West": (-15.0, -4.0, 2), "H_L2_South_East": (15.0, -4.0, 2),
 
     # Rooftop Parking
-    "P_L3_Aisle_Main": (0.0, 8.0, 3), "P_L3_Driveway_Entrance": (-40.0, 2.0, 3), "P_L3_Driveway_Exit": (-40.0, 14.0, 3),
+    "P_L3_Aisle_Main": (10.0, 8.0, 3), "P_L3_Driveway_Entrance": (-40.0, 2.0, 3), "P_L3_Driveway_Exit": (-40.0, 14.0, 3),
     "P1": (-22.5, -16.0, 3), "P2": (-7.5, -16.0, 3), "P3": (7.5, -16.0, 3), "P4": (22.5, -16.0, 3),
     "P5": (-22.5, 32.0, 3), "P6": (-7.5, 32.0, 3), "P7": (7.5, 32.0, 3), "P8": (22.5, 32.0, 3),
     "P_L3_Elevator": (53.0, 17.0, 3), "P_L3_Escalator": (56.0, 3.5, 3), "P_L3_Stairs": (41.0, -8.0, 3)
@@ -665,6 +665,17 @@ def install_doors(nodes, graph, doors, rooms):
         graph.setdefault(door_id, {})[room_id] = d_room
         graph[door_id][link] = d_link
         graph.setdefault(link, {})[door_id] = d_link
+
+# Each corridor spans x = -30..50, so its centre node sits at x = 10 (the store rooms are centred on
+# x = 0, but the corridor is not). The edge weights written above assumed x = 0, so refresh the
+# same-floor weights of the corridor centre nodes from the real coordinates.
+for _corr in FLOOR_CORRIDOR.values():
+    _cx, _cy, _cz = MULTI_CAD_NODES[_corr]
+    for _nb in list(MULTI_CAD_GRAPH.get(_corr, {})):
+        if _nb in MULTI_CAD_NODES and MULTI_CAD_NODES[_nb][2] == _cz:
+            _d = math.hypot(_cx - MULTI_CAD_NODES[_nb][0], _cy - MULTI_CAD_NODES[_nb][1])
+            MULTI_CAD_GRAPH[_corr][_nb] = _d
+            MULTI_CAD_GRAPH[_nb][_corr] = _d
 
 # Hubs at the east end of each corridor (where restroom/stairwell/lift doors meet it)
 END_HUBS = {
