@@ -98,6 +98,8 @@ LOCALIZATION = {
         "pick_step_2": "👇 *Step 2:* Click anywhere on the map to add *Intermediate Stops* (or click button below when ready for Destination).",
         "pick_step_3": "👇 *Step 3:* Click anywhere on the map to set as *Destination*.",
         "pick_3d_notice": "Interactive map selection works on the 2D map. Switch to the 2D view to click points.",
+        "map_nav_hint_parking": "🖱️ Drag to pan · scroll to zoom · double-click to reset the view · use the toolbar's Autoscale button to fit the whole floor.",
+        "map_nav_hint": "🖱️ Drag to pan · scroll to zoom · double-click to reset the view · click to choose a point (snaps to the nearest 1 m).",
         "btn_done_adding_stops": "➡️ Done Adding Stops (Next: Pick Destination)",
         "btn_add_as_stop": "➕ Add as Stop",
         "btn_keep_start": "⏭️ Keep Current Start",
@@ -190,6 +192,8 @@ LOCALIZATION = {
         "pick_step_2": "👇 *步骤 2：* 点击地图任意位置添加 *途经点*（若已添加完毕，请点击下方按钮选择终点）。",
         "pick_step_3": "👇 *步骤 3：* 点击地图任意位置设为 *终点位置*。",
         "pick_3d_notice": "交互式地图选点仅支持 2D 地图，请切换到 2D 视图后再点击。",
+        "map_nav_hint_parking": "🖱️ 拖动平移 · 滚轮缩放 · 双击重置视图 · 使用工具栏的“自动缩放”按钮适配整层平面图。",
+        "map_nav_hint": "🖱️ 拖动平移 · 滚轮缩放 · 双击重置视图 · 点击选点（吸附到最近的 1 米）。",
         "btn_done_adding_stops": "➡️ 完成添加途经点 (下一步: 选择终点)",
         "btn_add_as_stop": "➕ 添加为途经点",
         "btn_keep_start": "⏭️ 保留当前起点",
@@ -282,6 +286,8 @@ LOCALIZATION = {
         "pick_step_2": "👇 *Langkah 2:* Klik di mana-mana pada peta untuk tambah *Hentian Antara* (atau klik butang di bawah apabila sedia untuk Destinasi).",
         "pick_step_3": "👇 *Langkah 3:* Klik di mana-mana pada peta untuk tetapkan *Destinasi*.",
         "pick_3d_notice": "Pemilihan peta interaktif berfungsi pada peta 2D. Tukar ke paparan 2D untuk mengklik titik.",
+        "map_nav_hint_parking": "🖱️ Seret untuk alih · skrol untuk zum · klik dua kali untuk set semula paparan · guna butang Autoscale pada bar alat untuk muatkan seluruh tingkat.",
+        "map_nav_hint": "🖱️ Seret untuk alih · skrol untuk zum · klik dua kali untuk set semula paparan · klik untuk pilih titik (dipadankan ke 1 m terdekat).",
         "btn_done_adding_stops": "➡️ Selesai Menambah Hentian (Seterusnya: Pilih Destinasi)",
         "btn_add_as_stop": "➕ Tambah sebagai Hentian",
         "btn_keep_start": "⏭️ Kekalkan Permulaan Semasa",
@@ -883,7 +889,10 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
 
         for neighbor, weight in graph.get(current, {}).items():
             if neighbor not in node_coords: continue
-            if accessible_only and ("Stairs" in neighbor or "Escalator" in neighbor): continue
+            # Accessible mode only forbids *changing floor* by stairs/escalator; the stairwell and
+            # escalator rooms themselves (and their doors) can still be reached on the same floor.
+            if (accessible_only and ("Stairs" in neighbor or "Escalator" in neighbor)
+                    and node_coords[neighbor][2] != node_coords[current][2]): continue
 
             p_curr = parent[current]
             same_floor = (node_coords[p_curr][2] == node_coords[neighbor][2])
@@ -1718,6 +1727,7 @@ def show_parking_map(assigned_slot, route_path, lang, route_color, key):
         show_dest=True, show_doors=True, show_slots=True, assigned_slot=assigned_slot,
         route_color=route_color, highlight=highlight,
     )
+    st.caption(LOCALIZATION.get(lang, LOCALIZATION["English"])["map_nav_hint_parking"])
     event = st.plotly_chart(
         fig, use_container_width=True, key=key,
         on_select="rerun", selection_mode="points",
@@ -2576,6 +2586,7 @@ with tab_map:
             show_doors=show_doors,
             highlight=highlight_xyz,
         )
+        st.caption(t["map_nav_hint"])
         map_event = st.plotly_chart(
             fig_2d,
             use_container_width=True,
