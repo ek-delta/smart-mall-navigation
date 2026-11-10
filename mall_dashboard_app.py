@@ -889,10 +889,7 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
 
         for neighbor, weight in graph.get(current, {}).items():
             if neighbor not in node_coords: continue
-            # Accessible mode only forbids *changing floor* by stairs/escalator; the stairwell and
-            # escalator rooms themselves (and their doors) can still be reached on the same floor.
-            if (accessible_only and ("Stairs" in neighbor or "Escalator" in neighbor)
-                    and node_coords[neighbor][2] != node_coords[current][2]): continue
+            if accessible_only and ("Stairs" in neighbor or "Escalator" in neighbor): continue
 
             p_curr = parent[current]
             same_floor = (node_coords[p_curr][2] == node_coords[neighbor][2])
