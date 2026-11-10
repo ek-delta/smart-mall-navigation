@@ -352,7 +352,7 @@ POI_TRANSLATIONS = {
         "P_L3_Driveway_Entrance": "🚪楼顶入口", "P_L3_Driveway_Exit": "🚪楼顶出口",
         "Fashion Hub": "👗时尚中心 (Fashion Hub)", "Tech Gadgets": "📱酷科技数码 (Tech Gadgets)", "Jewel Box": "👗璀璨珠宝 (Jewel Box)",
         "Mega Supermarket": "🛒大型超级市场 (Mega Supermarket)", "Gourmet Bites": "🍔美食小吃 (Gourmet Bites)", "Book Nook": "🛒书香角 (Book Nook)",
-        "Cineplex Theater": "🎬影城 (Cineplex Theater)", "VR World & Arcade": "🎬电玩城 (Arcade)", "Sky Food Court": "🍔云端美食广场 (Sky Food Court)",
+        "Cineplex Theater": "🎬影城 (Cineplex Theater)", "VR World & Arcade": "🎬电玩城 (& Arcade)", "Sky Food Court": "🍔云端美食广场 (Sky Food Court)",
         "P1": "🅿️停车位 1", "P2": "🅿️停车位 2", "P3": "🅿️停车位 3", "P4": "🅿️停车位 4",
         "P5": "🅿️停车位 5", "P6": "🅿️停车位 6", "P7": "🅿️停车位 7", "P8": "🅿️停车位 8",
     },
@@ -365,11 +365,11 @@ POI_TRANSLATIONS = {
         "B_L2_Escalator": "🪜Eskalator (Tingkat 2)", "B_L2_Restroom": "Tandas (Tingkat 2)", "P_L3_Aisle_Main": "🚪Laluan Utama Kenderaan (Bumbung)",
         "P_L3_Elevator": "🛗Lif (Bumbung)", "P_L3_Stairs": "🧗Tangga (Bumbung)", "P_L3_Escalator": "🪜Eskalator (Bumbung)",
         "P_L3_Driveway_Entrance": "🚪Laluan Masuk Kenderaan (Bumbung)", "P_L3_Driveway_Exit": "🚪Laluan Keluar Kenderaan (Bumbung)",
-        "Fashion Hub": "👗Pusat Fesyen", "Tech Gadgets": "📱Gajet Teknologi", "Jewel Box": "👗Kotak Permata",
-        "Mega Supermarket": "🛒Pasar Raya Mega", "Gourmet Bites": "🍔Sajian Gourmet", "Book Nook": "🛒Sudut Buku",
-        "Cineplex Theater": "🎬Pawagam Cineplex", "VR World & Arcade": "🎬Dunia VR & Arked", "Sky Food Court": "🍔Medan Selera Awam",
-        "P1": "🅿️Petak 1", "P2": "🅿️Petak 2", "P3": "🅿️Petak 3", "P4": "🅿️Petak 4",
-        "P5": "🅿️Petak 5", "P6": "🅿️Petak 6", "P7": "🅿️Petak 7", "P8": "🅿️Petak 8",
+        "Fashion Hub": "👗Fashion Hub", "Tech Gadgets": "📱Tech Gadgets", "Jewel Box": "👗Jewel Box",
+        "Mega Supermarket": "🛒Mega Supermarket", "Gourmet Bites": "🍔Gourmet Bites", "Book Nook": "🛒Book Nook",
+        "Cineplex Theater": "🎬Cineplex Theater", "VR World & Arcade": "🎬Arcade", "Sky Food Court": "🍔Sky Food Court",
+        "P1": "🅿️Tempat 1", "P2": "🅿️Tempat 2", "P3": "🅿️Tempat 3", "P4": "🅿️Tempat 4",
+        "P5": "🅿️Tempat 5", "P6": "🅿️Tempat 6", "P7": "🅿️Tempat 7", "P8": "🅿️Tempat 8",
     }
 }
 
@@ -910,71 +910,6 @@ def room_label(room_id, lang):
     has_emoji = bool(name) and ord(name[0]) >= 0x1F000
     return name if has_emoji else f"{get_location_icon(room_id)}{name}"
 
-LABEL_MAX_PX = 16        # largest room-name font (px)
-LABEL_MIN_PX = 8         # smallest room-name font (px) before the text is allowed to overflow
-LABEL_PX_PER_M = 6.5     # approximate on-screen pixels per metre at the default zoom
-LABEL_FILL = 0.88        # share of the room's width/height the text may occupy
-
-def _glyph_w(ch, size):
-    """Approximate rendered width (px) of one character at font `size`."""
-    o = ord(ch)
-    if o >= 0x1F000:                      # emoji
-        return size * 1.25
-    if o >= 0x2E80:                       # CJK
-        return size * 1.0
-    if ch.isupper() or ch in "mwMW@":
-        return size * 0.68
-    return size * 0.56
-
-def _text_w(text, size):
-    return sum(_glyph_w(c, size) for c in text)
-
-def wrap_label(text, max_w_px, size, split_words=True):
-    """Greedy word wrap of `text` to `max_w_px`; with split_words, words wider than the line are
-    split by character (CJK only). Returns the list of lines."""
-    lines, cur = [], ""
-    if text and ord(text[0]) >= 0x1F000 and len(text) > 1 and text[1] != " ":
-        text = text[0] + " " + text[1:]       # the leading emoji is its own word
-    for word in text.split():
-        while (split_words and any(ord(c) >= 0x2E80 for c in word)
-               and _text_w(word, size) > max_w_px and len(word) > 1):
-            # split an over-long word (e.g. CJK text with no spaces)
-            fit = ""
-            for ch in word:
-                if _text_w(fit + ch, size) > max_w_px and fit:
-                    break
-                fit += ch
-            if cur:
-                lines.append(cur)
-                cur = ""
-            lines.append(fit)
-            word = word[len(fit):]
-        trial = f"{cur} {word}".strip()
-        if cur and _text_w(trial, size) > max_w_px:
-            lines.append(cur)
-            cur = word
-        else:
-            cur = trial
-    if cur:
-        lines.append(cur)
-    return lines or [text]
-
-def fit_label_to_room(text, coords, max_px=LABEL_MAX_PX, min_px=LABEL_MIN_PX, px_per_m=LABEL_PX_PER_M):
-    """Largest font size (<= max_px) at which `text`, wrapped into the room polygon's width,
-    also fits its height. Returns (text with <br> line breaks, font size)."""
-    xs, ys = [c[0] for c in coords], [c[1] for c in coords]
-    w_px = (max(xs) - min(xs)) * px_per_m * LABEL_FILL
-    h_px = (max(ys) - min(ys)) * px_per_m * LABEL_FILL
-    # Prefer a smaller font over breaking a word in the middle
-    for size in range(int(max_px), int(min_px) - 1, -1):
-        lines = wrap_label(text, w_px, size, split_words=False)
-        widest = max(_text_w(l, size) for l in lines)
-        if widest <= w_px and len(lines) * size * 1.2 <= h_px:
-            return "<br>".join(lines), size
-    # Nothing fits: smallest font; only unspaced CJK runs are broken (a Latin word may overflow slightly)
-    lines = wrap_label(text, w_px, int(min_px), split_words=True)
-    return "<br>".join(lines), int(min_px)
-
 def hex_to_rgba(hex_color, alpha=0.75):
     h = hex_color.lstrip("#")
     return f"rgba({int(h[0:2], 16)},{int(h[2:4], 16)},{int(h[4:6], 16)},{alpha})"
@@ -1231,20 +1166,17 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         ))
 
     # Room labels
-    lab_x, lab_y, lab_text, lab_size = [], [], [], []
+    lab_x, lab_y, lab_text = [], [], []
     for room_id, info in floor_rooms.items():
         if show_slots and room_id in PARKING_SLOTS:
             continue   # drawn as a coloured slot with its own label below
         coords = info["coords"]
-        # Wrap the name to the room's width and shrink the font only as far as needed to fit
-        wrapped, size = fit_label_to_room(room_label(room_id, current_lang), coords)
         lab_x.append(sum(pt[0] for pt in coords) / len(coords))
         lab_y.append(sum(pt[1] for pt in coords) / len(coords))
-        lab_text.append(wrapped)
-        lab_size.append(size)
+        lab_text.append(room_label(room_id, current_lang))
     fig.add_trace(go.Scatter(
         x=lab_x, y=lab_y, mode="text", text=lab_text, textposition="middle center",
-        textfont=dict(size=lab_size, color=LABEL_COLOR),
+        textfont=dict(size=10, color=LABEL_COLOR),
         hoverinfo="skip", showlegend=False,
         unselected=dict(textfont=dict(color=LABEL_COLOR)),
     ))
@@ -1268,7 +1200,7 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         if s_lx:
             fig.add_trace(go.Scatter(
                 x=s_lx, y=s_ly, mode="text", text=s_txt, textposition="middle center",
-                textfont=dict(size=14, color="#FFFFFF"), hoverinfo="skip", showlegend=False,
+                textfont=dict(size=11, color="#FFFFFF"), hoverinfo="skip", showlegend=False,
                 unselected=dict(textfont=dict(color="#FFFFFF")),
             ))
 
@@ -1299,7 +1231,7 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                 nx_, ny_, _ = node_coords_dict[node_id]
                 fig.add_annotation(
                     x=nx_, y=ny_, xref="x", yref="y", text=f"<b>{lang_dict.get(key, node_id)}</b>",
-                    showarrow=False, font=dict(size=13, color="#000000"),
+                    showarrow=False, font=dict(size=11, color="#000000"),
                     bgcolor="rgba(255,255,255,0.95)", bordercolor="#1976D2", borderwidth=2, borderpad=3,
                 )
 
