@@ -807,6 +807,18 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
 
     return resolved_sequence
 
+def use_doors_for_intermediate_stops(sequence, node_coords):
+    """A room node sits at the room's centre, so a room used as a stop *between* the start and the
+    destination would send the route in to the centre and straight back out again. Swap each such
+    stop for the room's door node: the route reaches the door, counts the stop as visited, and goes on.
+    The first and last entries are kept (you really do start from / finish inside those rooms)."""
+    out = list(sequence)
+    for i in range(1, len(out) - 1):
+        door = f"{DOOR_PREFIX}{out[i]}"
+        if isinstance(out[i], str) and door in node_coords:
+            out[i] = door
+    return out
+
 # ==============================================================================
 # 3. Pathfinding Engine (Theta*)
 # ==============================================================================
@@ -2328,6 +2340,7 @@ with tab_map:
     temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
     temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
     full_route_sequence = resolve_all_route_points(raw_sequence, 0, temp_graph, temp_nodes)
+    full_route_sequence = use_doors_for_intermediate_stops(full_route_sequence, temp_nodes)
 
     full_path = []
     route_failed = False
