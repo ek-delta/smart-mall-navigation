@@ -6,7 +6,12 @@ import functools
 import json
 import streamlit as st
 import streamlit.components.v1 as components
+import folium
 import plotly.graph_objects as go
+from streamlit_folium import st_folium
+from folium.plugins import AntPath, PolyLineTextPath
+from branca.element import MacroElement
+from jinja2 import Template
 
 # ==============================================================================
 # 1. Page Config & Localization Dictionary
@@ -38,6 +43,7 @@ LOCALIZATION = {
         "accessible": "Accessible (Elevators Only)",
         "view_mode": "Map Display Mode",
         "view_2d": "2D Plotly Map",
+        "view_2d_folium": "2D Folium Map",
         "view_3d": "3D Isometric View",
         "active_floor": "Select Floor",
         "tab_nav": "🗺️ Mall Map",
@@ -98,6 +104,7 @@ LOCALIZATION = {
         "pick_step_2": "👇 *Step 2:* Click anywhere on the map to add *Intermediate Stops* (or click button below when ready for Destination).",
         "pick_step_3": "👇 *Step 3:* Click anywhere on the map to set as *Destination*.",
         "pick_3d_notice": "Interactive map selection works on the 2D map. Switch to the 2D view to click points.",
+        "map_nav_hint_folium": "🖱️ Drag to pan · scroll to zoom · click anywhere to choose a point (exact position).",
         "map_nav_hint_parking": "🖱️ Drag to pan · scroll to zoom · double-click to reset the view · use the toolbar's Autoscale button to fit the whole floor.",
         "map_nav_hint": "🖱️ Drag to pan · scroll to zoom · double-click to reset the view · click to choose a point (snaps to the nearest 1 m).",
         "btn_done_adding_stops": "➡️ Done Adding Stops (Next: Pick Destination)",
@@ -106,7 +113,7 @@ LOCALIZATION = {
         "btn_keep_dest": "⏭️ Keep Current Destination",
         "lbl_current": "Current",
         "footer_arch": "🏢 System Architecture: 3D Theta* Pathfinding Engine",
-        "footer_vector": "📐 Map Rendering: Plotly",
+        "footer_vector": "📐 Map Rendering: Folium & Plotly",
         "footer_lang": "🌐 Localization: Multilingual Engine",
         "tab_nav_drive_to_spot": "🚗 1. Entrance to Parking Spot",
         "tab_nav_spot_to_exit": "🚪 2. Parking Spot to Exit",
@@ -132,6 +139,7 @@ LOCALIZATION = {
         "accessible": "无障碍路线 (仅限电梯)",
         "view_mode": "地图显示模式",
         "view_2d": "2D Plotly 地图",
+        "view_2d_folium": "2D Folium 地图",
         "view_3d": "3D 等轴测视图",
         "active_floor": "选择楼层",
         "tab_nav": "🗺️ 导航地图",
@@ -192,6 +200,7 @@ LOCALIZATION = {
         "pick_step_2": "👇 *步骤 2：* 点击地图任意位置添加 *途经点*（若已添加完毕，请点击下方按钮选择终点）。",
         "pick_step_3": "👇 *步骤 3：* 点击地图任意位置设为 *终点位置*。",
         "pick_3d_notice": "交互式地图选点仅支持 2D 地图，请切换到 2D 视图后再点击。",
+        "map_nav_hint_folium": "🖱️ 拖动平移 · 滚轮缩放 · 点击地图任意位置选点（精确位置）。",
         "map_nav_hint_parking": "🖱️ 拖动平移 · 滚轮缩放 · 双击重置视图 · 使用工具栏的“自动缩放”按钮适配整层平面图。",
         "map_nav_hint": "🖱️ 拖动平移 · 滚轮缩放 · 双击重置视图 · 点击选点（吸附到最近的 1 米）。",
         "btn_done_adding_stops": "➡️ 完成添加途经点 (下一步: 选择终点)",
@@ -200,7 +209,7 @@ LOCALIZATION = {
         "btn_keep_dest": "⏭️ 保留当前终点",
         "lbl_current": "当前",
         "footer_arch": "🏢 系统架构: 3D Theta* 路径规划引擎",
-        "footer_vector": "📐 地图渲染: Plotly",
+        "footer_vector": "📐 地图渲染: Folium 与 Plotly",
         "footer_lang": "🌐 多语言支持: 多语种引擎",
         "tab_nav_drive_to_spot": "🚗 1. 入口至停车位",
         "tab_nav_spot_to_exit": "🚪 2. 停车位至出口",
@@ -226,6 +235,7 @@ LOCALIZATION = {
         "accessible": "Mesra OKU (Lif Sahaja)",
         "view_mode": "Mod Paparan Peta",
         "view_2d": "Peta Plotly 2D",
+        "view_2d_folium": "Peta Folium 2D",
         "view_3d": "Pandangan Isometrik 3D",
         "active_floor": "Pilih Tingkat",
         "tab_nav": "🗺️ Peta Navigasi",
@@ -286,6 +296,7 @@ LOCALIZATION = {
         "pick_step_2": "👇 *Langkah 2:* Klik di mana-mana pada peta untuk tambah *Hentian Antara* (atau klik butang di bawah apabila sedia untuk Destinasi).",
         "pick_step_3": "👇 *Langkah 3:* Klik di mana-mana pada peta untuk tetapkan *Destinasi*.",
         "pick_3d_notice": "Pemilihan peta interaktif berfungsi pada peta 2D. Tukar ke paparan 2D untuk mengklik titik.",
+        "map_nav_hint_folium": "🖱️ Seret untuk alih · skrol untuk zum · klik di mana-mana untuk pilih titik (kedudukan tepat).",
         "map_nav_hint_parking": "🖱️ Seret untuk alih · skrol untuk zum · klik dua kali untuk set semula paparan · guna butang Autoscale pada bar alat untuk muatkan seluruh tingkat.",
         "map_nav_hint": "🖱️ Seret untuk alih · skrol untuk zum · klik dua kali untuk set semula paparan · klik untuk pilih titik (dipadankan ke 1 m terdekat).",
         "btn_done_adding_stops": "➡️ Selesai Menambah Hentian (Seterusnya: Pilih Destinasi)",
@@ -294,7 +305,7 @@ LOCALIZATION = {
         "btn_keep_dest": "⏭️ Kekalkan Destinasi Semasa",
         "lbl_current": "Semasa",
         "footer_arch": "🏢 Seni Bina Sistem: Enjin Laluan 3D Theta*",
-        "footer_vector": "📐 Pemaparan Peta: Plotly",
+        "footer_vector": "📐 Pemaparan Peta: Folium & Plotly",
         "footer_lang": "🌐 Lokalisasi: Enjin Pelbagai Bahasa",
         "tab_nav_drive_to_spot": "🚗 1. Pintu Masuk ke Petak Meletak Kenderaan",
         "tab_nav_spot_to_exit": "🚪 2. Petak Meletak Kenderaan ke Pintu Keluar",
@@ -421,6 +432,7 @@ if "waypoint_counter" not in st.session_state: st.session_state.waypoint_counter
 if "map_pick_mode" not in st.session_state: st.session_state.map_pick_mode = False
 if "map_pick_step" not in st.session_state: st.session_state.map_pick_step = "START"
 if "last_processed_click" not in st.session_state: st.session_state.last_processed_click = None
+if "last_folium_clicks" not in st.session_state: st.session_state.last_folium_clicks = {}
 if "edit_target" not in st.session_state: st.session_state.edit_target = None
 if "parking_choice" not in st.session_state: st.session_state.parking_choice = None  
 if "parking_edit" not in st.session_state: st.session_state.parking_edit = False
@@ -681,34 +693,6 @@ for _hub, (_xyz, _anchor) in END_HUBS.items():
 
 install_doors(MULTI_CAD_NODES, MULTI_CAD_GRAPH, DOORS, ROOM_POLYGONS)
 
-# A door that opens onto another room's centre node (Info -> Entrance) would force the route through
-# that centre. Join it straight to the other room's door instead (the centre link stays as a fallback).
-for _room, (_dx, _dy, _link) in DOORS.items():
-    _a, _b = f"{DOOR_PREFIX}{_room}", f"{DOOR_PREFIX}{_link}"
-    if _b in MULTI_CAD_NODES:
-        _d = math.hypot(_dx - MULTI_CAD_NODES[_b][0], _dy - MULTI_CAD_NODES[_b][1])
-        MULTI_CAD_GRAPH[_a][_b] = _d
-        MULTI_CAD_GRAPH[_b][_a] = _d
-
-# The graph only links each corridor point to the corridor's centre node, so every route between two
-# doors/junctions bent at that centre. The corridor is one open rectangle, so any two points inside
-# it can see each other: join every pair of walkable points (hubs and doors that lie in or on the
-# corridor) directly. Room-centre nodes (the ones that have a door) are not walkable points.
-def _in_corridor(xy, poly):
-    xs, ys = [c[0] for c in poly], [c[1] for c in poly]
-    return min(xs) - 1e-6 <= xy[0] <= max(xs) + 1e-6 and min(ys) - 1e-6 <= xy[1] <= max(ys) + 1e-6
-
-for _z, _corr in FLOOR_CORRIDOR.items():
-    _poly = ROOM_POLYGONS[_corr]["coords"]
-    _walk = [n for n, c in MULTI_CAD_NODES.items()
-             if int(c[2]) == _z and f"{DOOR_PREFIX}{n}" not in MULTI_CAD_NODES
-             and _in_corridor(c, _poly) and (n == _corr or n.startswith(DOOR_PREFIX) or n.startswith("H_L"))]
-    for _i, _a in enumerate(_walk):
-        for _b in _walk[_i + 1:]:
-            _d = math.hypot(MULTI_CAD_NODES[_a][0] - MULTI_CAD_NODES[_b][0], MULTI_CAD_NODES[_a][1] - MULTI_CAD_NODES[_b][1])
-            MULTI_CAD_GRAPH.setdefault(_a, {})[_b] = _d
-            MULTI_CAD_GRAPH.setdefault(_b, {})[_a] = _d
-
 # ==============================================================================
 # 2. Dynamic Line of Sight & Routing Logic
 # ==============================================================================
@@ -835,17 +819,6 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
 
     return resolved_sequence
 
-def use_doors_for_room_stops(sequence, node_coords):
-    """A room node sits at the room's centre, so using a room as the start, a stop or the destination
-    sends the route to the centre (and, for a stop, straight back out). Swap every room in the route
-    for its door node: the route reaches the door and the stop counts as visited. Rooms that have no
-    door node, and clicked points, are left as they are."""
-    out = []
-    for item in sequence:
-        door = f"{DOOR_PREFIX}{item}" if isinstance(item, str) else None
-        out.append(door if door in node_coords else item)
-    return out
-
 # ==============================================================================
 # 3. Pathfinding Engine (Theta*)
 # ==============================================================================
@@ -901,8 +874,20 @@ def theta_star_3d(start, goal, graph, node_coords, accessible_only=False):
     return None
 
 # ==============================================================================
-# 4. Map Rendering (Plotly 2D, Plotly 3D, Plotly Rooftop Parking)
+# 4. Map Rendering (Folium 2D, Plotly 3D, Folium Rooftop)
 # ==============================================================================
+
+def add_door_markers_2d(m, floor_z, lang="English", radius=5):
+    door_lbl = DOOR_LABELS.get(lang, DOOR_LABELS["English"])
+    for room_id, (dx, dy, _link) in DOORS.items():
+        if int(ROOM_POLYGONS[room_id]["z"]) != int(floor_z):
+            continue
+        name = POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id).split("(")[0].strip()
+        folium.CircleMarker(
+            location=[dy, dx], radius=radius, color="#065F46", weight=2,
+            fill=True, fill_color="#34D399", fill_opacity=1.0,
+            tooltip=f"{name} – {door_lbl}"
+        ).add_to(m)
 
 def room_label(room_id, lang):
     """Room name with exactly one emoji (names usually carry their own; add one only if missing)."""
@@ -1392,6 +1377,282 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
         fig.update_layout(updatemenus=[play_menu(current_lang, [f.name for f in arrow_frames], redraw=False)])
     return fig
 
+FOLIUM_BASE_CSS = """
+<style>
+.leaflet-container { background: #F8FAFC; }
+@keyframes route-flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -34; } }
+.route-flow, path.leaflet-interactive[stroke="#FFFEFD"] {
+    animation: route-flow 0.7s linear infinite;
+    pointer-events: none;
+}
+/* Arrowheads light up one after another, so a wave runs start -> destination */
+@keyframes route-arrow-wave {
+    0%, 100% { fill-opacity: 0.12; stroke-opacity: 0.35; }
+    30%      { fill-opacity: 1;    stroke-opacity: 1; }
+    60%      { fill-opacity: 0.12; stroke-opacity: 0.35; }
+}
+.route-arrow {
+    animation: route-arrow-wave __CYCLE__s ease-in-out infinite;
+    pointer-events: none;
+}
+__PHASE_RULES__
+</style>
+"""
+FOLIUM_BASE_CSS = (FOLIUM_BASE_CSS
+    .replace("__CYCLE__", str(ARROW_CYCLE_S))
+    .replace("__PHASE_RULES__", "\n".join(
+        f".route-arrow.arrow-phase-{k} {{ animation-delay: {k * ARROW_CYCLE_S / ARROW_PHASES - ARROW_CYCLE_S:.3f}s; }}"
+        for k in range(ARROW_PHASES))))
+
+def build_axis_grid_js(map_var, x_title="X (m)", y_title="Y (m)"):
+    """Leaflet script that draws numbered X/Y axes and grid lines on a CRS.Simple map.
+    The spacing is re-chosen (1, 2, 5, 10, 20, 50 ...) every time the map is zoomed or panned."""
+    js = """
+(function () {
+    var map = __MAP__;
+    var container = map.getContainer();
+    var X_TITLE = __X_TITLE__;
+    var Y_TITLE = __Y_TITLE__;
+    var TARGET_PX = 90;   // aim for about this many pixels between grid lines
+
+    function makeCanvas(z) {
+        var c = document.createElement('canvas');
+        c.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;z-index:' + z + ';';
+        container.appendChild(c);
+        return c;
+    }
+    var gridCanvas = makeCanvas(399);    // grid lines sit under the map layers
+    var labelCanvas = makeCanvas(450);   // numbers and titles sit on top
+
+    function niceStep(raw) {
+        var p = Math.pow(10, Math.floor(Math.log10(raw)));
+        var f = raw / p;
+        return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+    }
+    function decimals(step) { return step >= 1 ? 0 : Math.ceil(-Math.log10(step) - 1e-9); }
+    function prepare(canvas, size) {
+        var dpr = window.devicePixelRatio || 1;
+        var w = Math.round(size.x * dpr), h = Math.round(size.y * dpr);
+        if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
+            canvas.style.width = size.x + 'px';
+            canvas.style.height = size.y + 'px';
+        }
+        var ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, size.x, size.y);
+        return ctx;
+    }
+    function tag(ctx, text, x, y, align) {
+        ctx.textAlign = align;
+        ctx.textBaseline = 'middle';
+        var w = ctx.measureText(text).width;
+        var left = align === 'center' ? x - w / 2 : (align === 'left' ? x : x - w);
+        ctx.fillStyle = 'rgba(248,250,252,0.85)';
+        ctx.fillRect(left - 2, y - 7, w + 4, 14);
+        ctx.fillStyle = '#475569';
+        ctx.fillText(text, x, y);
+    }
+    function draw() {
+        var size, zoom, bounds;
+        try { size = map.getSize(); zoom = map.getZoom(); bounds = map.getBounds(); } catch (e) { return; }
+        if (zoom === undefined || !isFinite(zoom)) return;
+
+        var g = prepare(gridCanvas, size);
+        var l = prepare(labelCanvas, size);
+        var step = niceStep(TARGET_PX / map.options.crs.scale(zoom));
+        var dec = decimals(step);
+
+        g.strokeStyle = 'rgba(100,116,139,0.28)';
+        g.lineWidth = 1;
+        l.font = '11px sans-serif';
+
+        var i0 = Math.ceil(bounds.getWest() / step - 1e-9), i1 = Math.floor(bounds.getEast() / step + 1e-9);
+        if (i1 - i0 <= 400) {
+            for (var i = i0; i <= i1; i++) {
+                var px = Math.round(map.latLngToContainerPoint([bounds.getSouth(), i * step]).x) + 0.5;
+                g.beginPath(); g.moveTo(px, 0); g.lineTo(px, size.y); g.stroke();
+                if (px > 30 && px < size.x - 60) tag(l, (i * step).toFixed(dec), px, size.y - 11, 'center');
+            }
+        }
+        var j0 = Math.ceil(bounds.getSouth() / step - 1e-9), j1 = Math.floor(bounds.getNorth() / step + 1e-9);
+        if (j1 - j0 <= 400) {
+            for (var j = j0; j <= j1; j++) {
+                var py = Math.round(map.latLngToContainerPoint([j * step, bounds.getWest()]).y) + 0.5;
+                g.beginPath(); g.moveTo(0, py); g.lineTo(size.x, py); g.stroke();
+                if (py > 30 && py < size.y - 30) tag(l, (j * step).toFixed(dec), 6, py, 'left');
+            }
+        }
+        l.font = 'bold 12px sans-serif';
+        tag(l, X_TITLE, size.x - 8, size.y - 29, 'right');
+        tag(l, Y_TITLE, 8, 14, 'left');
+    }
+    map.on('move zoom viewreset resize', draw);
+    draw();
+})();
+"""
+    return (js.replace("__MAP__", map_var)
+              .replace("__X_TITLE__", json.dumps(x_title))
+              .replace("__Y_TITLE__", json.dumps(y_title)))
+
+class AxisGrid(MacroElement):
+    """Adds numbered X/Y axes + grid lines to a folium map (see build_axis_grid_js)."""
+    _template = Template("{% macro script(this, kwargs) %}{{ this.build_js() }}{% endmacro %}")
+
+    def __init__(self, x_title="X (m)", y_title="Y (m)"):
+        super().__init__()
+        self._name = "AxisGrid"
+        self.x_title = x_title
+        self.y_title = y_title
+
+    def build_js(self):
+        return build_axis_grid_js(self._parent.get_name(), self.x_title, self.y_title)
+
+AUTOSCALE_LABELS = {
+    "English": "Autoscale (reset view)",
+    "Simplified Chinese": "自动缩放（重置视图）",
+    "Malay": "Skala automatik (set semula paparan)",
+}
+
+class AutoscaleControl(MacroElement):
+    """Button under the zoom controls that fits the whole floor plan back into view
+    (like the autoscale button in the Plotly toolbar)."""
+    _template = Template("{% macro script(this, kwargs) %}{{ this.build_js() }}{% endmacro %}")
+
+    def __init__(self, bounds, label="Autoscale"):
+        super().__init__()
+        self._name = "AutoscaleControl"
+        self.bounds = bounds
+        self.label = label
+
+    def build_js(self):
+        js = """
+(function () {
+    var map = __MAP__;
+    var BOUNDS = __BOUNDS__;
+    var LABEL = __LABEL__;
+    var Ctl = L.Control.extend({
+        options: {position: 'topleft'},
+        onAdd: function () {
+            var box = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            var a = L.DomUtil.create('a', '', box);
+            a.href = '#';
+            a.title = LABEL;
+            a.setAttribute('role', 'button');
+            a.setAttribute('aria-label', LABEL);
+            a.style.cssText = 'display:flex;align-items:center;justify-content:center;width:30px;height:30px;';
+            a.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#334155" ' +
+                          'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+                          '<path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>';
+            L.DomEvent.disableClickPropagation(box);
+            L.DomEvent.on(a, 'click', function (e) {
+                L.DomEvent.preventDefault(e);
+                map.fitBounds(BOUNDS);
+            });
+            return box;
+        }
+    });
+    new Ctl().addTo(map);
+})();
+"""
+        return (js.replace("__MAP__", self._parent.get_name())
+                  .replace("__BOUNDS__", json.dumps(self.bounds))
+                  .replace("__LABEL__", json.dumps(self.label)))
+
+def render_2d_folium_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
+                          stop_ids=None, show_dest=True, show_doors=True, highlight=None):
+    """Returns (base_map, route_layer).
+
+    base_map only holds what does not change while you pick points (rooms, labels, doors, axes),
+    so its HTML is the same on every rerun and streamlit-folium keeps the map (pan/zoom) as it is.
+    Everything that changes with the route lives in route_layer, which streamlit-folium swaps in
+    place through `feature_group_to_add`.
+    """
+    floor_z = int(active_floor_z)
+    floor_rooms = {r_id: info for r_id, info in ROOM_POLYGONS.items() if int(info["z"]) == floor_z}
+
+    all_pts = [pt for info in floor_rooms.values() for pt in info["coords"]]
+    if all_pts:
+        bounds = [[min(p[1] for p in all_pts) - 5, min(p[0] for p in all_pts) - 5],
+                  [max(p[1] for p in all_pts) + 5, max(p[0] for p in all_pts) + 5]]
+    else:
+        bounds = [[-35, -60], [55, 60]]
+
+    # ---- static base map ----
+    m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True,
+                   zoomSnap=0.25, zoomDelta=0.5, attribution_control=False)
+    m.get_root().header.add_child(folium.Element(FOLIUM_BASE_CSS))
+
+    for room_id, info in floor_rooms.items():
+        coords = info["coords"]
+        label = room_label(room_id, current_lang)
+        folium.Polygon(
+            locations=[[pt[1], pt[0]] for pt in coords],
+            color="#334155", weight=2, fill=True,
+            fill_color=info.get("color", "#CBD5E1"), fill_opacity=0.7,
+            tooltip=label,
+        ).add_to(m)
+
+        cx = sum(pt[0] for pt in coords) / len(coords)
+        cy = sum(pt[1] for pt in coords) / len(coords)
+        folium.Marker(
+            location=[cy, cx], interactive=False,   # labels must not swallow clicks
+            icon=folium.DivIcon(html=(
+                '<div style="font-size: 10px; font-weight: bold; color: #0f172a; white-space: nowrap; '
+                f'pointer-events: none; transform: translate(-50%, -50%);">{label}</div>'
+            )),
+        ).add_to(m)
+
+    if show_doors:
+        add_door_markers_2d(m, floor_z, current_lang)
+
+    AxisGrid().add_to(m)
+    m.fit_bounds(bounds)
+    AutoscaleControl(bounds, AUTOSCALE_LABELS.get(current_lang, AUTOSCALE_LABELS["English"])).add_to(m)
+
+    # ---- route layer (changes with every click) ----
+    route_layer = folium.FeatureGroup(name="route")
+    if route_path:
+        on_floor = lambda n: n in node_coords_dict and int(node_coords_dict[n][2]) == floor_z
+        floor_path = [n for n in route_path if on_floor(n)]
+
+        if len(floor_path) > 1:
+            xy = [(node_coords_dict[n][0], node_coords_dict[n][1]) for n in floor_path]
+            line_pts = [[y, x] for x, y in xy]
+            # Exactly the Smart Parking method: moving ► arrowheads + flowing dashes
+            hover = build_route_hover(route_path, node_coords_dict, floor_z, current_lang,
+                                      include_remaining=show_dest)
+            add_animated_route(route_layer, line_pts, "#EF4444", hover=hover)
+
+        for idx, stop_id in enumerate(stop_ids or [], start=1):
+            if on_floor(stop_id):
+                stx, sty, _ = node_coords_dict[stop_id]
+                folium.Marker(
+                    location=[sty, stx], interactive=False,
+                    icon=folium.DivIcon(html=(
+                        '<div style="width: 22px; height: 22px; border-radius: 50%; background: #F97316; color: #fff; '
+                        'border: 2px solid #fff; font: bold 12px/18px sans-serif; text-align: center; '
+                        f'transform: translate(-50%, -50%);">{idx}</div>'
+                    )),
+                ).add_to(route_layer)
+
+        if on_floor(route_path[0]):
+            sx, sy, _ = node_coords_dict[route_path[0]]
+            folium.Marker(location=[sy, sx], interactive=False,
+                          icon=folium.Icon(color="red", icon="play")).add_to(route_layer)
+
+        if show_dest and len(route_path) > 1 and on_floor(route_path[-1]):
+            dx, dy, _ = node_coords_dict[route_path[-1]]
+            folium.Marker(location=[dy, dx], interactive=False,
+                          icon=folium.Icon(color="green", icon="flag")).add_to(route_layer)
+
+    if highlight and int(highlight[2]) == floor_z:
+        folium.CircleMarker(location=[highlight[1], highlight[0]], radius=18, color="#F97316", weight=4,
+                            fill=False, interactive=False).add_to(route_layer)
+
+    return m, route_layer
+
 # Soft, translucent grid for the 3D scene (same tone as the 2D map grid)
 GRID3D = dict(gridcolor="rgba(100,116,139,0.18)", zerolinecolor="rgba(100,116,139,0.18)",
               linecolor="rgba(100,116,139,0.35)", showgrid=True, gridwidth=1)
@@ -1663,6 +1924,124 @@ def show_parking_map(assigned_slot, route_path, lang, route_color, key):
     elif not pts:
         st.session_state.last_park_clicks.pop(key, None)
 
+def add_parking_infrastructure_markers(m, lang="English"):
+    feature_nodes = {
+        "P_L3_Driveway_Entrance": "lbl_entrance_ramp",
+        "P_L3_Driveway_Exit": "lbl_exit_ramp",
+        "P_L3_Stairs": "lbl_stairwell",
+        "P_L3_Elevator": "lbl_elevator",
+        "P_L3_Escalator": "lbl_escalator",
+    }
+    lang_dict = LOCALIZATION.get(lang, LOCALIZATION["English"])
+
+    for node_id, trans_key in feature_nodes.items():
+        if node_id in MULTI_CAD_NODES:
+            x, y, _ = MULTI_CAD_NODES[node_id]
+            label_text = lang_dict.get(trans_key, node_id)
+            folium.Marker(
+                location=[y, x],
+                icon=folium.DivIcon(
+                    html=f'''<div style="font-size: 11px; font-weight: bold; color: #000000; background: rgba(255,255,255,0.95);
+                        border: 2px solid #1976D2; border-radius: 4px; padding: 2px 6px; white-space: nowrap;
+                        transform: translate(-50%, -50%);">{label_text}</div>'''
+                )
+            ).add_to(m)
+
+class MovingArrows(MacroElement):
+    """Arrowheads that glide along a route (in the direction of travel) and loop.
+
+    Each arrow is a small Leaflet marker that a requestAnimationFrame loop moves along the
+    polyline and turns to face the way it is heading. Map units are metres (CRS.Simple),
+    so SPACING and SPEED are in metres / metres per second."""
+    _template = Template("{% macro script(this, kwargs) %}{{ this.build_js() }}{% endmacro %}")
+
+    SPACING = 9.0
+    SPEED = 11.0
+
+    def __init__(self, line_pts, color="#EF4444"):
+        super().__init__()
+        self._name = "MovingArrows"
+        self.line_pts = [[float(p[0]), float(p[1])] for p in line_pts]
+        self.color = color
+
+    def build_js(self):
+        node = self._parent
+        while node is not None and not isinstance(node, folium.Map):
+            node = getattr(node, "_parent", None)
+        map_var = node.get_name() if node is not None else self._parent.get_name()
+        js = """
+(function () {
+    var map = __MAP__;
+    var pts = __PTS__;            // [lat, lng] = [y, x]
+    var COLOR = __COLOR__;
+    var SPACING = __SPACING__, SPEED = __SPEED__;
+
+    // cumulative length along the route
+    var cum = [0];
+    for (var i = 1; i < pts.length; i++) {
+        cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    }
+    var total = cum[cum.length - 1];
+    if (!(total > 1)) return;
+
+    function at(d) {                // position + heading at distance d along the route
+        d = ((d % total) + total) % total;
+        var k = 1;
+        while (k < cum.length - 1 && cum[k] < d) k++;
+        var seg = cum[k] - cum[k - 1] || 1e-9, t = (d - cum[k - 1]) / seg;
+        var a = pts[k - 1], b = pts[k];
+        return {
+            lat: a[0] + (b[0] - a[0]) * t,
+            lng: a[1] + (b[1] - a[1]) * t,
+            deg: Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI   // east = 0, north = 90
+        };
+    }
+
+    var svg = '<svg width="22" height="22" viewBox="-11 -11 22 22" style="display:block;overflow:visible">' +
+              '<polygon points="9,0 -6,-7 -3,0 -6,7" fill="' + COLOR + '" stroke="#FFFFFF" stroke-width="1.6" ' +
+              'stroke-linejoin="round"/></svg>';
+    var n = Math.max(1, Math.floor(total / SPACING));
+    var gap = total / n;
+    var arrows = [];
+    for (var j = 0; j < n; j++) {
+        var m = L.marker([pts[0][0], pts[0][1]], {
+            interactive: false, keyboard: false,
+            icon: L.divIcon({
+                className: '',
+                html: '<div class="mv-arrow" style="width:22px;height:22px;pointer-events:none;">' + svg + '</div>',
+                iconSize: [22, 22], iconAnchor: [11, 11]
+            })
+        }).addTo(map);
+        arrows.push(m);
+    }
+
+    function place(offset) {
+        for (var j = 0; j < arrows.length; j++) {
+            var p = at(offset + j * gap);
+            arrows[j].setLatLng([p.lat, p.lng]);
+            var el = arrows[j]._icon && arrows[j]._icon.firstChild;
+            if (el) el.style.transform = 'rotate(' + (-p.deg) + 'deg)';   // screen y points down
+        }
+    }
+
+    // Note: deliberately NOT disabled by the OS "reduce motion" setting. That setting is easy to
+    // have switched on without knowing, and it made the arrows look frozen.
+    var t0 = null;
+    function frame(ts) {
+        if (!map.getContainer().isConnected) return;     // map was replaced: stop
+        if (t0 === null) t0 = ts;
+        place(((ts - t0) / 1000) * SPEED);
+        requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+})();
+"""
+        return (js.replace("__MAP__", map_var)
+                  .replace("__PTS__", json.dumps(self.line_pts))
+                  .replace("__COLOR__", json.dumps(self.color))
+                  .replace("__SPACING__", str(self.SPACING))
+                  .replace("__SPEED__", str(self.SPEED)))
+
 HOVER_LABELS = {
     "English": ("Location", "Remaining to destination"),
     "Simplified Chinese": ("当前位置", "距终点剩余"),
@@ -1716,6 +2095,145 @@ def build_route_hover(path, node_coords, floor_z, lang="English", include_remain
         return None
     loc_lbl, rem_lbl = HOVER_LABELS.get(lang, HOVER_LABELS["English"])
     return {"samples": samples, "loc_label": loc_lbl, "rem_label": rem_lbl if include_remaining else None}
+
+class RouteHover(MacroElement):
+    """Hovering the route shows a tooltip with the place under the mouse and the distance
+    still to walk to the destination, and a dot marks the spot on the route."""
+    _template = Template("{% macro script(this, kwargs) %}{{ this.build_js() }}{% endmacro %}")
+
+    def __init__(self, line_pts, color, hover):
+        super().__init__()
+        self._name = "RouteHover"
+        self.line_pts = [[float(p[0]), float(p[1])] for p in line_pts]
+        self.color = color
+        self.hover = hover
+
+    def build_js(self):
+        node = self._parent
+        while node is not None and not isinstance(node, folium.Map):
+            node = getattr(node, "_parent", None)
+        map_var = node.get_name() if node is not None else self._parent.get_name()
+        js = """
+(function () {
+    var map = __MAP__;
+    var S = __SAMPLES__;                 // [lat, lng, name, metres remaining]
+    var LOC = __LOC__, REM = __REM__, COLOR = __COLOR__;
+    if (!S.length) return;
+
+    function esc(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    var HIT_PX = 28;     // how close (in screen pixels) the mouse must be to the route
+    var tip = L.tooltip({direction: 'top', offset: [0, -12], opacity: 0.96, className: 'route-hover-tip'});
+    var dot = L.circleMarker([0, 0], {radius: 6, color: '#FFFFFF', weight: 2, fillColor: COLOR,
+                                       fillOpacity: 1, interactive: false});
+
+    // Closest point on the route to the mouse, measured in screen pixels. This does not rely on
+    // the browser hit-testing a thin SVG line, so the hover area is centred on the route.
+    function closest(cp) {
+        var best = null, bd = Infinity;
+        var prev = map.latLngToContainerPoint([S[0][0], S[0][1]]);
+        for (var i = 1; i < S.length; i++) {
+            var cur = map.latLngToContainerPoint([S[i][0], S[i][1]]);
+            if (Math.abs(S[i][0] - S[i - 1][0]) + Math.abs(S[i][1] - S[i - 1][1]) < 3) {   // same leg
+                var dx = cur.x - prev.x, dy = cur.y - prev.y, len2 = dx * dx + dy * dy;
+                var t = len2 > 0 ? ((cp.x - prev.x) * dx + (cp.y - prev.y) * dy) / len2 : 0;
+                t = Math.max(0, Math.min(1, t));
+                var px = prev.x + dx * t, py = prev.y + dy * t;
+                var d = Math.hypot(cp.x - px, cp.y - py);
+                if (d < bd) {
+                    bd = d;
+                    var a = S[i - 1], b = S[i];
+                    best = {
+                        lat: a[0] + (b[0] - a[0]) * t, lng: a[1] + (b[1] - a[1]) * t,
+                        name: (t < 0.5 ? a : b)[2], rem: a[3] + (b[3] - a[3]) * t
+                    };
+                }
+            }
+            prev = cur;
+        }
+        return bd <= HIT_PX ? best : null;
+    }
+    function hide() {
+        map.closeTooltip(tip);
+        if (map.hasLayer(dot)) map.removeLayer(dot);
+    }
+    map.on('mousemove', function (e) {
+        var s = closest(e.containerPoint);
+        if (!s) { hide(); return; }
+        var ll = L.latLng(s.lat, s.lng);
+        var html = '<div style="font:12px/1.35 sans-serif;"><b>' + esc(LOC) + ':</b> ' + esc(s.name) + '</div>';
+        if (REM) html += '<div style="font:12px/1.35 sans-serif;">' + esc(REM) + ': <b>' + s.rem.toFixed(1) + ' m</b></div>';
+        tip.setLatLng(ll).setContent(html);
+        dot.setLatLng(ll);
+        if (!map.hasLayer(dot)) dot.addTo(map);
+        if (!map.hasLayer(tip)) map.openTooltip(tip);
+    });
+    map.on('mouseout', hide);
+})();
+"""
+        return (js.replace("__MAP__", map_var)
+                  .replace("__SAMPLES__", json.dumps(self.hover["samples"]))
+                  .replace("__LOC__", json.dumps(self.hover["loc_label"]))
+                  .replace("__REM__", json.dumps(self.hover["rem_label"]))
+                  .replace("__COLOR__", json.dumps(self.color))
+                  .replace("__PTS__", json.dumps(self.line_pts)))
+
+def add_animated_route(m, line_pts, color, hover=None):
+    """Route line with arrowheads that travel along it from the start to the end.
+    `hover` (from build_route_hover) adds the hover annotation."""
+    # One solid line (no soft glow underneath); the arrows move on top of it
+    folium.PolyLine(locations=line_pts, color=color, weight=4, opacity=1.0).add_to(m)
+    if hover:
+        RouteHover(line_pts, color, hover).add_to(m)
+    MovingArrows(line_pts, color).add_to(m)
+
+def render_rooftop_folium_map(assigned_slot=None, route_path=None, current_lang="English", route_color="#2563EB"):
+    rooftop_rooms = {r_id: poly["coords"] for r_id, poly in ROOM_POLYGONS.items() if poly["z"] == 3}
+    all_pts = [pt for coords in rooftop_rooms.values() for pt in coords]
+    min_x, max_x = min(p[0] for p in all_pts) - 5, max(p[0] for p in all_pts) + 5
+    min_y, max_y = min(p[1] for p in all_pts) - 5, max(p[1] for p in all_pts) + 5
+    bounds = [[min_y, min_x], [max_y, max_x]]
+
+    # Same map setup as the 2D Folium floor map (zoom behaviour, background, axes, autoscale)
+    m = folium.Map(crs="Simple", tiles=None, zoom_control=True, scroll_wheel_zoom=True,
+                   zoomSnap=0.25, zoomDelta=0.5, attribution_control=False)
+    m.get_root().header.add_child(folium.Element(FOLIUM_BASE_CSS))
+
+    for room_id, coords in rooftop_rooms.items():
+        folium_coords = [[pt[1], pt[0]] for pt in coords]
+        folium.Polygon(
+            locations=folium_coords, color="#475569", weight=1.5, fill=True, fill_color="#E2E8F0", fill_opacity=0.5,
+            tooltip=POI_TRANSLATIONS.get(current_lang, {}).get(room_id, room_id)
+        ).add_to(m)
+
+    for slot_id, details in PARKING_SLOTS.items():
+        if slot_id not in MULTI_CAD_NODES: continue
+        cx, cy, _ = MULTI_CAD_NODES[slot_id]
+        color = "#2563EB" if slot_id == assigned_slot else ("#DC2626" if details["occupied"] else "#16A34A")
+
+        box_w, box_h = 3.5, 6.0
+        bx = [cx - box_w/2, cx + box_w/2, cx + box_w/2, cx - box_w/2]
+        by = [cy - box_h/2, cy - box_h/2, cy + box_h/2, cy + box_h/2]
+        slot_poly = [[by[i], bx[i]] for i in range(4)]
+
+        folium.Polygon(locations=slot_poly, color=color, fill=True, fill_color=color, fill_opacity=0.7).add_to(m)
+        folium.Marker(location=[cy, cx], icon=folium.DivIcon(html=f'<div style="font-size: 10px; font-weight: bold; color: #FFFFFF; transform: translate(-50%, -50%);">{slot_id}</div>')).add_to(m)
+
+    if route_path:
+        rooftop_path = [node for node in route_path if int(MULTI_CAD_NODES[node][2]) == 3]
+        if len(rooftop_path) > 1:
+            line_pts = [[MULTI_CAD_NODES[n][1], MULTI_CAD_NODES[n][0]] for n in rooftop_path]
+            hover = build_route_hover(route_path, MULTI_CAD_NODES, 3, current_lang)
+            add_animated_route(m, line_pts, route_color, hover=hover)
+
+    add_door_markers_2d(m, 3, current_lang, radius=3)
+    add_parking_infrastructure_markers(m, current_lang)
+
+    AxisGrid().add_to(m)
+    m.fit_bounds(bounds)
+    AutoscaleControl(bounds, AUTOSCALE_LABELS.get(current_lang, AUTOSCALE_LABELS["English"])).add_to(m)
+    return m
 
 # ==============================================================================
 # 5. Helpers, Parking Allocation & Navigation Directions
@@ -2166,7 +2684,7 @@ def editable_targets():
 def find_marker_at(raw_point, radius=4.0, pin_offset=0.0):
     """Start/stop/destination marker closest to a clicked point on the same floor (within `radius`
     metres), or None. `pin_offset` also accepts clicks that far above the marker's position
-    (kept for callers whose markers are drawn above the spot they point at)."""
+    (Folium pins are drawn above the spot they point at)."""
     px, py, pz = raw_point
     best, best_d = None, radius
     for target, (x, y, z) in editable_targets():
@@ -2367,7 +2885,6 @@ with tab_map:
     temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
     temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
     full_route_sequence = resolve_all_route_points(raw_sequence, 0, temp_graph, temp_nodes)
-    full_route_sequence = use_doors_for_room_stops(full_route_sequence, temp_nodes)
 
     full_path = []
     route_failed = False
@@ -2401,7 +2918,7 @@ with tab_map:
         stop_ids = full_route_sequence[1:-1]
 
     # ---- View mode and interactive-pick controls ----
-    view_type = st.radio(t["view_mode"], options=[t["view_2d"], t["view_3d"]], horizontal=True)
+    view_type = st.radio(t["view_mode"], options=[t["view_2d_folium"], t["view_2d"], t["view_3d"]], horizontal=True)
     show_doors = st.checkbox(t["show_doors"], value=True)
 
     col_btn_pick, col_btn_clear = st.columns([0.7, 0.3])
@@ -2487,47 +3004,78 @@ with tab_map:
         st.caption(t["edit_hint"])
 
     # ---- Render the selected map view ----
-    if view_type == t["view_2d"]:
+    if view_type in (t["view_2d_folium"], t["view_2d"]):
         floor_select = st.selectbox(
             t["active_floor"],
             options=[0, 1, 2, 3],
             format_func=lambda x: get_translated_floor_name(x, lang=st.session_state.lang)
         )
 
-        fig_2d = render_2d_plotly_view(
-            floor_select,
-            route_path=path,
-            node_coords_dict=temp_nodes,
-            current_lang=st.session_state.lang,
-            stop_ids=stop_ids,
-            show_dest=not st.session_state.map_pick_mode,
-            show_doors=show_doors,
-            highlight=highlight_xyz,
-        )
-        st.caption(t["map_nav_hint"])
-        map_event = st.plotly_chart(
-            fig_2d,
-            use_container_width=True,
-            key=f"map2d_floor_{floor_select}",
-            on_select="rerun",
-            selection_mode="points",
-            config={"scrollZoom": True, "displaylogo": False, "modeBarButtonsToRemove": ["select2d", "lasso2d"]},
-        )
+        if view_type == t["view_2d_folium"]:
+            base_map, route_layer = render_2d_folium_view(
+                floor_select,
+                route_path=path,
+                node_coords_dict=temp_nodes,
+                current_lang=st.session_state.lang,
+                stop_ids=stop_ids,
+                show_dest=not st.session_state.map_pick_mode,
+                show_doors=show_doors,
+                highlight=highlight_xyz,
+            )
+            st.caption(t["map_nav_hint_folium"])
+            folium_kwargs = dict(
+                height=620, use_container_width=True, key=f"map2d_folium_{floor_select}",
+                returned_objects=["last_clicked"],   # no pan/zoom reruns
+            )
+            # Same as the Smart Parking map: the route is part of the map itself, so the
+            # moving-arrow script runs normally (the map is rebuilt on each new click).
+            base_map.add_child(route_layer)
+            map_data = st_folium(base_map, **folium_kwargs)
 
-        clicked_points = []
-        if map_event and "selection" in map_event and "points" in map_event["selection"]:
-            clicked_points = map_event["selection"]["points"]
+            if map_data and map_data.get("last_clicked"):
+                click = map_data["last_clicked"]
+                raw_point = (round(click["lng"], 2), round(click["lat"], 2), floor_select)
+                click_key = f"folium_{floor_select}"
+                # The component remembers its last click, so only act on a new one
+                if raw_point != st.session_state.last_folium_clicks.get(click_key):
+                    st.session_state.last_folium_clicks[click_key] = raw_point
+                    handle_map_click(raw_point, pin_offset=3.0)
 
-        if clicked_points:
-            pt = clicked_points[0]
-            raw_point = (round(float(pt["x"]), 2), round(float(pt["y"]), 2), floor_select)
-
-            # The selection persists across reruns, so only act on a new click
-            if raw_point != st.session_state.last_processed_click:
-                st.session_state.last_processed_click = raw_point
-                handle_map_click(raw_point)
         else:
-            st.session_state.last_processed_click = None
+            fig_2d = render_2d_plotly_view(
+                floor_select,
+                route_path=path,
+                node_coords_dict=temp_nodes,
+                current_lang=st.session_state.lang,
+                stop_ids=stop_ids,
+                show_dest=not st.session_state.map_pick_mode,
+                show_doors=show_doors,
+                highlight=highlight_xyz,
+            )
+            st.caption(t["map_nav_hint"])
+            map_event = st.plotly_chart(
+                fig_2d,
+                use_container_width=True,
+                key=f"map2d_floor_{floor_select}",
+                on_select="rerun",
+                selection_mode="points",
+                config={"scrollZoom": True, "displaylogo": False, "modeBarButtonsToRemove": ["select2d", "lasso2d"]},
+            )
+
+            clicked_points = []
+            if map_event and "selection" in map_event and "points" in map_event["selection"]:
+                clicked_points = map_event["selection"]["points"]
+
+            if clicked_points:
+                pt = clicked_points[0]
+                raw_point = (round(float(pt["x"]), 2), round(float(pt["y"]), 2), floor_select)
+
+                # The selection persists across reruns, so only act on a new click
+                if raw_point != st.session_state.last_processed_click:
+                    st.session_state.last_processed_click = raw_point
+                    handle_map_click(raw_point)
+            else:
+                st.session_state.last_processed_click = None
     else:
         fig_3d, arrow3d_payload = render_3d_isometric_view(route_path=path, node_coords=temp_nodes, current_lang=st.session_state.lang, show_doors=show_doors)
         components.html(render_3d_html(fig_3d, arrow3d_payload, st.session_state.lang, height=680),
