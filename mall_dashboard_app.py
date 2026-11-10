@@ -352,7 +352,7 @@ POI_TRANSLATIONS = {
         "P_L3_Driveway_Entrance": "🚪楼顶入口", "P_L3_Driveway_Exit": "🚪楼顶出口",
         "Fashion Hub": "👗时尚中心 (Fashion Hub)", "Tech Gadgets": "📱酷科技数码 (Tech Gadgets)", "Jewel Box": "👗璀璨珠宝 (Jewel Box)",
         "Mega Supermarket": "🛒大型超级市场 (Mega Supermarket)", "Gourmet Bites": "🍔美食小吃 (Gourmet Bites)", "Book Nook": "🛒书香角 (Book Nook)",
-        "Cineplex Theater": "🎬影城 (Cineplex Theater)", "VR World & Arcade": "🎬电玩城 (Arcade)", "Sky Food Court": "🍔云端美食广场 (Sky Food Court)",
+        "Cineplex Theater": "🎬影城 (Cineplex Theater)", "VR World & Arcade": "🎬电玩城 (& Arcade)", "Sky Food Court": "🍔云端美食广场 (Sky Food Court)",
         "P1": "🅿️停车位 1", "P2": "🅿️停车位 2", "P3": "🅿️停车位 3", "P4": "🅿️停车位 4",
         "P5": "🅿️停车位 5", "P6": "🅿️停车位 6", "P7": "🅿️停车位 7", "P8": "🅿️停车位 8",
     },
@@ -365,11 +365,11 @@ POI_TRANSLATIONS = {
         "B_L2_Escalator": "🪜Eskalator (Tingkat 2)", "B_L2_Restroom": "Tandas (Tingkat 2)", "P_L3_Aisle_Main": "🚪Laluan Utama Kenderaan (Bumbung)",
         "P_L3_Elevator": "🛗Lif (Bumbung)", "P_L3_Stairs": "🧗Tangga (Bumbung)", "P_L3_Escalator": "🪜Eskalator (Bumbung)",
         "P_L3_Driveway_Entrance": "🚪Laluan Masuk Kenderaan (Bumbung)", "P_L3_Driveway_Exit": "🚪Laluan Keluar Kenderaan (Bumbung)",
-        "Fashion Hub": "👗Pusat Fesyen", "Tech Gadgets": "📱Gajet Teknologi", "Jewel Box": "👗Kotak Permata",
-        "Mega Supermarket": "🛒Pasar Raya Mega", "Gourmet Bites": "🍔Sajian Gourmet", "Book Nook": "🛒Sudut Buku",
-        "Cineplex Theater": "🎬Pawagam Cineplex", "VR World & Arcade": "🎬Dunia VR & Arked", "Sky Food Court": "🍔Medan Selera Awam",
-        "P1": "🅿️Petak 1", "P2": "🅿️Petak 2", "P3": "🅿️Petak 3", "P4": "🅿️Petak 4",
-        "P5": "🅿️Petak 5", "P6": "🅿️Petak 6", "P7": "🅿️Petak 7", "P8": "🅿️Petak 8",
+        "Fashion Hub": "👗Fashion Hub", "Tech Gadgets": "📱Tech Gadgets", "Jewel Box": "👗Jewel Box",
+        "Mega Supermarket": "🛒Mega Supermarket", "Gourmet Bites": "🍔Gourmet Bites", "Book Nook": "🛒Book Nook",
+        "Cineplex Theater": "🎬Cineplex Theater", "VR World & Arcade": "🎬Arcade", "Sky Food Court": "🍔Sky Food Court",
+        "P1": "🅿️Tempat 1", "P2": "🅿️Tempat 2", "P3": "🅿️Tempat 3", "P4": "🅿️Tempat 4",
+        "P5": "🅿️Tempat 5", "P6": "🅿️Tempat 6", "P7": "🅿️Tempat 7", "P8": "🅿️Tempat 8",
     }
 }
 
