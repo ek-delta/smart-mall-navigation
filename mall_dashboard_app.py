@@ -690,6 +690,25 @@ for _room, (_dx, _dy, _link) in DOORS.items():
         MULTI_CAD_GRAPH[_a][_b] = _d
         MULTI_CAD_GRAPH[_b][_a] = _d
 
+# The graph only links each corridor point to the corridor's centre node, so every route between two
+# doors/junctions bent at that centre. The corridor is one open rectangle, so any two points inside
+# it can see each other: join every pair of walkable points (hubs and doors that lie in or on the
+# corridor) directly. Room-centre nodes (the ones that have a door) are not walkable points.
+def _in_corridor(xy, poly):
+    xs, ys = [c[0] for c in poly], [c[1] for c in poly]
+    return min(xs) - 1e-6 <= xy[0] <= max(xs) + 1e-6 and min(ys) - 1e-6 <= xy[1] <= max(ys) + 1e-6
+
+for _z, _corr in FLOOR_CORRIDOR.items():
+    _poly = ROOM_POLYGONS[_corr]["coords"]
+    _walk = [n for n, c in MULTI_CAD_NODES.items()
+             if int(c[2]) == _z and f"{DOOR_PREFIX}{n}" not in MULTI_CAD_NODES
+             and _in_corridor(c, _poly) and (n == _corr or n.startswith(DOOR_PREFIX) or n.startswith("H_L"))]
+    for _i, _a in enumerate(_walk):
+        for _b in _walk[_i + 1:]:
+            _d = math.hypot(MULTI_CAD_NODES[_a][0] - MULTI_CAD_NODES[_b][0], MULTI_CAD_NODES[_a][1] - MULTI_CAD_NODES[_b][1])
+            MULTI_CAD_GRAPH.setdefault(_a, {})[_b] = _d
+            MULTI_CAD_GRAPH.setdefault(_b, {})[_a] = _d
+
 # ==============================================================================
 # 2. Dynamic Line of Sight & Routing Logic
 # ==============================================================================
