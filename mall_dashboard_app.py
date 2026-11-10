@@ -681,6 +681,15 @@ for _hub, (_xyz, _anchor) in END_HUBS.items():
 
 install_doors(MULTI_CAD_NODES, MULTI_CAD_GRAPH, DOORS, ROOM_POLYGONS)
 
+# A door that opens onto another room's centre node (Info -> Entrance) would force the route through
+# that centre. Join it straight to the other room's door instead (the centre link stays as a fallback).
+for _room, (_dx, _dy, _link) in DOORS.items():
+    _a, _b = f"{DOOR_PREFIX}{_room}", f"{DOOR_PREFIX}{_link}"
+    if _b in MULTI_CAD_NODES:
+        _d = math.hypot(_dx - MULTI_CAD_NODES[_b][0], _dy - MULTI_CAD_NODES[_b][1])
+        MULTI_CAD_GRAPH[_a][_b] = _d
+        MULTI_CAD_GRAPH[_b][_a] = _d
+
 # ==============================================================================
 # 2. Dynamic Line of Sight & Routing Logic
 # ==============================================================================
@@ -806,6 +815,17 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
                     graph_copy.setdefault(nB, {})[nA] = dist
 
     return resolved_sequence
+
+def use_doors_for_room_stops(sequence, node_coords):
+    """A room node sits at the room's centre, so using a room as the start, a stop or the destination
+    sends the route to the centre (and, for a stop, straight back out). Swap every room in the route
+    for its door node: the route reaches the door and the stop counts as visited. Rooms that have no
+    door node, and clicked points, are left as they are."""
+    out = []
+    for item in sequence:
+        door = f"{DOOR_PREFIX}{item}" if isinstance(item, str) else None
+        out.append(door if door in node_coords else item)
+    return out
 
 # ==============================================================================
 # 3. Pathfinding Engine (Theta*)
@@ -2328,6 +2348,7 @@ with tab_map:
     temp_graph = copy.deepcopy(MULTI_CAD_GRAPH)
     temp_nodes = copy.deepcopy(MULTI_CAD_NODES)
     full_route_sequence = resolve_all_route_points(raw_sequence, 0, temp_graph, temp_nodes)
+    full_route_sequence = use_doors_for_room_stops(full_route_sequence, temp_nodes)
 
     full_path = []
     route_failed = False
