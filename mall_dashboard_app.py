@@ -1,6 +1,7 @@
 import math
 import random
 import heapq
+import time
 import copy
 import functools
 import json
@@ -57,6 +58,17 @@ LOCALIZATION = {
         "spots_metric": "🅿️ Total Parking Spots",
         "available_metric": "🟢 Available Spots",
         "unavailable_metric": "🔴 Unavailable Spots",
+        "leaving_soon_metric": "🟠 Leaving Soon",
+        "sim_toggle": "🔴 Live parking simulation (other cars arrive and leave)",
+        "sim_legend": "🚗 Dotted lines show other cars: grey = driving to a spot, amber = about to leave, purple = driving to the exit ramp.",
+        "sim_leave_warning": "⚠️ Heads up: the car in spot **{slot}** is about to leave for the exit ramp (in about {secs}s).",
+        "sim_toast_leave": "🚗 The car in {slot} is about to pull out!",
+        "sim_activity": "🕒 Recent activity",
+        "sim_ev_arriving": "🚗 A car is driving to spot {slot}",
+        "sim_ev_parked": "🅿️ A car parked in spot {slot}",
+        "sim_ev_warn": "⚠️ The car in spot {slot} is about to leave",
+        "sim_ev_leaving": "🚪 The car from spot {slot} is driving to the exit ramp",
+        "sim_ev_gone": "👋 The car from spot {slot} left through the exit ramp",
         "feat_map_title": "🗺️ 2D / 3D Map View",
         "feat_map_desc": "Explore every floor on an interactive 2D map or a 3D isometric view. Click anywhere on the 2D map to plan a route.",
         "feat_turn_title": "🧭 Turn-by-Turn",
@@ -152,6 +164,17 @@ LOCALIZATION = {
         "spots_metric": "🅿️ 总车位数",
         "available_metric": "🟢 空余车位",
         "unavailable_metric": "🔴 已占用车位",
+        "leaving_soon_metric": "🟠 即将离开",
+        "sim_toggle": "🔴 实时停车模拟（其他车辆进出）",
+        "sim_legend": "🚗 虚线表示其他车辆：灰色 = 驶向车位，琥珀色 = 即将离开，紫色 = 驶向出口匝道。",
+        "sim_leave_warning": "⚠️ 请注意：**{slot}** 车位的车辆即将驶向出口匝道离开（约 {secs} 秒后）。",
+        "sim_toast_leave": "🚗 {slot} 车位的车辆即将驶出！",
+        "sim_activity": "🕒 最近动态",
+        "sim_ev_arriving": "🚗 一辆车正驶向车位 {slot}",
+        "sim_ev_parked": "🅿️ 一辆车已停入车位 {slot}",
+        "sim_ev_warn": "⚠️ 车位 {slot} 的车辆即将离开",
+        "sim_ev_leaving": "🚪 车位 {slot} 的车辆正驶向出口匝道",
+        "sim_ev_gone": "👋 车位 {slot} 的车辆已从出口匝道离开",
         "feat_map_title": "🗺️ 2D / 3D 地图视图",
         "feat_map_desc": "在交互式 2D 地图或 3D 等轴视图中浏览各楼层，点击 2D 地图任意位置即可规划路线。",
         "feat_turn_title": "🧭 逐向导航",
@@ -247,6 +270,17 @@ LOCALIZATION = {
         "spots_metric": "🅿️ Jumlah Ruang Letak Kereta",
         "available_metric": "🟢 Ruang Kosong",
         "unavailable_metric": "🔴 Ruang Diisi",
+        "leaving_soon_metric": "🟠 Akan Keluar",
+        "sim_toggle": "🔴 Simulasi tempat letak kereta langsung (kereta lain masuk dan keluar)",
+        "sim_legend": "🚗 Garisan putus-putus menunjukkan kereta lain: kelabu = menuju petak, kuning ambar = akan keluar, ungu = menuju ramp keluar.",
+        "sim_leave_warning": "⚠️ Perhatian: kereta di petak **{slot}** akan keluar menuju ramp keluar (dalam kira-kira {secs} saat).",
+        "sim_toast_leave": "🚗 Kereta di {slot} akan bergerak keluar!",
+        "sim_activity": "🕒 Aktiviti terkini",
+        "sim_ev_arriving": "🚗 Sebuah kereta menuju petak {slot}",
+        "sim_ev_parked": "🅿️ Sebuah kereta diletakkan di petak {slot}",
+        "sim_ev_warn": "⚠️ Kereta di petak {slot} akan keluar",
+        "sim_ev_leaving": "🚪 Kereta dari petak {slot} menuju ramp keluar",
+        "sim_ev_gone": "👋 Kereta dari petak {slot} telah keluar melalui ramp keluar",
         "feat_map_title": "🗺️ Pandangan Peta 2D / 3D",
         "feat_map_desc": "Terokai setiap tingkat pada peta 2D interaktif atau paparan isometrik 3D. Klik di mana-mana pada peta 2D untuk merancang laluan.",
         "feat_turn_title": "🧭 Arah Langkah demi Langkah",
@@ -1225,9 +1259,13 @@ def route_hover_band(gx, gy, samples, band_m):
 
 def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULTI_CAD_NODES, current_lang="English",
                           stop_ids=None, show_dest=True, show_doors=True,
-                          show_slots=False, assigned_slot=None, route_color="#EF4444", highlight=None):
+                          show_slots=False, assigned_slot=None, route_color="#EF4444", highlight=None,
+                          sim_cars=None, leaving_slots=None):
     """2D floor plan. The view (pan/zoom) is kept across reruns via `uirevision`,
-    so clicking a point no longer moves the map."""
+    so clicking a point no longer moves the map.
+    sim_cars / leaving_slots (parking map only): the simulated cars to draw and the spots whose car
+    is about to pull out (see sim_snapshot)."""
+    leaving_slots = set(leaving_slots or ())
     fig = go.Figure()
     lang_dict = LOCALIZATION.get(current_lang, LOCALIZATION["English"])
     floor_z = int(active_floor_z)
@@ -1273,7 +1311,12 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
             if slot_id not in node_coords_dict or int(node_coords_dict[slot_id][2]) != floor_z:
                 continue
             cx, cy, _ = node_coords_dict[slot_id]
-            col = "#2563EB" if slot_id == assigned_slot else ("#DC2626" if details["occupied"] else "#16A34A")
+            if slot_id == assigned_slot:
+                col = "#2563EB"
+            elif slot_id in leaving_slots:
+                col = "#F59E0B"          # amber: the car is about to pull out
+            else:
+                col = "#DC2626" if details["occupied"] else "#16A34A"
             hw, hh = 1.75, 3.0
             fig.add_trace(go.Scatter(
                 x=[cx - hw, cx + hw, cx + hw, cx - hw, cx - hw],
@@ -1293,10 +1336,13 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
     if show_slots:
         n_taken = sum(1 for d in PARKING_SLOTS.values() if d["occupied"])
         n_free = len(PARKING_SLOTS) - n_taken
+        card_text = (f"<b>{lang_dict['available_metric']}: {n_free}</b><br>"
+                     f"<b>{lang_dict['unavailable_metric']}: {n_taken}</b>")
+        if leaving_slots:
+            card_text += f"<br><b>{lang_dict['leaving_soon_metric']}: {len(leaving_slots)}</b>"
         fig.add_annotation(
             xref="paper", yref="paper", x=0.99, y=0.99, xanchor="right", yanchor="top",
-            text=(f"<b>{lang_dict['available_metric']}: {n_free}</b><br>"
-                  f"<b>{lang_dict['unavailable_metric']}: {n_taken}</b>"),
+            text=card_text,
             showarrow=False, align="left", font=dict(size=14, color="#0f172a"),
             bgcolor="rgba(255,255,255,0.95)", bordercolor="#64748B", borderwidth=1, borderpad=6,
         )
@@ -1400,6 +1446,33 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
             marker=dict(size=30, symbol="circle-open", color="#F97316", line=dict(width=4, color="#F97316")),
             hoverinfo="skip", showlegend=False,
         ))
+
+    # Other (simulated) cars: dotted route still to drive + a car marker.
+    # grey = heading to a spot, purple = driving to the exit ramp, amber = about to pull out.
+    if show_slots and sim_cars:
+        car_colors = {"arriving": "#64748B", "leaving": "#7C3AED", "warning": "#F59E0B"}
+        for car in sim_cars:
+            col = car_colors.get(car["kind"], "#64748B")
+            route = car.get("route") or []
+            if len(route) > 1:
+                fig.add_trace(go.Scatter(
+                    x=[p[0] for p in route], y=[p[1] for p in route], mode="lines",
+                    line=dict(color=col, width=3, dash="dot"), hoverinfo="skip", showlegend=False,
+                ))
+            fig.add_trace(go.Scatter(
+                x=[car["pos"][0]], y=[car["pos"][1]], mode="markers+text", text=["🚗"],
+                textposition="middle center", textfont=dict(size=15),
+                marker=dict(size=24, color=col, line=dict(color="#FFFFFF", width=2)),
+                hoverinfo="skip", showlegend=False,
+                unselected=dict(textfont=dict(color="#0f172a")),
+            ))
+            if car["kind"] == "warning":
+                fig.add_trace(go.Scatter(
+                    x=[car["pos"][0]], y=[car["pos"][1] + 5.2], mode="text",
+                    text=[f"<b>⚠ {car['slot']} · {car['secs']}s</b>"], textposition="middle center",
+                    textfont=dict(size=13, color="#B45309"), hoverinfo="skip", showlegend=False,
+                    unselected=dict(textfont=dict(color="#B45309")),
+                ))
 
     # Invisible click targets (added last)
     gx, gy = build_click_grid(floor_z)
@@ -1720,14 +1793,22 @@ def handle_parking_click(raw_point, assigned_slot):
 def show_parking_map(assigned_slot, route_path, lang, route_color, key):
     """Rooftop parking map drawn with the 2D Plotly map (pan, scroll-zoom, numbered axes,
     animated arrows, route hover and the toolbar's Autoscale / Reset axes buttons).
-    The assigned spot can be changed by clicking it and then clicking another free spot."""
+    The assigned spot can be changed by clicking it and then clicking another free spot.
+    Runs as its own fragment (see show_parking_map_live): each refresh moves the simulated cars, and
+    when a car event happens (arrival, parked, warning, leaving) it reruns the whole page once so the
+    banner, route summary and directions catch up."""
+    sim = sim_step(running=st.session_state.get("sim_running", True))
+    if sim["version"] != st.session_state.get("sim_body_version"):
+        st.rerun()
     highlight = None
     if assigned_slot and st.session_state.parking_edit and assigned_slot in MULTI_CAD_NODES:
         highlight = MULTI_CAD_NODES[assigned_slot]
+    sim_cars, leaving_slots = sim_snapshot()
     fig = render_2d_plotly_view(
         3, route_path=route_path or None, node_coords_dict=MULTI_CAD_NODES, current_lang=lang,
         show_dest=True, show_doors=True, show_slots=True, assigned_slot=assigned_slot,
         route_color=route_color, highlight=highlight,
+        sim_cars=sim_cars, leaving_slots=leaving_slots,
     )
     st.caption(LOCALIZATION.get(lang, LOCALIZATION["English"])["map_nav_hint_parking"])
     event = st.plotly_chart(
@@ -1746,6 +1827,21 @@ def show_parking_map(assigned_slot, route_path, lang, route_color, key):
             handle_parking_click(raw_point, assigned_slot)
     elif not pts:
         st.session_state.last_park_clicks.pop(key, None)
+
+def show_parking_map_live(assigned_slot, route_path, lang, route_color, key):
+    """show_parking_map as a self-refreshing fragment while the live simulation is on (decorated on
+    every full run, so the checkbox changes the interval). Older Streamlit versions without
+    fragments / run_every just redraw when you interact with the page."""
+    fragment = getattr(st, "fragment", None) or getattr(st, "experimental_fragment", None)
+    if fragment is None:
+        show_parking_map(assigned_slot, route_path, lang, route_color, key)
+        return
+    run_every = SIM_TICK_S if st.session_state.get("sim_running", True) else None
+    try:
+        live = fragment(run_every=run_every)(show_parking_map)
+    except TypeError:
+        live = fragment(show_parking_map)
+    live(assigned_slot, route_path, lang, route_color, key)
 
 HOVER_LABELS = {
     "English": ("Location", "Remaining to destination"),
@@ -1800,6 +1896,149 @@ def build_route_hover(path, node_coords, floor_z, lang="English", include_remain
         return None
     loc_lbl, rem_lbl = HOVER_LABELS.get(lang, HOVER_LABELS["English"])
     return {"samples": samples, "loc_label": loc_lbl, "rem_label": rem_lbl if include_remaining else None}
+
+# ==============================================================================
+# 4b. Live parking simulation: other cars drive in, park and leave at random times
+# ==============================================================================
+
+SIM_TICK_S = 1.0                   # how often the parking MAP redraws itself (the rest of the tab only
+                                   # refreshes when something happens: arrival, parked, warning, leaving)
+SIM_CAR_SPEED_MPS = 5.0            # driving speed on the roof (metres per second)
+SIM_ARRIVAL_S = (6.0, 16.0)        # random gap between two new cars
+SIM_DWELL_S = (25.0, 75.0)         # how long a car that just parked stays
+SIM_INITIAL_DWELL_S = (8.0, 60.0)  # time left for cars already parked when the simulation starts
+SIM_WARN_LEAD_S = 8.0              # warn this long before a car pulls out
+SIM_MAX_GAP_S = 5.0                # longest stretch of time a single refresh may advance the clock
+SIM_LOG_MAX = 30
+
+@functools.lru_cache(maxsize=None)
+def car_route_pts(kind, slot):
+    """(x, y) points of a car's route. 'in' = entrance ramp -> spot, 'out' = spot -> exit ramp."""
+    a, b = ("P_L3_Driveway_Entrance", slot) if kind == "in" else (slot, "P_L3_Driveway_Exit")
+    nodes = theta_star_3d(a, b, MULTI_CAD_GRAPH, MULTI_CAD_NODES) or [a, b]
+    pts = []
+    for n in nodes:
+        p = (MULTI_CAD_NODES[n][0], MULTI_CAD_NODES[n][1])
+        if not pts or math.dist(p, pts[-1]) > 1e-9:
+            pts.append(p)
+    return tuple(pts)
+
+def _poly_len(pts):
+    return sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))
+
+def _poly_split(pts, d):
+    """The point `d` metres along a polyline, and the rest of the polyline from that point on."""
+    run = 0.0
+    for i, (a, b) in enumerate(zip(pts, pts[1:])):
+        seg = math.dist(a, b)
+        if seg > 0 and run + seg >= d:
+            t = (d - run) / seg
+            pos = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+            return pos, [pos] + list(pts[i + 1:])
+        run += seg
+    return pts[-1], [pts[-1]]
+
+def set_slot_occupied(slot, occupied):
+    """Occupancy lives in session state (it survives reruns) and in PARKING_SLOTS (what the maps read)."""
+    st.session_state.parking_occupancy[slot] = occupied
+    if slot in PARKING_SLOTS:
+        PARKING_SLOTS[slot]["occupied"] = occupied
+
+def _sim_log(sim, key, slot):
+    sim["log"].append((key, slot))
+    del sim["log"][:-SIM_LOG_MAX]
+    if key in ("arriving", "warn", "leaving"):    # these change occupancy / the warning banner
+        sim["version"] += 1   # lets the map tell the rest of the tab that it needs to refresh
+
+def _new_car(sim, state, slot, **fields):
+    car = {"id": sim["next_id"], "state": state, "slot": slot, "warned": False}
+    sim["next_id"] += 1
+    car.update(fields)
+    return car
+
+def init_sim():
+    """Start the simulation from the current occupancy: every taken spot holds a parked car that
+    will leave after a random time. The simulation runs on its own clock, which stands still while paused."""
+    sim = {"clock": 0.0, "last_real": time.time(), "cars": [], "next_id": 1, "version": 0,
+           "next_arrival_at": random.uniform(*SIM_ARRIVAL_S), "log": [], "toasts": []}
+    for slot, details in PARKING_SLOTS.items():
+        if details["occupied"]:
+            sim["cars"].append(_new_car(sim, "parked", slot, leave_at=random.uniform(*SIM_INITIAL_DWELL_S)))
+    st.session_state.sim = sim
+    return sim
+
+def ensure_sim():
+    sim = st.session_state.get("sim")
+    taken = {s for s, d in PARKING_SLOTS.items() if d["occupied"]}
+    held = {c["slot"] for c in sim["cars"] if c["state"] in ("arriving", "parked")} if sim else None
+    if sim is None or taken != held:      # first run, or the occupancy was re-drawn ("Randomize")
+        sim = init_sim()
+    return sim
+
+def sim_step(running=True):
+    """Advance the simulation to now: arriving cars park, parked cars get a warning and then pull
+    out towards the exit ramp, and new cars pick a free spot at random times."""
+    sim = ensure_sim()
+    real = time.time()
+    gap, sim["last_real"] = real - sim["last_real"], real
+    if not running:
+        return sim
+    sim["clock"] += min(max(gap, 0.0), SIM_MAX_GAP_S)
+    now = sim["clock"]
+    protected = st.session_state.get("sim_protected")     # the spot the driver is being guided to
+
+    for car in list(sim["cars"]):
+        if car["state"] == "arriving":
+            if now - car["t0"] >= car["duration"]:
+                car.update(state="parked", leave_at=now + random.uniform(*SIM_DWELL_S), warned=False)
+                _sim_log(sim, "parked", car["slot"])
+        elif car["state"] == "parked":
+            if now >= car["leave_at"]:
+                route = car_route_pts("out", car["slot"])
+                car.update(state="leaving", route=route, t0=now, duration=_poly_len(route) / SIM_CAR_SPEED_MPS)
+                set_slot_occupied(car["slot"], False)
+                _sim_log(sim, "leaving", car["slot"])
+            elif now >= car["leave_at"] - SIM_WARN_LEAD_S and not car["warned"]:
+                car["warned"] = True
+                sim["toasts"].append(car["slot"])
+                _sim_log(sim, "warn", car["slot"])
+        elif car["state"] == "leaving":
+            if now - car["t0"] >= car["duration"]:
+                sim["cars"].remove(car)
+                _sim_log(sim, "gone", car["slot"])
+
+    if now >= sim["next_arrival_at"]:
+        free = [s for s, d in PARKING_SLOTS.items() if not d["occupied"] and s != protected]
+        if free:
+            slot = random.choice(free)
+            route = car_route_pts("in", slot)
+            sim["cars"].append(_new_car(sim, "arriving", slot, route=route, t0=now,
+                                        duration=_poly_len(route) / SIM_CAR_SPEED_MPS))
+            set_slot_occupied(slot, True)                  # reserved from the moment it drives in
+            _sim_log(sim, "arriving", slot)
+        sim["next_arrival_at"] = now + random.uniform(*SIM_ARRIVAL_S)
+    return sim
+
+def sim_snapshot():
+    """What the map draws: ([car dicts], {spots whose car is about to leave}).
+    A car is {kind: arriving | leaving | warning, slot, pos (x, y), route (rest of its way), secs}."""
+    sim = st.session_state.get("sim")
+    if not sim:
+        return [], set()
+    now = sim["clock"]
+    cars, leaving_soon = [], set()
+    for car in sim["cars"]:
+        if car["state"] in ("arriving", "leaving"):
+            d = max(0.0, min((now - car["t0"]) * SIM_CAR_SPEED_MPS, _poly_len(car["route"])))
+            pos, rest = _poly_split(car["route"], d)
+            cars.append({"kind": car["state"], "slot": car["slot"], "pos": pos, "route": rest})
+        elif car["state"] == "parked" and now >= car["leave_at"] - SIM_WARN_LEAD_S:
+            sx, sy, _ = MULTI_CAD_NODES[car["slot"]]
+            cars.append({"kind": "warning", "slot": car["slot"], "pos": (sx, sy),
+                         "route": list(car_route_pts("out", car["slot"])),
+                         "secs": max(1, math.ceil(car["leave_at"] - now))})
+            leaving_soon.add(car["slot"])
+    return cars, leaving_soon
 
 # ==============================================================================
 # 5. Helpers, Parking Allocation & Navigation Directions
@@ -2641,16 +2880,29 @@ with tab_dir:
 # ------------------------------------------------------------------------------
 # Smart Parking Tab
 # ------------------------------------------------------------------------------
-with tab_park:
-    st.subheader(t["parking_sec"])
-
+def parking_tab_body():
+    """Everything below the Smart Parking heading. It renders once per page run; the maps inside it
+    refresh themselves (show_parking_map_live) and rerun this body only when a car event happens."""
     if st.button(t["btn_randomize"], key="park_randomize"):
         st.session_state.parking_occupancy = get_randomized_parking_spots(list(PARKING_SLOTS))
         st.session_state.parking_choice = None
         st.session_state.parking_edit = False
         st.session_state.parking_notice = None
         st.session_state.last_park_clicks = {}
+        st.session_state.sim_protected = None
+        st.session_state.pop("sim", None)          # the simulation restarts from the new occupancy
         st.rerun()
+
+    # Advance the simulated traffic first, so everything below sees the current occupancy
+    sim = sim_step(running=st.session_state.get("sim_running", True))
+    for slot in sim["toasts"]:
+        if hasattr(st, "toast"):
+            st.toast(t["sim_toast_leave"].format(slot=slot), icon="⚠️")
+    sim["toasts"].clear()
+    st.session_state.sim_body_version = sim["version"]     # the maps rerun the page when this falls behind
+    for car in sim_snapshot()[0]:
+        if car["kind"] == "warning":
+            st.warning(t["sim_leave_warning"].format(slot=car["slot"], secs=car["secs"]))
 
     curr_lang = st.session_state.lang
     availability_map = {slot_id: details["occupied"] for slot_id, details in PARKING_SLOTS.items()}
@@ -2673,6 +2925,13 @@ with tab_park:
             "P_L3_Driveway_Entrance", MULTI_CAD_GRAPH, MULTI_CAD_NODES,
             availability_map=availability_map, accessible_only=accessible_flag
         )
+    # Simulated cars never take the spot the driver is being guided to
+    st.session_state.sim_protected = assigned_slot
+
+    st.caption(t["sim_legend"])
+    if sim["log"]:
+        recent = [t[f"sim_ev_{key}"].format(slot=slot) for key, slot in reversed(sim["log"][-5:])]
+        st.caption(f"**{t['sim_activity']}**  \n" + "  \n".join(recent))
 
     if assigned_slot:
         slot_icon = get_location_icon(assigned_slot)
@@ -2702,7 +2961,7 @@ with tab_park:
 
         with tab_entry:
             st.markdown(f"### {t['header_driving_to_spot']}")
-            show_parking_map(assigned_slot, entry_path, curr_lang, "#2563EB", "park_entry_map")
+            show_parking_map_live(assigned_slot, entry_path, curr_lang, "#2563EB", "park_entry_map")
 
             if entry_path:
                 entry_summary = compute_route_summary(entry_path, MULTI_CAD_NODES, lang=curr_lang)
@@ -2721,7 +2980,7 @@ with tab_park:
 
         with tab_exit:
             st.markdown(f"### {t['header_leaving_spot']}")
-            show_parking_map(assigned_slot, exit_path, curr_lang, "#F97316", "park_exit_map")
+            show_parking_map_live(assigned_slot, exit_path, curr_lang, "#F97316", "park_exit_map")
 
             if exit_path:
                 exit_summary = compute_route_summary(exit_path, MULTI_CAD_NODES, lang=curr_lang)
@@ -2739,7 +2998,12 @@ with tab_park:
                 render_direction_steps(exit_steps, t["step_lbl"])
     else:
         st.error(t["no_parking"])
-        show_parking_map(None, [], curr_lang, "#2563EB", "park_empty_map")
+        show_parking_map_live(None, [], curr_lang, "#2563EB", "park_empty_map")
+
+with tab_park:
+    st.subheader(t["parking_sec"])
+    st.checkbox(t["sim_toggle"], value=True, key="sim_running")
+    parking_tab_body()
 
 # ==============================================================================
 # 7. Footer
@@ -2758,6 +3022,3 @@ def render_system_footer():
         st.caption(lang_dict["footer_lang"])
 
 render_system_footer()
-
-
-
