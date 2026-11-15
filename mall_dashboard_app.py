@@ -1793,7 +1793,13 @@ def handle_parking_click(raw_point, assigned_slot):
 def show_parking_map(assigned_slot, route_path, lang, route_color, key):
     """Rooftop parking map drawn with the 2D Plotly map (pan, scroll-zoom, numbered axes,
     animated arrows, route hover and the toolbar's Autoscale / Reset axes buttons).
-    The assigned spot can be changed by clicking it and then clicking another free spot."""
+    The assigned spot can be changed by clicking it and then clicking another free spot.
+    Runs as its own fragment (see show_parking_map_live): each refresh moves the simulated cars, and
+    when a car event happens (arrival, parked, warning, leaving) it reruns the whole page once so the
+    banner, route summary and directions catch up."""
+    sim = sim_step(running=st.session_state.get("sim_running", True))
+    if sim["version"] != st.session_state.get("sim_body_version"):
+        st.rerun()
     highlight = None
     if assigned_slot and st.session_state.parking_edit and assigned_slot in MULTI_CAD_NODES:
         highlight = MULTI_CAD_NODES[assigned_slot]
@@ -1821,6 +1827,21 @@ def show_parking_map(assigned_slot, route_path, lang, route_color, key):
             handle_parking_click(raw_point, assigned_slot)
     elif not pts:
         st.session_state.last_park_clicks.pop(key, None)
+
+def show_parking_map_live(assigned_slot, route_path, lang, route_color, key):
+    """show_parking_map as a self-refreshing fragment while the live simulation is on (decorated on
+    every full run, so the checkbox changes the interval). Older Streamlit versions without
+    fragments / run_every just redraw when you interact with the page."""
+    fragment = getattr(st, "fragment", None) or getattr(st, "experimental_fragment", None)
+    if fragment is None:
+        show_parking_map(assigned_slot, route_path, lang, route_color, key)
+        return
+    run_every = SIM_TICK_S if st.session_state.get("sim_running", True) else None
+    try:
+        live = fragment(run_every=run_every)(show_parking_map)
+    except TypeError:
+        live = fragment(show_parking_map)
+    live(assigned_slot, route_path, lang, route_color, key)
 
 HOVER_LABELS = {
     "English": ("Location", "Remaining to destination"),
@@ -1880,7 +1901,8 @@ def build_route_hover(path, node_coords, floor_z, lang="English", include_remain
 # 4b. Live parking simulation: other cars drive in, park and leave at random times
 # ==============================================================================
 
-SIM_TICK_S = 2.0                   # how often the parking tab refreshes itself
+SIM_TICK_S = 1.0                   # how often the parking MAP redraws itself (the rest of the tab only
+                                   # refreshes when something happens: arrival, parked, warning, leaving)
 SIM_CAR_SPEED_MPS = 5.0            # driving speed on the roof (metres per second)
 SIM_ARRIVAL_S = (6.0, 16.0)        # random gap between two new cars
 SIM_DWELL_S = (25.0, 75.0)         # how long a car that just parked stays
@@ -1925,6 +1947,8 @@ def set_slot_occupied(slot, occupied):
 def _sim_log(sim, key, slot):
     sim["log"].append((key, slot))
     del sim["log"][:-SIM_LOG_MAX]
+    if key in ("arriving", "warn", "leaving"):    # these change occupancy / the warning banner
+        sim["version"] += 1   # lets the map tell the rest of the tab that it needs to refresh
 
 def _new_car(sim, state, slot, **fields):
     car = {"id": sim["next_id"], "state": state, "slot": slot, "warned": False}
@@ -1935,7 +1959,7 @@ def _new_car(sim, state, slot, **fields):
 def init_sim():
     """Start the simulation from the current occupancy: every taken spot holds a parked car that
     will leave after a random time. The simulation runs on its own clock, which stands still while paused."""
-    sim = {"clock": 0.0, "last_real": time.time(), "cars": [], "next_id": 1,
+    sim = {"clock": 0.0, "last_real": time.time(), "cars": [], "next_id": 1, "version": 0,
            "next_arrival_at": random.uniform(*SIM_ARRIVAL_S), "log": [], "toasts": []}
     for slot, details in PARKING_SLOTS.items():
         if details["occupied"]:
@@ -2857,8 +2881,8 @@ with tab_dir:
 # Smart Parking Tab
 # ------------------------------------------------------------------------------
 def parking_tab_body():
-    """Everything below the Smart Parking heading. It runs as a fragment that refreshes itself every
-    SIM_TICK_S seconds while the live simulation is on, so only this tab updates."""
+    """Everything below the Smart Parking heading. It renders once per page run; the maps inside it
+    refresh themselves (show_parking_map_live) and rerun this body only when a car event happens."""
     if st.button(t["btn_randomize"], key="park_randomize"):
         st.session_state.parking_occupancy = get_randomized_parking_spots(list(PARKING_SLOTS))
         st.session_state.parking_choice = None
@@ -2875,6 +2899,7 @@ def parking_tab_body():
         if hasattr(st, "toast"):
             st.toast(t["sim_toast_leave"].format(slot=slot), icon="⚠️")
     sim["toasts"].clear()
+    st.session_state.sim_body_version = sim["version"]     # the maps rerun the page when this falls behind
     for car in sim_snapshot()[0]:
         if car["kind"] == "warning":
             st.warning(t["sim_leave_warning"].format(slot=car["slot"], secs=car["secs"]))
@@ -2936,7 +2961,7 @@ def parking_tab_body():
 
         with tab_entry:
             st.markdown(f"### {t['header_driving_to_spot']}")
-            show_parking_map(assigned_slot, entry_path, curr_lang, "#2563EB", "park_entry_map")
+            show_parking_map_live(assigned_slot, entry_path, curr_lang, "#2563EB", "park_entry_map")
 
             if entry_path:
                 entry_summary = compute_route_summary(entry_path, MULTI_CAD_NODES, lang=curr_lang)
@@ -2955,7 +2980,7 @@ def parking_tab_body():
 
         with tab_exit:
             st.markdown(f"### {t['header_leaving_spot']}")
-            show_parking_map(assigned_slot, exit_path, curr_lang, "#F97316", "park_exit_map")
+            show_parking_map_live(assigned_slot, exit_path, curr_lang, "#F97316", "park_exit_map")
 
             if exit_path:
                 exit_summary = compute_route_summary(exit_path, MULTI_CAD_NODES, lang=curr_lang)
@@ -2973,24 +2998,12 @@ def parking_tab_body():
                 render_direction_steps(exit_steps, t["step_lbl"])
     else:
         st.error(t["no_parking"])
-        show_parking_map(None, [], curr_lang, "#2563EB", "park_empty_map")
+        show_parking_map_live(None, [], curr_lang, "#2563EB", "park_empty_map")
 
 with tab_park:
     st.subheader(t["parking_sec"])
-    sim_enabled = st.checkbox(t["sim_toggle"], value=True, key="sim_running")
-
-    # Run the tab as a self-refreshing fragment while the simulation is on (decorated on every full
-    # run, so switching the checkbox changes the refresh interval). Older Streamlit versions without
-    # fragments / run_every simply refresh when you interact with the page.
-    _fragment = getattr(st, "fragment", None) or getattr(st, "experimental_fragment", None)
-    if _fragment is None:
-        live_parking = parking_tab_body
-    else:
-        try:
-            live_parking = _fragment(run_every=SIM_TICK_S if sim_enabled else None)(parking_tab_body)
-        except TypeError:
-            live_parking = _fragment(parking_tab_body)
-    live_parking()
+    st.checkbox(t["sim_toggle"], value=True, key="sim_running")
+    parking_tab_body()
 
 # ==============================================================================
 # 7. Footer
