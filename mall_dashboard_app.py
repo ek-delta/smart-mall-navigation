@@ -1295,6 +1295,18 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                 unselected=dict(textfont=dict(color="#FFFFFF")),
             ))
 
+    # Free / taken counters, pinned to the top-right corner of the map (stays put while panning/zooming)
+    if show_slots:
+        n_taken = sum(1 for d in PARKING_SLOTS.values() if d["occupied"])
+        n_free = len(PARKING_SLOTS) - n_taken
+        fig.add_annotation(
+            xref="paper", yref="paper", x=0.99, y=0.99, xanchor="right", yanchor="top",
+            text=(f"<b>{lang_dict['available_metric']}: {n_free}</b><br>"
+                  f"<b>{lang_dict['unavailable_metric']}: {n_taken}</b>"),
+            showarrow=False, align="left", font=dict(size=14, color="#0f172a"),
+            bgcolor="rgba(255,255,255,0.95)", bordercolor="#64748B", borderwidth=1, borderpad=6,
+        )
+
     # Entry/exit points
     if show_doors:
         door_lbl = DOOR_LABELS.get(current_lang, DOOR_LABELS["English"])
@@ -2648,13 +2660,6 @@ with tab_park:
 
     curr_lang = st.session_state.lang
     availability_map = {slot_id: details["occupied"] for slot_id, details in PARKING_SLOTS.items()}
-
-    # Live counters for free and taken spots
-    n_unavailable = sum(1 for occupied in availability_map.values() if occupied)
-    n_available = len(availability_map) - n_unavailable
-    cnt_col1, cnt_col2 = st.columns(2)
-    cnt_col1.metric(t["available_metric"], n_available)
-    cnt_col2.metric(t["unavailable_metric"], n_unavailable)
 
     assigned_slot, entry_path, exit_path = None, [], []
     choice = st.session_state.parking_choice
