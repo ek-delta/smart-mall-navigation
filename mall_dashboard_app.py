@@ -56,6 +56,7 @@ LOCALIZATION = {
         "floors_metric": "🏢 Total Floors",
         "spots_metric": "🅿️ Total Parking Spots",
         "available_metric": "🟢 Available Spots",
+        "unavailable_metric": "🔴 Unavailable Spots",
         "feat_map_title": "🗺️ 2D / 3D Map View",
         "feat_map_desc": "Explore every floor on an interactive 2D map or a 3D isometric view. Click anywhere on the 2D map to plan a route.",
         "feat_turn_title": "🧭 Turn-by-Turn",
@@ -150,6 +151,7 @@ LOCALIZATION = {
         "floors_metric": "🏢 总楼层数",
         "spots_metric": "🅿️ 总车位数",
         "available_metric": "🟢 空余车位",
+        "unavailable_metric": "🔴 已占用车位",
         "feat_map_title": "🗺️ 2D / 3D 地图视图",
         "feat_map_desc": "在交互式 2D 地图或 3D 等轴视图中浏览各楼层，点击 2D 地图任意位置即可规划路线。",
         "feat_turn_title": "🧭 逐向导航",
@@ -244,6 +246,7 @@ LOCALIZATION = {
         "floors_metric": "🏢 Jumlah Tingkat",
         "spots_metric": "🅿️ Jumlah Ruang Letak Kereta",
         "available_metric": "🟢 Ruang Kosong",
+        "unavailable_metric": "🔴 Ruang Diisi",
         "feat_map_title": "🗺️ Pandangan Peta 2D / 3D",
         "feat_map_desc": "Terokai setiap tingkat pada peta 2D interaktif atau paparan isometrik 3D. Klik di mana-mana pada peta 2D untuk merancang laluan.",
         "feat_turn_title": "🧭 Arah Langkah demi Langkah",
@@ -1199,6 +1202,10 @@ def hover_text_lines(samples, hover):
         texts.append(line)
     return texts
 
+# Rooms whose name label is hidden on the rooftop parking map
+PARKING_UNLABELLED = {"P_L3_Driveway_Entrance", "P_L3_Driveway_Exit", "P_L3_Stairs",
+                      "P_L3_Elevator", "P_L3_Escalator"}
+
 HOVER_BAND_M = 3.0   # 2D Plotly: the route shows its annotation within this many metres of the line
 
 def route_hover_band(gx, gy, samples, band_m):
@@ -1249,6 +1256,8 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
     for room_id, info in floor_rooms.items():
         if show_slots and room_id in PARKING_SLOTS:
             continue   # drawn as a coloured slot with its own label below
+        if show_slots and room_id in PARKING_UNLABELLED:
+            continue   # parking map: no text on the ramps, stairwell, elevator and escalator
         coords = info["coords"]
         # Wrap the name to the room's width and shrink the font only as far as needed to fit
         wrapped, size = fit_label_to_room(room_label(room_id, current_lang), coords)
@@ -1303,19 +1312,6 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                 marker=dict(size=9, color="#34D399", line=dict(color="#065F46", width=2)),
                 showlegend=False,
             ))
-
-    # Parking infrastructure labels (ramps, stairwell, elevator, escalator) as boxed tags
-    if show_slots:
-        for node_id, key in (("P_L3_Driveway_Entrance", "lbl_entrance_ramp"), ("P_L3_Driveway_Exit", "lbl_exit_ramp"),
-                             ("P_L3_Stairs", "lbl_stairwell"), ("P_L3_Elevator", "lbl_elevator"),
-                             ("P_L3_Escalator", "lbl_escalator")):
-            if node_id in node_coords_dict and int(node_coords_dict[node_id][2]) == floor_z:
-                nx_, ny_, _ = node_coords_dict[node_id]
-                fig.add_annotation(
-                    x=nx_, y=ny_, xref="x", yref="y", text=f"<b>{lang_dict.get(key, node_id)}</b>",
-                    showarrow=False, font=dict(size=13, color="#000000"),
-                    bgcolor="rgba(255,255,255,0.95)", bordercolor="#1976D2", borderwidth=2, borderpad=3,
-                )
 
     # Route, stops, start, destination
     arrow_frames = []
@@ -2652,6 +2648,13 @@ with tab_park:
 
     curr_lang = st.session_state.lang
     availability_map = {slot_id: details["occupied"] for slot_id, details in PARKING_SLOTS.items()}
+
+    # Live counters for free and taken spots
+    n_unavailable = sum(1 for occupied in availability_map.values() if occupied)
+    n_available = len(availability_map) - n_unavailable
+    cnt_col1, cnt_col2 = st.columns(2)
+    cnt_col1.metric(t["available_metric"], n_available)
+    cnt_col2.metric(t["unavailable_metric"], n_unavailable)
 
     assigned_slot, entry_path, exit_path = None, [], []
     choice = st.session_state.parking_choice
