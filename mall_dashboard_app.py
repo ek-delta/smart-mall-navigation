@@ -1202,10 +1202,6 @@ def hover_text_lines(samples, hover):
         texts.append(line)
     return texts
 
-# Rooms whose name label is hidden on the rooftop parking map
-PARKING_UNLABELLED = {"P_L3_Driveway_Entrance", "P_L3_Driveway_Exit", "P_L3_Stairs",
-                      "P_L3_Elevator", "P_L3_Escalator"}
-
 HOVER_BAND_M = 3.0   # 2D Plotly: the route shows its annotation within this many metres of the line
 
 def route_hover_band(gx, gy, samples, band_m):
@@ -1256,8 +1252,6 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
     for room_id, info in floor_rooms.items():
         if show_slots and room_id in PARKING_SLOTS:
             continue   # drawn as a coloured slot with its own label below
-        if show_slots and room_id in PARKING_UNLABELLED:
-            continue   # parking map: no text on the ramps, stairwell, elevator and escalator
         coords = info["coords"]
         # Wrap the name to the room's width and shrink the font only as far as needed to fit
         wrapped, size = fit_label_to_room(room_label(room_id, current_lang), coords)
