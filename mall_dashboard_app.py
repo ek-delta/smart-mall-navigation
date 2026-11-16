@@ -1468,19 +1468,13 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
             hoverinfo="skip", showlegend=False,
         ))
 
-    # Empty layers for the simulated cars. The in-browser simulation (build_parking_html) finds them by
-    # their `meta` tag and moves the cars with Plotly.restyle, so Streamlit never has to redraw the map.
-    # Route colours: grey = heading to a spot, purple = driving to the exit ramp, amber = about to leave.
+    # Empty layers for the driver's own route. The in-browser simulation (build_parking_html) fills them in
+    # when the route changes. Everything that moves (other cars, their routes, the arrowheads) is painted
+    # on a canvas over the map instead, so Plotly never has to redraw while cars drive.
     if show_slots and live_cars:
-        # The driver's own route: line, travelling arrowheads, start / destination markers. The browser
-        # fills them in and redraws them when another car takes the driver's spot.
         fig.add_trace(go.Scatter(
             x=[], y=[], mode="lines", line=dict(color=route_color, width=5),
             hoverinfo="skip", showlegend=False, meta="myroute",
-        ))
-        fig.add_trace(go.Scatter(
-            x=[], y=[], mode="lines", fill="toself", fillcolor="#FFFFFF", line=dict(color="#B91C1C", width=1.5),
-            hoverinfo="skip", showlegend=False, meta="myarrows",
         ))
         fig.add_trace(go.Scatter(
             x=[], y=[], text=[], mode="markers+text", textposition="top center",
@@ -1489,23 +1483,9 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                         line=dict(color="#FFFFFF", width=2)),
             hoverinfo="skip", showlegend=False, meta="mymarks",
         ))
-        for kind, col in (("arriving", "#64748B"), ("leaving", "#7C3AED"), ("warning", "#F59E0B")):
-            fig.add_trace(go.Scatter(
-                x=[], y=[], mode="lines", line=dict(color=col, width=3, dash="dot"),
-                hoverinfo="skip", showlegend=False, meta=f"carroute:{kind}",
-            ))
-        fig.add_trace(go.Scatter(
-            x=[], y=[], text=[], mode="markers+text", textposition="middle center", textfont=dict(size=15),
-            marker=dict(size=24, color=[], line=dict(color="#FFFFFF", width=2)),
-            hoverinfo="skip", showlegend=False, meta="cars",
-        ))
-        fig.add_trace(go.Scatter(
-            x=[], y=[], text=[], mode="text", textposition="middle center",
-            textfont=dict(size=13, color="#B45309"), hoverinfo="skip", showlegend=False, meta="carlabels",
-        ))
 
     # Invisible click targets (added last)
-    gx, gy = build_click_grid(floor_z)
+    gx, gy = ((), ()) if live_cars else build_click_grid(floor_z)   # ~6000 points: costly to hover over, unused here
     hover = None
     if route_path:
         hover = build_route_hover(route_path, node_coords_dict, floor_z, current_lang, include_remaining=show_dest)
@@ -1534,7 +1514,7 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
             hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
             showlegend=False,
         ))
-    else:
+    elif len(gx):
         fig.add_trace(go.Scatter(
             x=list(gx), y=list(gy), mode="markers",
             marker=dict(size=12, color="rgba(0,0,0,0)"),
@@ -2046,16 +2026,42 @@ PARKING_SIM_JS = r"""
     }
 
     // ---- drawing ----
+    // Everything that moves (other cars, their routes, the arrowheads on your route) is painted on a
+    // transparent <canvas> laid over the map, so Plotly never has to redraw while things move and pan / zoom
+    // stay smooth. Plotly itself is only touched when something changes: slot colours, the counter card
+    // and your route.
     function find(meta) { for (var i = 0; i < gd.data.length; i++) if (gd.data[i].meta === meta) return i; return -1; }
     var slotIdx = ids.map(function (s) { return find('slot:' + s); });
-    var routeIdx = [find('carroute:arriving'), find('carroute:leaving'), find('carroute:warning')];
-    var carsIdx = find('cars'), labIdx = find('carlabels');
-    var myRouteIdx = find('myroute'), arrowIdx = find('myarrows'), marksIdx = find('mymarks');
+    var myRouteIdx = find('myroute'), marksIdx = find('mymarks');
     var cardIdx = -1;
     ((gd.layout && gd.layout.annotations) || []).forEach(function (a, i) { if (a.name === 'slotcounter') cardIdx = i; });
     var COL = {arriving: '#64748B', leaving: '#7C3AED', warning: '#F59E0B'};
     function rgba(h, a) { return 'rgba(' + parseInt(h.substr(1, 2), 16) + ',' + parseInt(h.substr(3, 2), 16) + ',' + parseInt(h.substr(5, 2), 16) + ',' + a + ')'; }
-    var lastSlots = '', lastCard = '', lastCars = '', lastPlan = null, hadMoving = false, myRoute = null, finishBound = false;
+    var lastSlots = '', lastCard = '', lastPlan = null, myRoute = null, finishBound = false, lastUi = -1;
+
+    var cv = document.createElement('canvas'), g2 = cv.getContext('2d');
+    cv.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;z-index:20;';
+    var host = gd.parentNode || document.body;
+    host.style.position = 'relative';
+    host.appendChild(cv);
+
+    function fitCanvas() {                            // keep the canvas exactly over the map, sharp on hi-dpi screens
+        var dpr = window.devicePixelRatio || 1, w = gd.clientWidth, h = gd.clientHeight;
+        if (cv._w !== w || cv._h !== h || cv._d !== dpr) {
+            cv._w = w; cv._h = h; cv._d = dpr;
+            cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+            cv.style.width = w + 'px'; cv.style.height = h + 'px';
+        }
+        cv.style.left = gd.offsetLeft + 'px'; cv.style.top = gd.offsetTop + 'px';
+        return dpr;
+    }
+    function mapper() {                               // map coordinates (m) -> pixels, following the map's current pan / zoom
+        var fl = gd._fullLayout, xa = fl && fl.xaxis, ya = fl && fl.yaxis;
+        if (!xa || !ya || !xa.range || !ya.range || !xa._length || !ya._length) return null;
+        var xr = xa.range, yr = ya.range;
+        return {x: function (v) { return xa._offset + (v - xr[0]) / (xr[1] - xr[0]) * xa._length; },
+                y: function (v) { return ya._offset + (yr[1] - v) / (yr[1] - yr[0]) * ya._length; }};
+    }
 
     function toast(msg) {
         var box = el('sim-toasts');
@@ -2067,16 +2073,63 @@ PARKING_SIM_JS = r"""
         setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 5000);
     }
 
-    function arrowPolys(route, off) {                // arrowheads spaced along the route, as filled triangles
-        var total = plen(route), xs = [], ys = [], len = 3.2, hw = 1.4;
-        for (var d = off; d < total; d += 9) {
-            var a = dirAt(route, d); if (!a) continue;
-            var ux = a.dir[0], uy = a.dir[1], nx = -uy, ny = ux, cx = a.pos[0], cy = a.pos[1];
-            var tx = cx + ux * len / 2, ty = cy + uy * len / 2, bx = cx - ux * len / 2, by = cy - uy * len / 2;
-            xs.push(tx, bx + nx * hw, bx - nx * hw, tx, null); ys.push(ty, by + ny * hw, by - ny * hw, ty, null);
-        }
-        return [xs, ys];
+    function carList(now) {                           // the cars to draw right now
+        var list = [];
+        cars.forEach(function (c) {
+            if (c.state === 'arriving' || c.state === 'leaving') {
+                var s = split(c.route, Math.max(0, Math.min((now - c.t0) * C.speed, plen(c.route))));
+                list.push({kind: c.state, slot: c.slot, pos: s.pos, rest: s.rest});
+            } else if (c.state === 'parked' && now >= c.leaveAt - C.warn) {
+                list.push({kind: 'warning', slot: c.slot, pos: C.slots[c.slot].pos, rest: C.slots[c.slot].out,
+                           secs: Math.max(1, Math.ceil(c.leaveAt - now))});
+            }
+        });
+        return list;
     }
+
+    function draw(list, now) {
+        var dpr = fitCanvas();
+        g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g2.clearRect(0, 0, cv._w || 0, cv._h || 0);
+        var M = mapper();
+        if (!M) return;
+        // dotted routes still to drive
+        g2.lineWidth = 3; g2.lineCap = 'round'; g2.setLineDash([3, 6]);
+        list.forEach(function (c) {
+            if (c.rest.length < 2) return;
+            g2.strokeStyle = COL[c.kind]; g2.beginPath();
+            c.rest.forEach(function (p, i) { if (i) g2.lineTo(M.x(p[0]), M.y(p[1])); else g2.moveTo(M.x(p[0]), M.y(p[1])); });
+            g2.stroke();
+        });
+        g2.setLineDash([]);
+        // arrowheads travelling along your route (a triangle every 9 m, 6 m/s)
+        if (myRoute && myRoute.length > 1) {
+            var total = plen(myRoute), len = 3.2, hw = 1.4;
+            g2.fillStyle = '#FFFFFF'; g2.strokeStyle = '#B91C1C'; g2.lineWidth = 1.5; g2.lineJoin = 'round';
+            for (var d = (now * 6) % 9; d < total; d += 9) {
+                var a = dirAt(myRoute, d); if (!a) continue;
+                var ux = a.dir[0], uy = a.dir[1], nx = -uy, ny = ux, cx = a.pos[0], cy = a.pos[1];
+                var tx = cx + ux * len / 2, ty = cy + uy * len / 2, bx = cx - ux * len / 2, by = cy - uy * len / 2;
+                g2.beginPath();
+                g2.moveTo(M.x(tx), M.y(ty)); g2.lineTo(M.x(bx + nx * hw), M.y(by + ny * hw));
+                g2.lineTo(M.x(bx - nx * hw), M.y(by - ny * hw)); g2.closePath();
+                g2.fill(); g2.stroke();
+            }
+        }
+        // cars, and the countdown above a car that is about to leave
+        g2.textAlign = 'center'; g2.textBaseline = 'middle';
+        list.forEach(function (c) {
+            var X = M.x(c.pos[0]), Y = M.y(c.pos[1]);
+            g2.beginPath(); g2.arc(X, Y, 12, 0, 2 * Math.PI);
+            g2.fillStyle = COL[c.kind]; g2.fill(); g2.lineWidth = 2; g2.strokeStyle = '#FFFFFF'; g2.stroke();
+            g2.font = '15px sans-serif'; g2.fillStyle = '#0f172a'; g2.fillText('🚗', X, Y + 1);
+            if (c.kind === 'warning') {
+                g2.font = 'bold 13px sans-serif'; g2.fillStyle = '#B45309';
+                g2.fillText('⚠ ' + c.slot + ' · ' + c.secs + 's', X, M.y(c.pos[1] + 5.2));
+            }
+        });
+    }
+
     function planHtml(plan) {
         if (!plan) return '<div>' + md(you ? fill(L.parkedHint, {slot: you}) : L.nofree) + '</div>';
         var h = '<div class="hd">' + L.summary + '</div><div class="mt">'
@@ -2089,65 +2142,33 @@ PARKING_SIM_JS = r"""
         });
         return h;
     }
-
-    function render(now) {
-        var mine = you || target;                    // the driver's spot (blue)
-        var planSlot = C.view === 'out' ? mine : target;
-        var plan = planSlot && C.slots[planSlot].plan ? C.slots[planSlot].plan[C.view] : null;
-
-        // the driver's route: redrawn only when the spot or the shown direction changes
-        var pkey = (planSlot || '-') + '|' + (you ? 'p' : 'd');
-        if (pkey !== lastPlan) {
-            lastPlan = pkey;
-            myRoute = plan ? plan.pts : null;
-            var rx0 = [], ry0 = [], mx = [], my = [], mt = [];
-            if (myRoute) {
-                myRoute.forEach(function (p) { rx0.push(p[0]); ry0.push(p[1]); });
-                var a0 = myRoute[0], a1 = myRoute[myRoute.length - 1];
-                mx = [a0[0], a1[0]]; my = [a0[1], a1[1]]; mt = [L.start, L.dest];
-            }
-            Plotly.restyle(gd, {x: [rx0], y: [ry0]}, [myRouteIdx]);
-            Plotly.restyle(gd, {x: [mx], y: [my], text: [mt]}, [marksIdx]);
-            if (!myRoute) Plotly.restyle(gd, {x: [[]], y: [[]]}, [arrowIdx]);
-            shown['sim-plan'] = null;
+    function currentPlan() {                          // which spot's route is shown, and that route
+        var mine = you || target, slot = C.view === 'out' ? mine : target;
+        return {slot: slot, plan: slot && C.slots[slot].plan ? C.slots[slot].plan[C.view] : null};
+    }
+    function syncRoute() {                            // your route on the map: redrawn only when it changes
+        var cp = currentPlan(), key = (cp.slot || '-') + '|' + (you ? 'p' : 'd');
+        if (key === lastPlan) return;
+        lastPlan = key;
+        myRoute = cp.plan ? cp.plan.pts : null;
+        var rx0 = [], ry0 = [], mx = [], my = [], mt = [];
+        if (myRoute) {
+            myRoute.forEach(function (p) { rx0.push(p[0]); ry0.push(p[1]); });
+            var a0 = myRoute[0], a1 = myRoute[myRoute.length - 1];
+            mx = [a0[0], a1[0]]; my = [a0[1], a1[1]]; mt = [L.start, L.dest];
         }
-        setHtml('sim-plan', planHtml(plan));
+        Plotly.restyle(gd, {x: [rx0], y: [ry0]}, [myRouteIdx]);
+        Plotly.restyle(gd, {x: [mx], y: [my], text: [mt]}, [marksIdx]);
+        shown['sim-plan'] = null;
+    }
 
-        // moving things: other cars' routes and cars, plus the travelling arrowheads on the driver's route
-        var rx = {arriving: [], leaving: [], warning: []}, ry = {arriving: [], leaving: [], warning: []};
-        var cx = [], cy = [], cc = [], ct = [], lx = [], ly = [], lt = [], warns = [], soon = {}, nSoon = 0;
-        cars.forEach(function (c) {
-            var kind = c.state, pos, rest;
-            if (c.state === 'arriving' || c.state === 'leaving') {
-                var s = split(c.route, Math.max(0, Math.min((now - c.t0) * C.speed, plen(c.route)))); pos = s.pos; rest = s.rest;
-            } else if (c.state === 'parked' && now >= c.leaveAt - C.warn) {
-                kind = 'warning'; pos = C.slots[c.slot].pos; rest = C.slots[c.slot].out;
-                var secs = Math.max(1, Math.ceil(c.leaveAt - now));
-                warns.push([c.slot, secs]); soon[c.slot] = 1; nSoon++;
-                lx.push(pos[0]); ly.push(pos[1] + 5.2); lt.push('<b>⚠ ' + c.slot + ' · ' + secs + 's</b>');
-            } else return;
-            cx.push(pos[0]); cy.push(pos[1]); cc.push(COL[kind]); ct.push('🚗');
-            rest.forEach(function (p) { rx[kind].push(p[0]); ry[kind].push(p[1]); });
-            rx[kind].push(null); ry[kind].push(null);
-        });
-        var moving = cx.length > 0 || !!(myRoute && myRoute.length > 1);
-        if (moving || hadMoving) {
-            var ar = (myRoute && myRoute.length > 1) ? arrowPolys(myRoute, (now * 6) % 9) : [[], []];
-            // one Plotly update per frame for everything that moves ...
-            Plotly.restyle(gd, {x: [rx.arriving, rx.leaving, rx.warning, cx, lx, ar[0]],
-                                y: [ry.arriving, ry.leaving, ry.warning, cy, ly, ar[1]]},
-                           [routeIdx[0], routeIdx[1], routeIdx[2], carsIdx, labIdx, arrowIdx]);
-            // ... and a second one only when the set of cars, their colours or the countdown text changed
-            var sigC = cc.join() + '#' + lt.join('~');
-            if (sigC !== lastCars) {
-                lastCars = sigC;
-                Plotly.restyle(gd, {text: [ct], 'marker.color': [cc]}, [carsIdx]);
-                Plotly.restyle(gd, {text: [lt]}, [labIdx]);
-            }
-            hadMoving = moving;
-        }
+    function updateUi(now, list) {                    // everything that is not animation, a few times a second
+        setHtml('sim-plan', planHtml(currentPlan().plan));
 
-        // slot colours (only when something changed): blue = the driver's spot, navy = parked there
+        var soon = {}, nSoon = 0, warns = [];
+        list.forEach(function (c) { if (c.kind === 'warning') { soon[c.slot] = 1; nSoon++; warns.push([c.slot, c.secs]); } });
+
+        // slot colours: blue = the driver's spot, navy = parked there
         var fc = [], lc = [];
         ids.forEach(function (s) {
             var col = s === you ? '#1E3A8A' : (s === target ? '#2563EB' : (soon[s] ? '#F59E0B' : (occ[s] ? '#DC2626' : '#16A34A')));
@@ -2165,7 +2186,7 @@ PARKING_SIM_JS = r"""
         // finish button + status line
         var fb = el('sim-finish');
         if (fb) {
-            if (!finishBound) { finishBound = true; fb.onclick = function () { finishAt(target, true); }; }
+            if (!finishBound) { finishBound = true; fb.onclick = function () { finishAt(target, true); lastUi = -1; }; }
             fb.disabled = !target || !!you;
         }
         setHtml('sim-status', md(you ? fill(L.parked, {slot: you})
@@ -2186,17 +2207,23 @@ PARKING_SIM_JS = r"""
     }
 
     function catchUp() {                              // run the simulation up to the present moment
-        var target_t = (Date.now() - T0) / 1000, g = 0;
-        while (t + DT <= target_t && g++ < 400000) tick();
+        var target_t = (Date.now() - T0) / 1000, n = 0;
+        while (t + DT <= target_t && n++ < 400000) tick();
         return target_t;
     }
     function frame() {
-        try { render(catchUp()); }
-        catch (e) { if (window.console) console.error('parking simulation', e); }   // never stop the animation
+        try {
+            var now = catchUp(), list = carList(now);
+            syncRoute();
+            draw(list, now);
+            if (now - lastUi >= 0.25) { lastUi = now; updateUi(now, list); }
+        } catch (e) { if (window.console) console.error('parking simulation', e); }   // never stop the animation
     }
+    function loop() { frame(); window.requestAnimationFrame(loop); }
 
     catchUp(); live = true;
-    setInterval(frame, 80);                           // registered first, so nothing can prevent it
+    if (window.requestAnimationFrame) window.requestAnimationFrame(loop);    // registered first, so nothing can prevent it
+    else setInterval(frame, 40);
     frame();
     if (window.ResizeObserver) new ResizeObserver(function () { Plotly.Plots.resize(gd); }).observe(document.body);
 })();
