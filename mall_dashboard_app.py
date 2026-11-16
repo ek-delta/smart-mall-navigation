@@ -1925,10 +1925,14 @@ PARKING_SIM_JS = r"""
     ((gd.layout && gd.layout.annotations) || []).forEach(function (a, i) { if (a.name === 'slotcounter') cardIdx = i; });
     var COL = {arriving: '#64748B', leaving: '#7C3AED', warning: '#F59E0B'};
     function rgba(h, a) { return 'rgba(' + parseInt(h.substr(1, 2), 16) + ',' + parseInt(h.substr(3, 2), 16) + ',' + parseInt(h.substr(5, 2), 16) + ',' + a + ')'; }
-    var banner = document.getElementById('sim-banner'), activity = document.getElementById('sim-activity'), toasts = document.getElementById('sim-toasts');
-    var lastSlots = '', lastCard = '', lastBanner = '', lastActivity = '', hadCars = false;
+    // The page elements are looked up when needed: this script runs as soon as the map is drawn, which can
+    // be before the browser has read the elements that come after the map (the activity list).
+    function el(id) { return document.getElementById(id); }
+    var lastSlots = '', lastCard = '', lastBanner = '', lastActivity = '', lastCars = '', hadCars = false;
 
     function toast(msg) {
+        var toasts = el('sim-toasts');
+        if (!toasts) return;
         var d = document.createElement('div');
         d.textContent = msg;
         d.style.cssText = 'background:#FEF3C7;color:#78350F;border:1px solid #F59E0B;border-radius:8px;padding:8px 12px;margin-bottom:6px;font:600 13px sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.2);';
@@ -1954,8 +1958,17 @@ PARKING_SIM_JS = r"""
             rx[kind].push(null); ry[kind].push(null);
         });
         if (cx.length || hadCars) {
-            Plotly.restyle(gd, {x: [rx.arriving, rx.leaving, rx.warning], y: [ry.arriving, ry.leaving, ry.warning]}, routeIdx);
-            Plotly.restyle(gd, {x: [cx, lx], y: [cy, ly], text: [ct, lt], 'marker.color': [cc, []]}, [carsIdx, labIdx]);
+            // one Plotly update per frame for everything that moves ...
+            Plotly.restyle(gd, {x: [rx.arriving, rx.leaving, rx.warning, cx, lx],
+                                y: [ry.arriving, ry.leaving, ry.warning, cy, ly]},
+                           [routeIdx[0], routeIdx[1], routeIdx[2], carsIdx, labIdx]);
+            // ... and a second one only when the set of cars, their colours or the countdown text changed
+            var sigC = cc.join() + '#' + lt.join('~');
+            if (sigC !== lastCars) {
+                lastCars = sigC;
+                Plotly.restyle(gd, {text: [ct], 'marker.color': [cc]}, [carsIdx]);
+                Plotly.restyle(gd, {text: [lt]}, [labIdx]);
+            }
             hadCars = cx.length > 0;
         }
 
@@ -1979,9 +1992,10 @@ PARKING_SIM_JS = r"""
             var m = L.warn.replace('{slot}', w[0]).replace('{secs}', w[1]).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
             return '<div style="background:#FEF3C7;color:#78350F;border:1px solid #F59E0B;border-radius:6px;padding:5px 10px;margin-bottom:4px;font:14px sans-serif;">' + m + '</div>';
         }).join('');
-        if (bh !== lastBanner) { lastBanner = bh; banner.innerHTML = bh; }
+        var banner = el('sim-banner'), activity = el('sim-activity');
+        if (banner && bh !== lastBanner) { lastBanner = bh; banner.innerHTML = bh; }
         var ah = '<b>' + L.activity + '</b><br>' + log.slice(-5).reverse().map(function (e) { return L['ev_' + e[0]].replace('{slot}', e[1]); }).join('<br>');
-        if (ah !== lastActivity) { lastActivity = ah; activity.innerHTML = ah; }
+        if (activity && ah !== lastActivity) { lastActivity = ah; activity.innerHTML = ah; }
     }
 
     function catchUp() {                              // run the simulation up to the present moment
@@ -1989,10 +2003,14 @@ PARKING_SIM_JS = r"""
         while (t + DT <= target && g++ < 400000) tick();
         return target;
     }
-    function frame() { render(catchUp()); }
+    function frame() {
+        try { render(catchUp()); }
+        catch (e) { if (window.console) console.error('parking simulation', e); }   // never stop the animation
+    }
 
-    catchUp(); live = true; frame();
-    setInterval(frame, 80);
+    catchUp(); live = true;
+    setInterval(frame, 80);                           // registered first, so nothing can prevent it
+    frame();
     if (window.ResizeObserver) new ResizeObserver(function () { Plotly.Plots.resize(gd); }).observe(document.body);
 })();
 """
