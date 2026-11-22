@@ -1483,6 +1483,15 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                         line=dict(color="#FFFFFF", width=2)),
             hoverinfo="skip", showlegend=False, meta="mymarks",
         ))
+        # Invisible hover targets along the driver's route (filled in by the in-browser script with
+        # the place name and the distance still to go, like the route hover on the 2D map)
+        fig.add_trace(go.Scatter(
+            x=[], y=[], mode="markers",
+            marker=dict(size=12, color="rgba(0,0,0,0)"),
+            hovertext=[], hoverinfo="text",
+            hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
+            showlegend=False, meta="myhover",
+        ))
 
     # Invisible click targets (added last)
     gx, gy = ((), ()) if live_cars else build_click_grid(floor_z)   # ~6000 points: costly to hover over, unused here
@@ -2032,7 +2041,7 @@ PARKING_SIM_JS = r"""
     // and your route.
     function find(meta) { for (var i = 0; i < gd.data.length; i++) if (gd.data[i].meta === meta) return i; return -1; }
     var slotIdx = ids.map(function (s) { return find('slot:' + s); });
-    var myRouteIdx = find('myroute'), marksIdx = find('mymarks');
+    var myRouteIdx = find('myroute'), marksIdx = find('mymarks'), hoverIdx = find('myhover');
     var cardIdx = -1;
     ((gd.layout && gd.layout.annotations) || []).forEach(function (a, i) { if (a.name === 'slotcounter') cardIdx = i; });
     var COL = {arriving: '#64748B', leaving: '#7C3AED', warning: '#F59E0B'};
@@ -2146,6 +2155,34 @@ PARKING_SIM_JS = r"""
         var mine = you || target, slot = C.view === 'out' ? mine : target;
         return {slot: slot, plan: slot && C.slots[slot].plan ? C.slots[slot].plan[C.view] : null};
     }
+    function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function roomAt(x, y) {                           // name of the room polygon that contains (x, y)
+        for (var r = 0; r < C.rooms.length; r++) {
+            var cs = C.rooms[r].coords, inside = false;
+            for (var i = 0, j = cs.length - 1; i < cs.length; j = i++) {
+                var xi = cs[i][0], yi = cs[i][1], xj = cs[j][0], yj = cs[j][1];
+                if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+            }
+            if (inside) return C.rooms[r].name;
+        }
+        return C.fallbackName;
+    }
+    function hoverSamples(route) {                    // a hover point about every metre along the route
+        var hx = [], hy = [], ht = [], total = plen(route), run = 0;
+        for (var i = 1; i < route.length; i++) {
+            var a = route[i-1], b = route[i], sg = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            if (sg < 1e-9) continue;
+            var n = Math.max(1, Math.ceil(sg / 1.0));
+            for (var k = 0; k <= n; k++) {
+                var f = k / n, x = a[0] + (b[0] - a[0]) * f, y = a[1] + (b[1] - a[1]) * f;
+                var rem = Math.max(0, total - (run + sg * f));
+                hx.push(x); hy.push(y);
+                ht.push('<b>' + esc(L.hoverLoc) + ':</b> ' + esc(roomAt(x, y)) + '<br>' + esc(L.hoverRem) + ': <b>' + rem.toFixed(1) + ' m</b>');
+            }
+            run += sg;
+        }
+        return {x: hx, y: hy, t: ht};
+    }
     function syncRoute() {                            // your route on the map: redrawn only when it changes
         var cp = currentPlan(), key = (cp.slot || '-') + '|' + (you ? 'p' : 'd');
         if (key === lastPlan) return;
@@ -2159,6 +2196,10 @@ PARKING_SIM_JS = r"""
         }
         Plotly.restyle(gd, {x: [rx0], y: [ry0]}, [myRouteIdx]);
         Plotly.restyle(gd, {x: [mx], y: [my], text: [mt]}, [marksIdx]);
+        if (hoverIdx >= 0) {
+            var hs = myRoute ? hoverSamples(myRoute) : {x: [], y: [], t: []};
+            Plotly.restyle(gd, {x: [hs.x], y: [hs.y], hovertext: [hs.t]}, [hoverIdx]);
+        }
         shown['sim-plan'] = null;
     }
 
@@ -2247,7 +2288,13 @@ def build_parking_html(fig, assigned_slot, lang, sim_age, view, manual, accessib
         "seed": int(st.session_state.get("sim_seed", 1)), "age": float(sim_age),
         "speed": SIM_CAR_SPEED_MPS, "arrival": list(SIM_ARRIVAL_S), "dwell": list(SIM_DWELL_S),
         "initDwell": list(SIM_INITIAL_DWELL_S), "warn": SIM_WARN_LEAD_S,
+        "rooms": [{"name": POI_TRANSLATIONS.get(lang, {}).get(r_id, r_id).split("(")[0].strip(),
+                   "coords": [list(c) for c in info["coords"]]}
+                  for r_id, info in ROOM_POLYGONS.items() if int(info["z"]) == 3],
+        "fallbackName": POI_TRANSLATIONS.get(lang, {}).get(FLOOR_CORRIDOR[3], FLOOR_CORRIDOR[3]).split("(")[0].strip(),
         "labels": {
+            "hoverLoc": HOVER_LABELS.get(lang, HOVER_LABELS["English"])[0],
+            "hoverRem": HOVER_LABELS.get(lang, HOVER_LABELS["English"])[1],
             "available": lab["available_metric"], "unavailable": lab["unavailable_metric"],
             "soon": lab["leaving_soon_metric"], "warn": lab["sim_leave_warning"],
             "toast": lab["sim_toast_leave"], "activity": lab["sim_activity"],
