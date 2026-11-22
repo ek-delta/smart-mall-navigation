@@ -62,7 +62,7 @@ LOCALIZATION = {
         "park_choose_spot": "🅿️ Choose a parking spot",
         "park_nearest": "🔄 Nearest free spot (automatic)",
         "sim_toggle": "🔴 Live parking simulation (other cars arrive and leave)",
-        "sim_legend": "🚗 Dotted lines show other cars: grey = driving to a spot, amber = about to leave, purple = driving to the exit ramp. 🔵 Blue spot = yours: if another car takes it, your route switches to the next nearest free spot.",
+        "sim_legend": "🚗 Dotted lines show other cars: grey = driving to a spot, amber = about to leave, purple = driving to the exit ramp, teal = dropping off passengers at the stairs, escalator or elevator. 🔵 Blue spot = yours: if another car takes it, your route switches to the next nearest free spot.",
         "sim_leave_warning": "⚠️ Heads up: the car in spot **{slot}** is about to leave for the exit ramp (in about {secs}s).",
         "sim_toast_leave": "🚗 The car in {slot} is about to pull out!",
         "sim_activity": "🕒 Recent activity",
@@ -71,6 +71,10 @@ LOCALIZATION = {
         "sim_ev_warn": "⚠️ The car in spot {slot} is about to leave",
         "sim_ev_leaving": "🚪 The car from spot {slot} is driving to the exit ramp",
         "sim_ev_gone": "👋 The car from spot {slot} left through the exit ramp",
+        "sim_ev_drop": "🚕 A car stopped at {slot} to drop off passengers",
+        "sim_ev_dropgone": "👋 The car at {slot} dropped off its passengers and is heading to the exit ramp",
+        "sim_drop_leave_warning": "🚕 Heads up: the car at **{slot}** has dropped off its passengers and is heading for the exit ramp.",
+        "sim_toast_dropleave": "🚕 The car at {slot} is heading for the exit!",
         "sim_btn_finish": "🅿️ Finish parking",
         "sim_your_spot": "📍 Your spot: **{spot}** (Rooftop Parking Lot)",
         "sim_you_parked": "✅ You parked in spot **{slot}**. It is now marked as occupied.",
@@ -109,7 +113,6 @@ LOCALIZATION = {
         "parking_editing": "✏️ Changing parking spot **{slot}** – click another free (green) spot on the map (click {slot} again to cancel).",
         "parking_taken": "⚠️ Spot {slot} is taken – pick a free (green) spot.",
         "btn_auto_spot": "🔄 Use nearest spot",
-        "btn_randomize": "🎲 Randomize occupancy",
         "marker_start": " Start",
         "marker_dest": " Destination",
         "intermediate_stops": "📍 Intermediate Stops",
@@ -177,7 +180,7 @@ LOCALIZATION = {
         "park_choose_spot": "🅿️ 选择车位",
         "park_nearest": "🔄 最近的空闲车位（自动）",
         "sim_toggle": "🔴 实时停车模拟（其他车辆进出）",
-        "sim_legend": "🚗 虚线表示其他车辆：灰色 = 驶向车位，琥珀色 = 即将离开，紫色 = 驶向出口匝道。🔵 蓝色车位是您的：若被其他车辆占用，路线会改为前往下一个最近的空闲车位。",
+        "sim_legend": "🚗 虚线表示其他车辆：灰色 = 驶向车位，琥珀色 = 即将离开，紫色 = 驶向出口匝道，青色 = 在楼梯、扶梯或电梯旁让乘客下车。🔵 蓝色车位是您的：若被其他车辆占用，路线会改为前往下一个最近的空闲车位。",
         "sim_leave_warning": "⚠️ 请注意：**{slot}** 车位的车辆即将驶向出口匝道离开（约 {secs} 秒后）。",
         "sim_toast_leave": "🚗 {slot} 车位的车辆即将驶出！",
         "sim_activity": "🕒 最近动态",
@@ -186,6 +189,10 @@ LOCALIZATION = {
         "sim_ev_warn": "⚠️ 车位 {slot} 的车辆即将离开",
         "sim_ev_leaving": "🚪 车位 {slot} 的车辆正驶向出口匝道",
         "sim_ev_gone": "👋 车位 {slot} 的车辆已从出口匝道离开",
+        "sim_ev_drop": "🚕 一辆车停在 {slot} 旁让乘客下车",
+        "sim_ev_dropgone": "👋 {slot} 旁的车辆已放下乘客，正驶向出口匝道",
+        "sim_drop_leave_warning": "🚕 请注意：**{slot}** 旁的车辆已放下乘客，正驶向出口匝道。",
+        "sim_toast_dropleave": "🚕 {slot} 旁的车辆正驶向出口！",
         "sim_btn_finish": "🅿️ 完成停车",
         "sim_your_spot": "📍 您的车位：**{spot}**（屋顶停车场）",
         "sim_you_parked": "✅ 您已停入车位 **{slot}**，该车位现已标记为已占用。",
@@ -224,7 +231,6 @@ LOCALIZATION = {
         "parking_editing": "✏️ 正在更换车位 **{slot}** – 请在地图上点击另一个空闲（绿色）车位（再次点击 {slot} 可取消）。",
         "parking_taken": "⚠️ 车位 {slot} 已被占用 – 请选择空闲（绿色）车位。",
         "btn_auto_spot": "🔄 使用最近车位",
-        "btn_randomize": "🎲 随机车位占用",
         "marker_start": " 起点",
         "marker_dest": " 终点",
         "intermediate_stops": "📍 途经点 (中转站)",
@@ -292,7 +298,7 @@ LOCALIZATION = {
         "park_choose_spot": "🅿️ Pilih petak letak kereta",
         "park_nearest": "🔄 Petak kosong terdekat (automatik)",
         "sim_toggle": "🔴 Simulasi tempat letak kereta langsung (kereta lain masuk dan keluar)",
-        "sim_legend": "🚗 Garisan putus-putus menunjukkan kereta lain: kelabu = menuju petak, kuning ambar = akan keluar, ungu = menuju ramp keluar. 🔵 Petak biru ialah milik anda: jika diambil kereta lain, laluan anda bertukar ke petak kosong terdekat yang seterusnya.",
+        "sim_legend": "🚗 Garisan putus-putus menunjukkan kereta lain: kelabu = menuju petak, kuning ambar = akan keluar, ungu = menuju ramp keluar, biru kehijauan = menurunkan penumpang di tangga, eskalator atau lif. 🔵 Petak biru ialah milik anda: jika diambil kereta lain, laluan anda bertukar ke petak kosong terdekat yang seterusnya.",
         "sim_leave_warning": "⚠️ Perhatian: kereta di petak **{slot}** akan keluar menuju ramp keluar (dalam kira-kira {secs} saat).",
         "sim_toast_leave": "🚗 Kereta di {slot} akan bergerak keluar!",
         "sim_activity": "🕒 Aktiviti terkini",
@@ -301,6 +307,10 @@ LOCALIZATION = {
         "sim_ev_warn": "⚠️ Kereta di petak {slot} akan keluar",
         "sim_ev_leaving": "🚪 Kereta dari petak {slot} menuju ramp keluar",
         "sim_ev_gone": "👋 Kereta dari petak {slot} telah keluar melalui ramp keluar",
+        "sim_ev_drop": "🚕 Sebuah kereta berhenti di {slot} untuk menurunkan penumpang",
+        "sim_ev_dropgone": "👋 Kereta di {slot} telah menurunkan penumpang dan menuju ramp keluar",
+        "sim_drop_leave_warning": "🚕 Perhatian: kereta di **{slot}** telah menurunkan penumpang dan menuju ramp keluar.",
+        "sim_toast_dropleave": "🚕 Kereta di {slot} menuju ramp keluar!",
         "sim_btn_finish": "🅿️ Selesai letak kereta",
         "sim_your_spot": "📍 Petak anda: **{spot}** (Tempat Letak Kereta Bumbung)",
         "sim_you_parked": "✅ Anda telah meletak kereta di petak **{slot}**. Petak itu kini ditandakan sebagai diisi.",
@@ -339,7 +349,6 @@ LOCALIZATION = {
         "parking_editing": "✏️ Menukar petak **{slot}** – klik petak kosong (hijau) lain pada peta (klik {slot} sekali lagi untuk batal).",
         "parking_taken": "⚠️ Petak {slot} sudah diisi – pilih petak kosong (hijau).",
         "btn_auto_spot": "🔄 Guna petak terdekat",
-        "btn_randomize": "🎲 Rawakkan petak diisi",
         "marker_start": " Permulaan",
         "marker_dest": " Destinasi",
         "intermediate_stops": "📍 Hentian Antara",
@@ -635,24 +644,8 @@ MULTI_CAD_GRAPH = {
     "P_L3_Escalator": {"P_L3_Aisle_Main": 35.0, "B_L2_Escalator": 12.0},
 }
 
-PARKING_SLOTS = {
-    "P1": {"occupied": False}, "P2": {"occupied": True}, "P3": {"occupied": False}, "P4": {"occupied": False},
-    "P5": {"occupied": True},  "P6": {"occupied": False}, "P7": {"occupied": False}, "P8": {"occupied": True},
-}
-
-def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
-    parking_status = {}
-    for spot in all_parking_spots:
-        parking_status[spot] = random.random() < occupancy_rate
-    return parking_status
-
-# The random occupancy is drawn once per session (so it stays put while you click around) and is
-# redrawn only with the "Randomize" button in the Smart Parking tab.
-if "parking_occupancy" not in st.session_state:
-    st.session_state.parking_occupancy = get_randomized_parking_spots(list(PARKING_SLOTS))
-for _slot_id, _occupied in st.session_state.parking_occupancy.items():
-    if _slot_id in PARKING_SLOTS:
-        PARKING_SLOTS[_slot_id]["occupied"] = _occupied
+# The parking lot starts empty; cars then arrive and leave in the live simulation.
+PARKING_SLOTS = {f"P{i}": {"occupied": False} for i in range(1, 9)}
 
 # ------------------------------------------------------------------------------
 # Entry/exit points (doors)
@@ -1483,6 +1476,15 @@ def render_2d_plotly_view(active_floor_z, route_path=None, node_coords_dict=MULT
                         line=dict(color="#FFFFFF", width=2)),
             hoverinfo="skip", showlegend=False, meta="mymarks",
         ))
+        # Invisible hover targets along the driver's route (filled in by the in-browser script with
+        # the place name and the distance still to go, like the route hover on the 2D map)
+        fig.add_trace(go.Scatter(
+            x=[], y=[], mode="markers",
+            marker=dict(size=12, color="rgba(0,0,0,0)"),
+            hovertext=[], hoverinfo="text",
+            hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#EF4444", font=dict(size=12, color="#0f172a")),
+            showlegend=False, meta="myhover",
+        ))
 
     # Invisible click targets (added last)
     gx, gy = ((), ()) if live_cars else build_click_grid(floor_z)   # ~6000 points: costly to hover over, unused here
@@ -1858,6 +1860,11 @@ SIM_ARRIVAL_S = (6.0, 16.0)        # random gap between two new cars
 SIM_DWELL_S = (25.0, 75.0)         # how long a car that just parked stays
 SIM_INITIAL_DWELL_S = (8.0, 60.0)  # time left for cars already parked when the simulation starts
 SIM_WARN_LEAD_S = 8.0              # warn this long before a car pulls out
+SIM_DROP_CHANCE = 0.45             # chance that a newly arriving car only drops passengers off (no parking)
+SIM_DROP_DWELL_S = (7.0, 14.0)     # how long a drop-off car waits before driving to the exit ramp
+# Drop-off points: the entry/exit door of the stairwell, escalator and elevator on the rooftop
+SIM_DROP_POINTS = {"Door_P_L3_Stairs": "P_L3_Stairs", "Door_P_L3_Escalator": "P_L3_Escalator",
+                   "Door_P_L3_Elevator": "P_L3_Elevator"}
 PARKING_IFRAME_H = 1250            # button bar 50 + banner 74 + map 640 + activity 108 + route panel 350 + margins
 
 @functools.lru_cache(maxsize=None)
@@ -1945,7 +1952,7 @@ PARKING_SIM_JS = r"""
     function setHtml(id, html) { var e = el(id); if (e && shown[id] !== html) { shown[id] = html; e.innerHTML = html; } }
 
     // ---- simulation state ----
-    var ids = Object.keys(C.slots), occ = {}, cars = [], log = [], t = 0, live = false;
+    var ids = Object.keys(C.slots), dropIds = Object.keys(C.drops), occ = {}, cars = [], log = [], t = 0, live = false;
     var target = C.assigned || null;                 // the spot the driver is being guided to
     var you = null;                                  // the spot the driver has finished parking in
     var notice = null;                               // {text, kind, until}: last "your spot was taken" message
@@ -1998,7 +2005,17 @@ PARKING_SIM_JS = r"""
         for (var i = cars.length - 1; i >= 0; i--) {
             var c = cars[i];
             if (c.state === 'arriving') {
-                if (t - c.t0 >= c.dur) { c.state = 'parked'; c.leaveAt = t + between(C.dwell); c.warned = false; addLog('parked', c.slot); }
+                if (t - c.t0 >= c.dur) {
+                    if (c.drop) { c.state = 'dropping'; c.leaveAt = t + between(C.dropDwell); addLog('drop', C.drops[c.dropId].name); }
+                    else { c.state = 'parked'; c.leaveAt = t + between(C.dwell); c.warned = false; addLog('parked', c.slot); }
+                }
+            } else if (c.state === 'dropping') {
+                if (t >= c.leaveAt) {
+                    var dout = C.drops[c.dropId].out;
+                    c.state = 'leaving'; c.route = dout; c.t0 = t; c.dur = plen(dout) / C.speed;
+                    addLog('dropgone', C.drops[c.dropId].name);
+                    if (live) toast(L.dropToast.replace('{slot}', C.drops[c.dropId].name));
+                }
             } else if (c.state === 'parked') {
                 if (t >= c.leaveAt) {
                     var out = C.slots[c.slot].out;
@@ -2009,12 +2026,16 @@ PARKING_SIM_JS = r"""
                     if (live) toast(L.toast.replace('{slot}', c.slot));
                 }
             } else if (c.state === 'leaving') {
-                if (t - c.t0 >= c.dur) { cars.splice(i, 1); addLog('gone', c.slot); }
+                if (t - c.t0 >= c.dur) { cars.splice(i, 1); if (!c.drop) addLog('gone', c.slot); }
             }
         }
         if (t >= nextArrival) {
+            var isDrop = rand() < C.dropChance;                          // some cars only drop passengers off
             var free = ids.filter(function (s) { return !occ[s]; });     // the driver's spot is fair game too
-            if (free.length) {
+            if (isDrop && dropIds.length) {
+                var did = dropIds[Math.floor(rand() * dropIds.length)], din = C.drops[did]['in'];
+                cars.push({state: 'arriving', drop: true, dropId: did, route: din, t0: t, dur: plen(din) / C.speed});
+            } else if (free.length) {
                 var s = free[Math.floor(rand() * free.length)], inn = C.slots[s]['in'];
                 cars.push({state: 'arriving', slot: s, route: inn, t0: t, dur: plen(inn) / C.speed, warned: false});
                 occ[s] = true; addLog('arriving', s);
@@ -2032,10 +2053,10 @@ PARKING_SIM_JS = r"""
     // and your route.
     function find(meta) { for (var i = 0; i < gd.data.length; i++) if (gd.data[i].meta === meta) return i; return -1; }
     var slotIdx = ids.map(function (s) { return find('slot:' + s); });
-    var myRouteIdx = find('myroute'), marksIdx = find('mymarks');
+    var myRouteIdx = find('myroute'), marksIdx = find('mymarks'), hoverIdx = find('myhover');
     var cardIdx = -1;
     ((gd.layout && gd.layout.annotations) || []).forEach(function (a, i) { if (a.name === 'slotcounter') cardIdx = i; });
-    var COL = {arriving: '#64748B', leaving: '#7C3AED', warning: '#F59E0B'};
+    var COL = {arriving: '#64748B', leaving: '#7C3AED', warning: '#F59E0B', drop: '#0891B2'};
     function rgba(h, a) { return 'rgba(' + parseInt(h.substr(1, 2), 16) + ',' + parseInt(h.substr(3, 2), 16) + ',' + parseInt(h.substr(5, 2), 16) + ',' + a + ')'; }
     var lastSlots = '', lastCard = '', lastPlan = null, myRoute = null, finishBound = false, lastUi = -1;
 
@@ -2078,7 +2099,11 @@ PARKING_SIM_JS = r"""
         cars.forEach(function (c) {
             if (c.state === 'arriving' || c.state === 'leaving') {
                 var s = split(c.route, Math.max(0, Math.min((now - c.t0) * C.speed, plen(c.route))));
-                list.push({kind: c.state, slot: c.slot, pos: s.pos, rest: s.rest});
+                list.push({kind: c.drop ? 'drop' : c.state, slot: c.slot, pos: s.pos, rest: s.rest,
+                           exiting: !!c.drop && c.state === 'leaving', place: c.drop ? C.drops[c.dropId].name : null});
+            } else if (c.state === 'dropping') {
+                var dp = C.drops[c.dropId].pos;
+                list.push({kind: 'drop', slot: null, pos: dp, rest: [dp], label: C.drops[c.dropId].name, ring: true});
             } else if (c.state === 'parked' && now >= c.leaveAt - C.warn) {
                 list.push({kind: 'warning', slot: c.slot, pos: C.slots[c.slot].pos, rest: C.slots[c.slot].out,
                            secs: Math.max(1, Math.ceil(c.leaveAt - now))});
@@ -2122,7 +2147,14 @@ PARKING_SIM_JS = r"""
             var X = M.x(c.pos[0]), Y = M.y(c.pos[1]);
             g2.beginPath(); g2.arc(X, Y, 12, 0, 2 * Math.PI);
             g2.fillStyle = COL[c.kind]; g2.fill(); g2.lineWidth = 2; g2.strokeStyle = '#FFFFFF'; g2.stroke();
-            g2.font = '15px sans-serif'; g2.fillStyle = '#0f172a'; g2.fillText('🚗', X, Y + 1);
+            g2.font = '15px sans-serif'; g2.fillStyle = '#0f172a'; g2.fillText(c.kind === 'drop' ? '🚕' : '🚗', X, Y + 1);
+            if (c.ring) {                                   // a car that is dropping passengers off: pulsing ring + place name
+                var pulse = 18 + 4 * Math.sin(now * 5);
+                g2.beginPath(); g2.arc(X, Y, pulse, 0, 2 * Math.PI);
+                g2.lineWidth = 3; g2.strokeStyle = COL.drop; g2.stroke();
+                g2.font = 'bold 13px sans-serif'; g2.fillStyle = '#0E7490';
+                g2.fillText(c.label, X, Y - 30);
+            }
             if (c.kind === 'warning') {
                 g2.font = 'bold 13px sans-serif'; g2.fillStyle = '#B45309';
                 g2.fillText('⚠ ' + c.slot + ' · ' + c.secs + 's', X, M.y(c.pos[1] + 5.2));
@@ -2146,6 +2178,34 @@ PARKING_SIM_JS = r"""
         var mine = you || target, slot = C.view === 'out' ? mine : target;
         return {slot: slot, plan: slot && C.slots[slot].plan ? C.slots[slot].plan[C.view] : null};
     }
+    function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function roomAt(x, y) {                           // name of the room polygon that contains (x, y)
+        for (var r = 0; r < C.rooms.length; r++) {
+            var cs = C.rooms[r].coords, inside = false;
+            for (var i = 0, j = cs.length - 1; i < cs.length; j = i++) {
+                var xi = cs[i][0], yi = cs[i][1], xj = cs[j][0], yj = cs[j][1];
+                if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+            }
+            if (inside) return C.rooms[r].name;
+        }
+        return C.fallbackName;
+    }
+    function hoverSamples(route) {                    // a hover point about every metre along the route
+        var hx = [], hy = [], ht = [], total = plen(route), run = 0;
+        for (var i = 1; i < route.length; i++) {
+            var a = route[i-1], b = route[i], sg = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            if (sg < 1e-9) continue;
+            var n = Math.max(1, Math.ceil(sg / 1.0));
+            for (var k = 0; k <= n; k++) {
+                var f = k / n, x = a[0] + (b[0] - a[0]) * f, y = a[1] + (b[1] - a[1]) * f;
+                var rem = Math.max(0, total - (run + sg * f));
+                hx.push(x); hy.push(y);
+                ht.push('<b>' + esc(L.hoverLoc) + ':</b> ' + esc(roomAt(x, y)) + '<br>' + esc(L.hoverRem) + ': <b>' + rem.toFixed(1) + ' m</b>');
+            }
+            run += sg;
+        }
+        return {x: hx, y: hy, t: ht};
+    }
     function syncRoute() {                            // your route on the map: redrawn only when it changes
         var cp = currentPlan(), key = (cp.slot || '-') + '|' + (you ? 'p' : 'd');
         if (key === lastPlan) return;
@@ -2159,6 +2219,10 @@ PARKING_SIM_JS = r"""
         }
         Plotly.restyle(gd, {x: [rx0], y: [ry0]}, [myRouteIdx]);
         Plotly.restyle(gd, {x: [mx], y: [my], text: [mt]}, [marksIdx]);
+        if (hoverIdx >= 0) {
+            var hs = myRoute ? hoverSamples(myRoute) : {x: [], y: [], t: []};
+            Plotly.restyle(gd, {x: [hs.x], y: [hs.y], hovertext: [hs.t]}, [hoverIdx]);
+        }
         shown['sim-plan'] = null;
     }
 
@@ -2166,7 +2230,11 @@ PARKING_SIM_JS = r"""
         setHtml('sim-plan', planHtml(currentPlan().plan));
 
         var soon = {}, nSoon = 0, warns = [];
-        list.forEach(function (c) { if (c.kind === 'warning') { soon[c.slot] = 1; nSoon++; warns.push([c.slot, c.secs]); } });
+        var dropOut = [];
+        list.forEach(function (c) {
+            if (c.kind === 'warning') { soon[c.slot] = 1; nSoon++; warns.push([c.slot, c.secs]); }
+            if (c.exiting) dropOut.push(c.place);
+        });
 
         // slot colours: blue = the driver's spot, navy = parked there
         var fc = [], lc = [];
@@ -2201,6 +2269,9 @@ PARKING_SIM_JS = r"""
         bh += warns.map(function (w) {
             var m = md(L.warn.replace('{slot}', w[0]).replace('{secs}', w[1]));
             return '<div style="background:#FEF3C7;color:#78350F;border:1px solid #F59E0B;border-radius:6px;padding:5px 10px;margin-bottom:4px;font:14px sans-serif;">' + m + '</div>';
+        }).join('');
+        bh += dropOut.map(function (place) {
+            return '<div style="background:#CFFAFE;color:#164E63;border:1px solid #0891B2;border-radius:6px;padding:5px 10px;margin-bottom:4px;font:14px sans-serif;">' + md(L.dropWarn.replace('{slot}', place)) + '</div>';
         }).join('');
         setHtml('sim-banner', bh);
         setHtml('sim-activity', '<b>' + L.activity + '</b><br>' + log.slice(-5).reverse().map(function (e) { return fill(L['ev_' + e[0]], {slot: e[1]}); }).join('<br>'));
@@ -2242,12 +2313,27 @@ def build_parking_html(fig, assigned_slot, lang, sim_age, view, manual, accessib
                           "in": [list(p) for p in car_route_pts("in", slot_id)],
                           "out": [list(p) for p in car_route_pts("out", slot_id)],
                           "plan": slot_plan(slot_id, bool(accessible), lang)}
+    drops = {}
+    for door_id, room_id in SIM_DROP_POINTS.items():
+        dx, dy, _ = MULTI_CAD_NODES[door_id]
+        drops[door_id] = {"pos": [dx, dy],
+                          "name": POI_TRANSLATIONS.get(lang, {}).get(room_id, room_id).split("(")[0].strip(),
+                          "in": [list(p) for p in car_route_pts("in", door_id)],
+                          "out": [list(p) for p in car_route_pts("out", door_id)]}
     cfg = {
+        "drops": drops, "dropChance": SIM_DROP_CHANCE, "dropDwell": list(SIM_DROP_DWELL_S),
         "slots": slots, "assigned": assigned_slot, "manual": bool(manual), "view": view,
         "seed": int(st.session_state.get("sim_seed", 1)), "age": float(sim_age),
         "speed": SIM_CAR_SPEED_MPS, "arrival": list(SIM_ARRIVAL_S), "dwell": list(SIM_DWELL_S),
         "initDwell": list(SIM_INITIAL_DWELL_S), "warn": SIM_WARN_LEAD_S,
+        "rooms": [{"name": POI_TRANSLATIONS.get(lang, {}).get(r_id, r_id).split("(")[0].strip(),
+                   "coords": [list(c) for c in info["coords"]]}
+                  for r_id, info in ROOM_POLYGONS.items() if int(info["z"]) == 3],
+        "fallbackName": POI_TRANSLATIONS.get(lang, {}).get(FLOOR_CORRIDOR[3], FLOOR_CORRIDOR[3]).split("(")[0].strip(),
         "labels": {
+            "dropWarn": lab["sim_drop_leave_warning"], "dropToast": lab["sim_toast_dropleave"],
+            "hoverLoc": HOVER_LABELS.get(lang, HOVER_LABELS["English"])[0],
+            "hoverRem": HOVER_LABELS.get(lang, HOVER_LABELS["English"])[1],
             "available": lab["available_metric"], "unavailable": lab["unavailable_metric"],
             "soon": lab["leaving_soon_metric"], "warn": lab["sim_leave_warning"],
             "toast": lab["sim_toast_leave"], "activity": lab["sim_activity"],
@@ -2256,7 +2342,7 @@ def build_parking_html(fig, assigned_slot, lang, sim_age, view, manual, accessib
             "summary": lab["parking_route_summary"], "turns": lab["parking_turn_by_turn"],
             "distLbl": lab["dist_to_spot"], "floorsLbl": lab["floors_to_ascend"], "stepsLbl": lab["total_steps"],
             "stepLbl": lab["step_lbl"], "start": lab["marker_start"].strip(), "dest": lab["marker_dest"].strip(),
-            **{f"ev_{k}": lab[f"sim_ev_{k}"] for k in ("arriving", "parked", "warn", "leaving", "gone", "taken", "you")},
+            **{f"ev_{k}": lab[f"sim_ev_{k}"] for k in ("arriving", "parked", "warn", "leaving", "gone", "taken", "you", "drop", "dropgone")},
         },
     }
     js = PARKING_SIM_JS.replace("__CFG__", json.dumps(cfg, ensure_ascii=False))
@@ -3128,13 +3214,6 @@ with tab_dir:
 def parking_tab_body():
     """Everything below the Smart Parking heading. The traffic simulation itself runs inside the maps'
     own pages (build_parking_html), so this body only renders when you interact with the page."""
-    if st.button(t["btn_randomize"], key="park_randomize"):
-        st.session_state.parking_occupancy = get_randomized_parking_spots(list(PARKING_SLOTS))
-        st.session_state.parking_choice = None
-        st.session_state.pop("sim_seed", None)     # new random traffic from the new occupancy
-        st.session_state.pop("sim_t0", None)
-        st.rerun()
-
     # Seed and start time of the traffic simulation; the maps work out the rest from these
     if "sim_seed" not in st.session_state:
         st.session_state.sim_seed = random.getrandbits(31)
