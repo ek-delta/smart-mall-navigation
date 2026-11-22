@@ -111,6 +111,7 @@ LOCALIZATION = {
         "parking_editing": "✏️ Changing parking spot **{slot}** – click another free (green) spot on the map (click {slot} again to cancel).",
         "parking_taken": "⚠️ Spot {slot} is taken – pick a free (green) spot.",
         "btn_auto_spot": "🔄 Use nearest spot",
+        "btn_randomize": "🎲 Randomize occupancy",
         "marker_start": " Start",
         "marker_dest": " Destination",
         "intermediate_stops": "📍 Intermediate Stops",
@@ -227,6 +228,7 @@ LOCALIZATION = {
         "parking_editing": "✏️ 正在更换车位 **{slot}** – 请在地图上点击另一个空闲（绿色）车位（再次点击 {slot} 可取消）。",
         "parking_taken": "⚠️ 车位 {slot} 已被占用 – 请选择空闲（绿色）车位。",
         "btn_auto_spot": "🔄 使用最近车位",
+        "btn_randomize": "🎲 随机车位占用",
         "marker_start": " 起点",
         "marker_dest": " 终点",
         "intermediate_stops": "📍 途经点 (中转站)",
@@ -343,6 +345,7 @@ LOCALIZATION = {
         "parking_editing": "✏️ Menukar petak **{slot}** – klik petak kosong (hijau) lain pada peta (klik {slot} sekali lagi untuk batal).",
         "parking_taken": "⚠️ Petak {slot} sudah diisi – pilih petak kosong (hijau).",
         "btn_auto_spot": "🔄 Guna petak terdekat",
+        "btn_randomize": "🎲 Rawakkan petak diisi",
         "marker_start": " Permulaan",
         "marker_dest": " Destinasi",
         "intermediate_stops": "📍 Hentian Antara",
@@ -638,8 +641,24 @@ MULTI_CAD_GRAPH = {
     "P_L3_Escalator": {"P_L3_Aisle_Main": 35.0, "B_L2_Escalator": 12.0},
 }
 
-# The parking lot starts empty; cars then arrive and leave in the live simulation.
-PARKING_SLOTS = {f"P{i}": {"occupied": False} for i in range(1, 9)}
+PARKING_SLOTS = {
+    "P1": {"occupied": False}, "P2": {"occupied": True}, "P3": {"occupied": False}, "P4": {"occupied": False},
+    "P5": {"occupied": True},  "P6": {"occupied": False}, "P7": {"occupied": False}, "P8": {"occupied": True},
+}
+
+def get_randomized_parking_spots(all_parking_spots, occupancy_rate=0.7):
+    parking_status = {}
+    for spot in all_parking_spots:
+        parking_status[spot] = random.random() < occupancy_rate
+    return parking_status
+
+# The random occupancy is drawn once per session (so it stays put while you click around) and is
+# redrawn only with the "Randomize" button in the Smart Parking tab.
+if "parking_occupancy" not in st.session_state:
+    st.session_state.parking_occupancy = get_randomized_parking_spots(list(PARKING_SLOTS))
+for _slot_id, _occupied in st.session_state.parking_occupancy.items():
+    if _slot_id in PARKING_SLOTS:
+        PARKING_SLOTS[_slot_id]["occupied"] = _occupied
 
 # ------------------------------------------------------------------------------
 # Entry/exit points (doors)
@@ -3198,6 +3217,13 @@ with tab_dir:
 def parking_tab_body():
     """Everything below the Smart Parking heading. The traffic simulation itself runs inside the maps'
     own pages (build_parking_html), so this body only renders when you interact with the page."""
+    if st.button(t["btn_randomize"], key="park_randomize"):
+        st.session_state.parking_occupancy = get_randomized_parking_spots(list(PARKING_SLOTS))
+        st.session_state.parking_choice = None
+        st.session_state.pop("sim_seed", None)     # new random traffic from the new occupancy
+        st.session_state.pop("sim_t0", None)
+        st.rerun()
+
     # Seed and start time of the traffic simulation; the maps work out the rest from these
     if "sim_seed" not in st.session_state:
         st.session_state.sim_seed = random.getrandbits(31)
