@@ -747,7 +747,9 @@ for _hub, (_xyz, _anchor) in END_HUBS.items():
     MULTI_CAD_GRAPH.setdefault(_hub, {})[_anchor] = _d
     MULTI_CAD_GRAPH.setdefault(_anchor, {})[_hub] = _d
 
+install_doors(MULTI_CAD_NODES, MULTI_CAD_GRAPH, DOORS, ROOM_POLYGONS)
 
+# Remove the old loop that redirected Door_A_L0_Info to Door_A_L0_Entrance
 # A door that opens onto another room's centre node (Info -> Entrance) would force the route through
 # that centre. Join it straight to the other room's door instead (the centre link stays as a fallback).
 for _room, (_dx, _dy, _link) in list(DOORS.items()):
