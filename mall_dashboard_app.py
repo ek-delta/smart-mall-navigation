@@ -752,12 +752,9 @@ install_doors(MULTI_CAD_NODES, MULTI_CAD_GRAPH, DOORS, ROOM_POLYGONS)
 # A door that opens onto another room's centre node (Info -> Entrance) would force the route through
 # that centre. Join it straight to the other room's door instead (the centre link stays as a fallback).
 # Replace lines 449-454 with:
-for _room, (_dx, _dy, _link) in list(DOORS.items()):
+for _room, (_dx, _dy, _link) in DOORS.items():
     _a, _b = f"{DOOR_PREFIX}{_room}", f"{DOOR_PREFIX}{_link}"
     if _b in MULTI_CAD_NODES:
-        # Remove the link to the other room's centre node so routes never detour to its centre
-        MULTI_CAD_GRAPH.get(_a, {}).pop(_link, None)
-        MULTI_CAD_GRAPH.get(_link, {}).pop(_a, None)
         _d = math.hypot(_dx - MULTI_CAD_NODES[_b][0], _dy - MULTI_CAD_NODES[_b][1])
         MULTI_CAD_GRAPH[_a][_b] = _d
         MULTI_CAD_GRAPH[_b][_a] = _d
