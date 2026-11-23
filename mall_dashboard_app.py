@@ -660,7 +660,7 @@ DOORS = {
     "Fashion Hub": (0.0, -4.0, "H_L0_South"),
     "Mega Supermarket": (0.0, 20.0, "H_L0_North"),
     "A_L0_Entrance": (-30.0, 8.0, "H_L0_West"),
-    "A_L0_Info": (-40.0, 20.0, "H_L0_West"),
+    "A_L0_Info": (-40.0, 20.0, "A_L0_Entrance"),
     "A_L0_Elevator": (50.0, 17.0, "H_L0_End"),
     "A_L0_Escalator": (50.0, 3.5, "H_L0_End"),
     "A_L0_Stairs": (41.0, -4.0, "H_L0_End"),
