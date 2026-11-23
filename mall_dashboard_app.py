@@ -861,7 +861,7 @@ def resolve_all_route_points(route_sequence, floor_z, graph_copy, nodes_copy):
             if room_door and room_door in nodes_copy:
                 # Click is inside a room with a door: the only way in or out
                 # is through that room's entry/exit point.
-                link(room_door
+                link(room_door)
                 for other_room, (_dx, _dy, door_link) in DOORS.items():
                     if door_link == room_id:
                         other_door = f"{DOOR_PREFIX}{other_room}"
