@@ -1953,7 +1953,7 @@ PARKING_SIM_JS = r"""
 
     // ---- simulation state ----
     var ids = Object.keys(C.slots), dropIds = Object.keys(C.drops), occ = {}, cars = [], log = [], t = 0, live = false;
-    var target = C.assigned || null;                 // the spot the driver is being guided to
+    var target = null;                               // the spot the driver is being guided to (set once the page is live)
     var you = null;                                  // the spot the driver has finished parking in
     var notice = null;                               // {text, kind, until}: last "your spot was taken" message
     ids.forEach(function (s) {
@@ -2043,7 +2043,7 @@ PARKING_SIM_JS = r"""
             }
             nextArrival = t + between(C.arrival);
         }
-        if (!target && !you) target = pickNext(null);   // a spot came free while there was none to go to
+        if (live && !target && !you) target = pickNext(null);   // a spot came free while there was none to go to
     }
 
     // ---- drawing ----
@@ -2293,6 +2293,12 @@ PARKING_SIM_JS = r"""
     function loop() { frame(); window.requestAnimationFrame(loop); }
 
     catchUp(); live = true;
+    // The page is reloaded whenever you pick a spot, and the traffic is replayed from time 0. The choice
+    // only counts from *now*, so apply it here instead of at time 0 (otherwise a car that parked there
+    // earlier in the replay would silently swap your spot for another one).
+    if (C.assigned && !occ[C.assigned] && C.slots[C.assigned].plan) target = C.assigned;
+    else if (C.assigned && C.manual) lose(C.assigned);      // chosen spot is taken right now: next nearest free one
+    else target = pickNext(null);
     if (window.requestAnimationFrame) window.requestAnimationFrame(loop);    // registered first, so nothing can prevent it
     else setInterval(frame, 40);
     frame();
@@ -3229,9 +3235,11 @@ def parking_tab_body():
     if st.session_state.parking_choice not in free_now:
         st.session_state.parking_choice = None
     spot_options = [NEAREST] + free_now
+    # A fixed key keeps the widget's identity stable (without it, changing `index` created a new widget each rerun)
+    if st.session_state.get("parking_pick") not in spot_options:
+        st.session_state.parking_pick = NEAREST
     picked = st.selectbox(
-        t["park_choose_spot"], options=spot_options,
-        index=spot_options.index(st.session_state.parking_choice) if st.session_state.parking_choice else 0,
+        t["park_choose_spot"], options=spot_options, key="parking_pick",
         format_func=lambda opt: t["park_nearest"] if opt == NEAREST else f"{get_location_icon(opt)} {opt}",
     )
     st.session_state.parking_choice = None if picked == NEAREST else picked
