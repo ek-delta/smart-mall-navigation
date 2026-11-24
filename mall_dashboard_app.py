@@ -997,6 +997,8 @@ LABEL_FILL = 0.88        # share of the room's width/height the text may occupy
 def _glyph_w(ch, size):
     """Approximate rendered width (px) of one character at font `size`."""
     o = ord(ch)
+    if o in (0xFE0F, 0xFE0E, 0x200D):     # variation selector / joiner: zero width
+        return 0.0
     if o >= 0x1F000:                      # emoji
         return size * 1.25
     if o >= 0x2E80:                       # CJK
@@ -1012,8 +1014,12 @@ def wrap_label(text, max_w_px, size, split_words=True):
     """Greedy word wrap of `text` to `max_w_px`; with split_words, words wider than the line are
     split by character (CJK only). Returns the list of lines."""
     lines, cur = [], ""
-    if text and ord(text[0]) >= 0x1F000 and len(text) > 1 and text[1] != " ":
-        text = text[0] + " " + text[1:]       # the leading emoji is its own word
+    if text and ord(text[0]) >= 0x1F000:
+        k = 1
+        while k < len(text) and text[k] in "\uFE0F\uFE0E\u200D":   # keep the variation selector with its emoji
+            k += 1
+        if k < len(text) and text[k] != " ":
+            text = text[:k] + " " + text[k:]  # the leading emoji is its own word
     for word in text.split():
         while (split_words and any(ord(c) >= 0x2E80 for c in word)
                and _text_w(word, size) > max_w_px and len(word) > 1):
